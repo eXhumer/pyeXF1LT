@@ -4,7 +4,11 @@ from random import randint
 from urllib.parse import quote, urlencode
 
 from requests import Session
-from websocket import WebSocket, WebSocketBadStatusException
+from websocket import (
+    WebSocket,
+    WebSocketBadStatusException,
+    WebSocketTimeoutException,
+)
 
 
 class Client:
@@ -16,7 +20,7 @@ class Client:
 
     def __init__(self) -> None:
         self.__rest_session = Session()
-        self.__ws = WebSocket()
+        self.__ws = WebSocket(skip_utf8_validation=True)
         self.__connection_token: str | None = None
         self.__message_id: str | None = None
         self.__groups_token: str | None = None
@@ -43,7 +47,7 @@ class Client:
                         "transport": "webSockets",
                         "connectionToken": self.__connection_token,
                         "clientProtocol": Client.__client_protocol,
-                        "connectionData": "[{\"name\":\"streaming\"}]",
+                        "connectionData": [{"name": "streaming"}],
                     },
                     quote_via=quote,
                 ),
@@ -78,7 +82,7 @@ class Client:
                         "messageId": self.__message_id,
                         "clientProtocol": Client.__client_protocol,
                         "connectionToken": self.__connection_token,
-                        "connectionData": "[{\"name\":\"streaming\"}]",
+                        "connectionData": [{"name": "streaming"}],
                         "tid": randint(0, 11),
                     },
                     quote_via=quote,
@@ -98,7 +102,7 @@ class Client:
                                 "transport": "webSockets",
                                 "clientProtocol": Client.__client_protocol,
                                 "connectionToken": self.__connection_token,
-                                "connectionData": "[{\"name\":\"streaming\"}]",
+                                "connectionData": [{"name": "streaming"}],
                                 "tid": randint(0, 11),
                             },
                             quote_via=quote,
@@ -153,7 +157,7 @@ class Client:
                 {
                     "_": str(self.__dt),
                     "clientProtocol": Client.__client_protocol,
-                    "connectionData": "[{\"name\":\"streaming\"}]",
+                    "connectionData": [{"name": "streaming"}],
                 },
                 quote_via=quote,
             ),
@@ -188,7 +192,7 @@ class Client:
                         "transport": "webSockets",
                         "clientProtocol": Client.__client_protocol,
                         "connectionToken": self.__connection_token,
-                        "connectionData": "[{\"name\":\"streaming\"}]",
+                        "connectionData": [{"name": "streaming"}],
                         "_": str(self.__dt),
                     },
                     quote_via=quote,
@@ -219,18 +223,23 @@ class Client:
             else:
                 assert False, "Unreachable code!"
 
-            opcode, recv_data = self.__ws.recv_data()
-            opcode: int
-            recv_data: bytes
-            json_data = json.loads(recv_data)
+            while True:
+                try:
+                    opcode, recv_data = self.__ws.recv_data()
+                    opcode: int
+                    recv_data: bytes
+                    json_data = json.loads(recv_data)
 
-            if "C" in json_data:
-                self.__message_id = json_data["C"]
+                    if "C" in json_data:
+                        self.__message_id = json_data["C"]
 
-            if "G" in json_data:
-                self.__groups_token = json_data["G"]
+                    if "G" in json_data:
+                        self.__groups_token = json_data["G"]
 
-            return opcode, json_data
+                    return opcode, json_data
+
+                except WebSocketTimeoutException:
+                    continue
 
     def streaming_status(self) -> str:
         res = self.__rest_session.get(
