@@ -1,1 +1,1 @@
-from ._client import F1Client  # noqa: F401
+from ._client import AsyncF1Client, F1Client  # noqa: F401
