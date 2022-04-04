@@ -1,8 +1,9 @@
 import json
 from asyncio import TimeoutError
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from random import randint
-from typing import Any, Dict
+from typing import Any, Dict, List
 from urllib.parse import quote, urlencode
 
 from aiohttp import ClientSession, ClientWebSocketResponse
@@ -12,6 +13,8 @@ from websocket import (
     WebSocketBadStatusException,
     WebSocketTimeoutException,
 )
+
+from ._model import DiscordModel
 
 
 class F1Client:
@@ -198,27 +201,24 @@ class F1Client:
     def __recv(self):
         assert self.__ws.connected
 
-        if self.__last_ping_at:
-            if (
-                datetime.now() >=
-                self.__last_ping_at + F1Client.__ping_interval
-            ):
-                self.__last_ping_at = datetime.now()
-                self.__ping()
-
-        elif self.__connected_at:
-            if (
-                datetime.now() >=
-                self.__connected_at + F1Client.__ping_interval
-            ):
-                self.__last_ping_at = datetime.now()
-                self.__ping()
-
-        else:
-            assert False, "Unreachable code!"
-
         while True:
             try:
+                if self.__last_ping_at:
+                    if (
+                        datetime.now() >=
+                        self.__last_ping_at + F1Client.__ping_interval
+                    ):
+                        self.__last_ping_at = datetime.now()
+                        self.__ping()
+
+                elif self.__connected_at:
+                    if (
+                        datetime.now() >=
+                        self.__connected_at + F1Client.__ping_interval
+                    ):
+                        self.__last_ping_at = datetime.now()
+                        self.__ping()
+
                 opcode, recv_data = self.__ws.recv_data()
                 opcode: int
                 json_data: Dict[str, Any] = json.loads(recv_data)
@@ -527,3 +527,349 @@ class AsyncF1Client:
         res_json = json.loads((await res.content.read()).decode("utf-8-sig"))
         streaming_status = res_json["Status"]
         return streaming_status
+
+
+class DiscordClient:
+    """Discord client
+    """
+    __rest_api_url = "https://discord.com/api"
+    __rest_api_version = 9
+
+    class BotAuthorization:
+        def __init__(self, bot_token: str) -> None:
+            self.__token = bot_token
+
+        def __str__(self) -> str:
+            return f"Bot {self.__token}"
+
+    def __init__(
+        self,
+        authorization: BotAuthorization,
+        session: Session | None = None,
+    ):
+        if session is None:
+            session = Session()
+
+        self.__authorization = authorization
+        self.__session = session
+
+    def post_message(
+        self,
+        channel_id: str,
+        content: str | None = None,
+        tts: bool | None = None,
+        embeds: List[DiscordModel.Embed] | None = None,
+        allowed_mentions: DiscordModel.AllowedMention | None = None,
+        message_reference: DiscordModel.MessageReference | None = None,
+        sticker_ids: List[str] | None = None,
+        flags: int | None = None,
+        files: List[Path] | None = None,
+    ):
+        assert content or embeds or sticker_ids or files
+
+        json_data = {}
+
+        if tts is not None:
+            json_data.update(tts=tts)
+
+        if content:
+            json_data.update(content=content)
+
+        if embeds:
+            json_data.update(embeds=[])
+
+            for embed in embeds:
+                embed_data = {}
+
+                if embed.title:
+                    embed_data.update(title=embed.title)
+
+                if embed.type:
+                    embed_data.update(type=embed.type)
+
+                if embed.description:
+                    embed_data.update(description=embed.description)
+
+                if embed.url:
+                    embed_data.update(url=embed.url)
+
+                if embed.timestamp:
+                    embed_data.update(
+                        timestamp=embed.timestamp.isoformat(tz=timezone.utc),
+                    )
+
+                if embed.color:
+                    embed_data.update(color=embed.color)
+
+                if embed.footer:
+                    embed_footer_data = {"text": embed.footer.text}
+
+                    if embed.footer.icon_url:
+                        embed_footer_data.update(
+                            icon_url=embed.footer.icon_url,
+                        )
+
+                    if embed.footer.proxy_icon_url:
+                        embed_footer_data.update(
+                            proxy_icon_url=embed.footer.proxy_icon_url,
+                        )
+
+                    embed_data.update(footer=embed_footer_data)
+
+                if embed.image:
+                    embed_image_data = {"url": embed.image.url}
+
+                    if embed.image.proxy_url:
+                        embed_image_data.update(
+                            proxy_url=embed.image.proxy_url,
+                        )
+
+                    if embed.image.height:
+                        embed_image_data.update(height=embed.image.height)
+
+                    if embed.image.width:
+                        embed_image_data.update(width=embed.image.width)
+
+                    embed_data.update(image=embed_image_data)
+
+                if embed.thumbnail:
+                    embed_thumbnail_data = {"url": embed.thumbnail.url}
+
+                    if embed.thumbnail.proxy_url:
+                        embed_thumbnail_data.update(
+                            proxy_url=embed.thumbnail.proxy_url,
+                        )
+
+                    if embed.thumbnail.height:
+                        embed_thumbnail_data.update(
+                            height=embed.thumbnail.height,
+                        )
+
+                    if embed.image.width:
+                        embed_thumbnail_data.update(
+                            width=embed.thumbnail.width,
+                        )
+
+                    embed_data.update(thumbnail=embed_thumbnail_data)
+
+                if embed.video:
+                    embed_video_data = {"url": embed.video.url}
+
+                    if embed.video.proxy_url:
+                        embed_video_data.update(
+                            proxy_url=embed.video.proxy_url,
+                        )
+
+                    if embed.video.height:
+                        embed_video_data.update(height=embed.video.height)
+
+                    if embed.video.width:
+                        embed_video_data.update(width=embed.video.width)
+
+                    embed_data.update(video=embed_video_data)
+
+                if embed.provider:
+                    embed_provider_data = {}
+
+                    if embed.provider.name:
+                        embed_provider_data.update(name=embed.provider.name)
+
+                    if embed.provider.url:
+                        embed_provider_data.update(url=embed.provider.url)
+
+                    embed_data.update(provider=embed_provider_data)
+
+                if embed.author:
+                    embed_author_data = {"name": embed.author.name}
+
+                    if embed.author.url:
+                        embed_author_data.update(url=embed.author.url)
+
+                    if embed.author.icon_url:
+                        embed_author_data.update(
+                            icon_url=embed.author.icon_url,
+                        )
+
+                    if embed.author.proxy_icon_url:
+                        embed_author_data.update(
+                            proxy_icon_url=embed.author.proxy_icon_url,
+                        )
+
+                    embed_data.update(author=embed_author_data)
+
+                if embed.fields:
+                    fields = []
+
+                    for embed_field in embed.fields:
+                        embed_field_data = {
+                            "name": embed_field.name,
+                            "value": embed_field.value,
+                        }
+
+                        if embed_field.inline is not None:
+                            embed_field_data.update(inline=embed_field.inline)
+
+                        fields.append(embed_field_data)
+
+                    embed_data.update(fields=fields)
+
+                json_data["embeds"].append(embed_data)
+
+        if sticker_ids:
+            json_data.update(sticker_ids=sticker_ids)
+
+        if allowed_mentions:
+            allowed_mentions_data = {
+                "parse": allowed_mentions.parse,
+                "roles": allowed_mentions.roles,
+                "users": allowed_mentions.users,
+                "replied_user": allowed_mentions.replied_user,
+            }
+
+            json_data.update(allowed_mentions=allowed_mentions_data)
+
+        if message_reference:
+            message_reference_data = {}
+
+            if message_reference.message_id:
+                message_reference_data.update(
+                    message_id=message_reference.message_id,
+                )
+
+            if message_reference.channel_id:
+                message_reference_data.update(
+                    channel_id=message_reference.channel_id,
+                )
+
+            if message_reference.guild_id:
+                message_reference_data.update(
+                    guild_id=message_reference.guild_id,
+                )
+
+            if message_reference.fail_if_not_exists:
+                message_reference_data.update(
+                    fail_if_not_exists=message_reference.fail_if_not_exists,
+                )
+
+            json_data.update(message_reference=message_reference_data)
+
+        if flags is not None:
+            json_data.update(flags=flags)
+
+        res = self.__post(
+            f"channels/{channel_id}/messages",
+            json=json_data,
+        )
+        res.raise_for_status()
+
+        return res
+
+    def __get(self, uri: str, **kwargs):
+        while uri.startswith("/"):
+            uri = uri[1:]
+
+        if "headers" in kwargs:
+            if "Authorization" not in kwargs["headers"]:
+                kwargs["headers"]["Authorization"] = str(self.__authorization)
+
+        else:
+            kwargs.update({
+                "headers": {"Authorization": str(self.__authorization)}
+            })
+
+        return self.__session.get(
+            "/".join((
+                DiscordClient.__rest_api_url,
+                f"v{DiscordClient.__rest_api_version}",
+                uri,
+            )),
+            **kwargs,
+        )
+
+    def __post(self, uri: str, **kwargs):
+        while uri.startswith("/"):
+            uri = uri[1:]
+
+        if "headers" in kwargs:
+            if "Authorization" not in kwargs["headers"]:
+                kwargs["headers"]["Authorization"] = str(self.__authorization)
+
+        else:
+            kwargs.update({
+                "headers": {"Authorization": str(self.__authorization)}
+            })
+
+        return self.__session.post(
+            "/".join((
+                DiscordClient.__rest_api_url,
+                f"v{DiscordClient.__rest_api_version}",
+                uri,
+            )),
+            **kwargs,
+        )
+
+    def __patch(self, uri: str, **kwargs):
+        while uri.startswith("/"):
+            uri = uri[1:]
+
+        if "headers" in kwargs:
+            if "Authorization" not in kwargs["headers"]:
+                kwargs["headers"]["Authorization"] = str(self.__authorization)
+
+        else:
+            kwargs.update({
+                "headers": {"Authorization": str(self.__authorization)}
+            })
+
+        return self.__session.patch(
+            "/".join((
+                DiscordClient.__rest_api_url,
+                f"v{DiscordClient.__rest_api_version}",
+                uri,
+            )),
+            **kwargs,
+        )
+
+    def __put(self, uri: str, **kwargs):
+        while uri.startswith("/"):
+            uri = uri[1:]
+
+        if "headers" in kwargs:
+            if "Authorization" not in kwargs["headers"]:
+                kwargs["headers"]["Authorization"] = str(self.__authorization)
+
+        else:
+            kwargs.update({
+                "headers": {"Authorization": str(self.__authorization)}
+            })
+
+        return self.__session.put(
+            "/".join((
+                DiscordClient.__rest_api_url,
+                f"v{DiscordClient.__rest_api_version}",
+                uri,
+            )),
+            **kwargs,
+        )
+
+    def __delete(self, uri: str, **kwargs):
+        while uri.startswith("/"):
+            uri = uri[1:]
+
+        if "headers" in kwargs:
+            if "Authorization" not in kwargs["headers"]:
+                kwargs["headers"]["Authorization"] = str(self.__authorization)
+
+        else:
+            kwargs.update({
+                "headers": {"Authorization": str(self.__authorization)}
+            })
+
+        return self.__session.delete(
+            "/".join((
+                DiscordClient.__rest_api_url,
+                f"v{DiscordClient.__rest_api_version}",
+                uri,
+            )),
+            **kwargs,
+        )
