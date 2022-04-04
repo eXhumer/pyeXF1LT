@@ -1,3 +1,18 @@
+# pyeXF1LT - Unofficial F1 live timing clients
+# Copyright (C) 2022  eXhumer
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, version 3 of the License.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import dateutil.parser
 import os
 from datetime import datetime, timezone
@@ -87,7 +102,9 @@ if __name__ == "__main__":
                                     f"(Lap {rc_data['Lap']})",
                                     description=rc_data["Message"],
                                     type=DiscordType.Embed.RICH,
-                                    timestamp=dateutil.parser.parse(msg_data[2]),
+                                    timestamp=dateutil.parser.parse(
+                                        msg_data[2]
+                                    ),
                                     footer=DiscordModel.Embed.Footer(
                                         f"Category: {rc_data['Category']}",
                                     ),
@@ -113,7 +130,9 @@ if __name__ == "__main__":
                                         f"Type: {sc_info['Type']}",
                                     )),
                                     type=DiscordType.Embed.RICH,
-                                    timestamp=dateutil.parser.parse(msg_data[2]),
+                                    timestamp=dateutil.parser.parse(
+                                        msg_data[2]
+                                    ),
                                 ),
                             ],
                         )
@@ -131,15 +150,21 @@ if __name__ == "__main__":
                                         weather_data['AirTemp'],
                                         "Track Temperature: " +
                                         weather_data['TrackTemp'],
-                                        f"Humidity: {weather_data['Humidity']}",
-                                        f"Pressure: {weather_data['Pressure']}",
-                                        f"Rainfall: {weather_data['Rainfall']}",
+                                        "Humidity: " +
+                                        weather_data['Humidity'],
+                                        "Pressure: " +
+                                        weather_data['Pressure'],
+                                        "Rainfall: " +
+                                        weather_data['Rainfall'],
                                         "Wind Direction: " +
                                         weather_data['WindDirection'],
-                                        f"Wind Speed: {weather_data['WindSpeed']}",
+                                        "Wind Speed: " +
+                                        weather_data['WindSpeed'],
                                     )),
                                     type=DiscordType.Embed.RICH,
-                                    timestamp=dateutil.parser.parse(msg_data[2]),
+                                    timestamp=dateutil.parser.parse(
+                                        msg_data[2],
+                                    ),
                                 ),
                             ],
                         )
@@ -161,7 +186,9 @@ if __name__ == "__main__":
                                         track_status['Message'],
                                     )),
                                     type=DiscordType.Embed.RICH,
-                                    timestamp=dateutil.parser.parse(msg_data[2]),
+                                    timestamp=dateutil.parser.parse(
+                                        msg_data[2],
+                                    ),
                                 ),
                             ],
                         )
@@ -176,13 +203,15 @@ if __name__ == "__main__":
                                     title="Session Data",
                                     description="\n".join((
                                         ("Track Status: " +
-                                        session_data['TrackStatus'])
+                                         session_data['TrackStatus'])
                                         if 'TrackStatus' in session_data
                                         else ("Session Status: " +
-                                            session_data['SessionStatus']),
+                                              session_data['SessionStatus']),
                                     )),
                                     type=DiscordType.Embed.RICH,
-                                    timestamp=dateutil.parser.parse(msg_data[2]),
+                                    timestamp=dateutil.parser.parse(
+                                        msg_data[2],
+                                    ),
                                 ),
                             ],
                         )
@@ -202,7 +231,9 @@ if __name__ == "__main__":
                                         clock_data['Extrapolating'],
                                     )),
                                     type=DiscordType.Embed.RICH,
-                                    timestamp=dateutil.parser.parse(msg_data[2]),
+                                    timestamp=dateutil.parser.parse(
+                                        msg_data[2],
+                                    ),
                                 ),
                             ],
                         )
