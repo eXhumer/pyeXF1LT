@@ -1,6 +1,6 @@
 import json
 from asyncio import TimeoutError
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 from random import randint
 from typing import Any, Dict, List
@@ -595,7 +595,7 @@ class DiscordClient:
 
                 if embed.timestamp:
                     embed_data.update(
-                        timestamp=embed.timestamp.isoformat(tz=timezone.utc),
+                        timestamp=embed.timestamp.isoformat(),
                     )
 
                 if embed.color:
