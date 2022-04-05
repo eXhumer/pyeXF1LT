@@ -26,6 +26,7 @@ from requests import Session
 from websocket import (
     WebSocket,
     WebSocketBadStatusException,
+    WebSocketConnectionClosedException,
     WebSocketTimeoutException,
 )
 
@@ -65,13 +66,19 @@ class F1Client:
         return self
 
     def __next__(self):
-        if not self.__ws.connected and self.__reconnect:
-            self.__connect()
+        while True:
+            if not self.__ws.connected and self.__reconnect:
+                self.__connect()
 
-        if self.__ws.connected:
-            return self.message()
+            if self.__ws.connected:
+                try:
+                    return self.message()
 
-        raise StopIteration
+                except WebSocketConnectionClosedException:
+                    if not self.__reconnect:
+                        raise
+
+            raise StopIteration
 
     def __close(self):
         if self.__connection_token:
