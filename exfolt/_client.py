@@ -78,6 +78,8 @@ class F1Client:
                     if not self.__reconnect:
                         raise
 
+                    continue
+
             raise StopIteration
 
     def __close(self):
