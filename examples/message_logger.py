@@ -27,7 +27,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     log_path: Path = args.log_file
 
-    with log_path.open(mode="wb") as log_stream:
+    with log_path.open(mode="a") as log_stream:
         try:
             with F1Client() as exfolt:
                 for msg in exfolt:
@@ -36,7 +36,7 @@ if __name__ == "__main__":
                     if "C" in msg:
                         msg_data = msg["M"][0]["A"]
                         log_stream.write(
-                            (dumps(msg_data, indent=4) + "\n").encode("ascii")
+                            (dumps(msg_data, indent=4) + "\n")
                         )
 
         except KeyboardInterrupt:
