@@ -22,7 +22,7 @@ from typing import Any, Dict, List
 from urllib.parse import quote, urlencode
 
 from aiohttp import ClientSession, ClientWebSocketResponse
-from requests import Session
+from requests import ConnectionError, Session
 from websocket import (
     WebSocket,
     WebSocketBadStatusException,
@@ -217,17 +217,21 @@ class F1Client:
         self.__connection_token: str = res_json["ConnectionToken"]
         self.__ws.settimeout(60)
 
-    def __ping(self) -> str:
-        res = self.__rest_session.get(
-            "/".join((
-                self.__signalr_rest_url,
-                "ping",
-            )) + "?" + urlencode({
-                "_": str(int(datetime.now().timestamp() * 1000))
-            }),
-        )
-        res.raise_for_status()
-        return res.json()["Response"]
+    def __ping(self) -> str | None:
+        try:
+            res = self.__rest_session.get(
+                "/".join((
+                    self.__signalr_rest_url,
+                    "ping",
+                )) + "?" + urlencode({
+                    "_": str(int(datetime.now().timestamp() * 1000))
+                }),
+            )
+            res.raise_for_status()
+            return res.json()["Response"]
+
+        except ConnectionError:
+            print("Connection error while pinging!")
 
     def __recv(self):
         assert self.__ws.connected
