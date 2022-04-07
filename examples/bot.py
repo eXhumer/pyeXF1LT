@@ -14,6 +14,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import dateutil.parser
+import json
 import os
 from datetime import datetime, timezone
 from enum import Enum
@@ -103,7 +104,7 @@ if __name__ == "__main__":
                                     description=rc_data["Message"],
                                     type=DiscordType.Embed.RICH,
                                     timestamp=dateutil.parser.parse(
-                                        msg_data[2]
+                                        msg_data[2],
                                     ),
                                     footer=DiscordModel.Embed.Footer(
                                         f"Category: {rc_data['Category']}",
@@ -131,7 +132,7 @@ if __name__ == "__main__":
                                     )),
                                     type=DiscordType.Embed.RICH,
                                     timestamp=dateutil.parser.parse(
-                                        msg_data[2]
+                                        msg_data[2],
                                     ),
                                 ),
                             ],
@@ -228,8 +229,40 @@ if __name__ == "__main__":
                                         "Remaining: " +
                                         clock_data['Remaining'],
                                         "Extrapolating: " +
-                                        clock_data['Extrapolating'],
+                                        str(clock_data['Extrapolating']),
                                     )),
+                                    type=DiscordType.Embed.RICH,
+                                    timestamp=dateutil.parser.parse(
+                                        msg_data[2],
+                                    ),
+                                ),
+                            ],
+                        )
+
+                    elif msg_data[0] == "Heartbeat":
+                        discord.post_message(
+                            os.environ["DISCORD_CHANNEL_ID"],
+                            embeds=[
+                                DiscordModel.Embed(
+                                    title="Heartbeat Received",
+                                    type=DiscordType.Embed.RICH,
+                                    timestamp=dateutil.parser.parse(
+                                        msg_data[1]["Utc"],
+                                    ),
+                                ),
+                            ],
+                        )
+
+                    else:
+                        discord.post_message(
+                            os.environ["DISCORD_CHANNEL_ID"],
+                            embeds=[
+                                DiscordModel.Embed(
+                                    title=msg_data[0],
+                                    description=json.dumps(
+                                        msg_data[1],
+                                        indent=4,
+                                    ),
                                     type=DiscordType.Embed.RICH,
                                     timestamp=dateutil.parser.parse(
                                         msg_data[2],
