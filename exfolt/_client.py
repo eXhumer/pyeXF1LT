@@ -50,7 +50,6 @@ class F1Client:
         self.__connection_token: str | None = None
         self.__message_id: str | None = None
         self.__groups_token: str | None = None
-        self.__dt = int(datetime.now().timestamp() * 1000)
         self.__connected_at: datetime | None = None
         self.__last_ping_at: datetime | None = None
         self.__reconnect = reconnect
@@ -116,23 +115,31 @@ class F1Client:
             self.__negotiate()
 
         if self.__groups_token and self.__message_id:
-            self.__ws.connect(
-                "/".join((
-                    self.__signalr_wss_url,
-                    "reconnect",
-                )) + "?" + urlencode(
-                    {
-                        "transport": "webSockets",
-                        "groupsToken": self.__groups_token,
-                        "messageId": self.__message_id,
-                        "clientProtocol": F1Client.__client_protocol,
-                        "connectionToken": self.__connection_token,
-                        "connectionData": [{"name": "streaming"}],
-                        "tid": randint(0, 11),
-                    },
-                    quote_via=quote,
-                ),
-            )
+            while not self.__ws.connected:
+                try:
+                    self.__ws.connect(
+                        "/".join((
+                            self.__signalr_wss_url,
+                            "reconnect",
+                        )) + "?" + urlencode(
+                            {
+                                "transport": "webSockets",
+                                "groupsToken": self.__groups_token,
+                                "messageId": self.__message_id,
+                                "clientProtocol": F1Client.__client_protocol,
+                                "connectionToken": self.__connection_token,
+                                "connectionData": [{"name": "streaming"}],
+                                "tid": randint(0, 11),
+                            },
+                            quote_via=quote,
+                        ),
+                    )
+
+                except WebSocketBadStatusException:
+                    continue
+
+            self.__connected_at = datetime.now()
+            self.__last_ping_at = None
 
         else:
             while not self.__ws.connected:
@@ -198,7 +205,7 @@ class F1Client:
                 "negotiate",
             )) + "?" + urlencode(
                 {
-                    "_": str(self.__dt),
+                    "_": str(int(datetime.now().timestamp() * 1000)),
                     "clientProtocol": F1Client.__client_protocol,
                     "connectionData": [{"name": "streaming"}],
                 },
@@ -206,7 +213,6 @@ class F1Client:
             ),
         )
         res.raise_for_status()
-        self.__dt += 1
         res_json = res.json()
         self.__connection_token: str = res_json["ConnectionToken"]
         self.__ws.settimeout(60)
@@ -216,10 +222,11 @@ class F1Client:
             "/".join((
                 self.__signalr_rest_url,
                 "ping",
-            )) + "?" + urlencode({"_": str(self.__dt)}),
+            )) + "?" + urlencode({
+                "_": str(int(datetime.now().timestamp() * 1000))
+            }),
         )
         res.raise_for_status()
-        self.__dt += 1
         return res.json()["Response"]
 
     def __recv(self):
@@ -270,13 +277,12 @@ class F1Client:
                         "clientProtocol": F1Client.__client_protocol,
                         "connectionToken": self.__connection_token,
                         "connectionData": [{"name": "streaming"}],
-                        "_": str(self.__dt),
+                        "_": str(int(datetime.now().timestamp() * 1000)),
                     },
                     quote_via=quote,
                 ),
             )
             res.raise_for_status()
-            self.__dt += 1
             return res.json()["Response"]
 
     def message(self):
@@ -315,7 +321,6 @@ class AsyncF1Client:
         self.__connection_token: str | None = None
         self.__message_id: str | None = None
         self.__groups_token: str | None = None
-        self.__dt = int(datetime.now().timestamp() * 1000)
         self.__connected_at: datetime | None = None
         self.__last_ping_at: datetime | None = None
 
@@ -453,7 +458,7 @@ class AsyncF1Client:
                 "negotiate",
             )) + "?" + urlencode(
                 {
-                    "_": str(self.__dt),
+                    "_": str(int(datetime.now().timestamp() * 1000)),
                     "clientProtocol": AsyncF1Client.__client_protocol,
                     "connectionData": [{"name": "streaming"}],
                 },
@@ -461,7 +466,6 @@ class AsyncF1Client:
             ),
         )
         res.raise_for_status()
-        self.__dt += 1
         res_json = await res.json()
         self.__connection_token: str = res_json["ConnectionToken"]
 
@@ -470,10 +474,11 @@ class AsyncF1Client:
             "/".join((
                 self.__signalr_rest_url,
                 "ping",
-            )) + "?" + urlencode({"_": str(self.__dt)}),
+            )) + "?" + urlencode({
+                "_": str(int(datetime.now().timestamp() * 1000))
+            }),
         )
         res.raise_for_status()
-        self.__dt += 1
         return (await res.json())["Response"]
 
     async def __recv(self):
@@ -526,13 +531,12 @@ class AsyncF1Client:
                         "clientProtocol": AsyncF1Client.__client_protocol,
                         "connectionToken": self.__connection_token,
                         "connectionData": [{"name": "streaming"}],
-                        "_": str(self.__dt),
+                        "_": str(int(datetime.now().timestamp() * 1000)),
                     },
                     quote_via=quote,
                 ),
             )
             res.raise_for_status()
-            self.__dt += 1
             return (await res.json())["Response"]
 
     async def message(self):
@@ -782,6 +786,202 @@ class DiscordClient:
 
         res = self.__post(
             f"channels/{channel_id}/messages",
+            json=json_data,
+        )
+        res.raise_for_status()
+
+        return res
+
+    @staticmethod
+    def post_webhook_message(
+        webhook_id: str,
+        webhook_token: str,
+        content: str | None = None,
+        username: str | None = None,
+        avatar_url: str | None = None,
+        tts: bool | None = None,
+        embeds: List[DiscordModel.Embed] | None = None,
+        allowed_mentions: DiscordModel.AllowedMention | None = None,
+        flags: int | None = None,
+    ):
+        session = Session()
+        assert content or embeds
+
+        json_data = {}
+
+        if tts is not None:
+            json_data.update(tts=tts)
+
+        if content:
+            json_data.update(content=content)
+
+        if username:
+            json_data.update(username=username)
+
+        if avatar_url:
+            json_data.update(avatar_url=avatar_url)
+
+        if embeds:
+            json_data.update(embeds=[])
+
+            for embed in embeds:
+                embed_data = {}
+
+                if embed.title:
+                    embed_data.update(title=embed.title)
+
+                if embed.type:
+                    embed_data.update(type=embed.type)
+
+                if embed.description:
+                    embed_data.update(description=embed.description)
+
+                if embed.url:
+                    embed_data.update(url=embed.url)
+
+                if embed.timestamp:
+                    embed_data.update(
+                        timestamp=embed.timestamp.isoformat(),
+                    )
+
+                if embed.color:
+                    embed_data.update(color=embed.color)
+
+                if embed.footer:
+                    embed_footer_data = {"text": embed.footer.text}
+
+                    if embed.footer.icon_url:
+                        embed_footer_data.update(
+                            icon_url=embed.footer.icon_url,
+                        )
+
+                    if embed.footer.proxy_icon_url:
+                        embed_footer_data.update(
+                            proxy_icon_url=embed.footer.proxy_icon_url,
+                        )
+
+                    embed_data.update(footer=embed_footer_data)
+
+                if embed.image:
+                    embed_image_data = {"url": embed.image.url}
+
+                    if embed.image.proxy_url:
+                        embed_image_data.update(
+                            proxy_url=embed.image.proxy_url,
+                        )
+
+                    if embed.image.height:
+                        embed_image_data.update(height=embed.image.height)
+
+                    if embed.image.width:
+                        embed_image_data.update(width=embed.image.width)
+
+                    embed_data.update(image=embed_image_data)
+
+                if embed.thumbnail:
+                    embed_thumbnail_data = {"url": embed.thumbnail.url}
+
+                    if embed.thumbnail.proxy_url:
+                        embed_thumbnail_data.update(
+                            proxy_url=embed.thumbnail.proxy_url,
+                        )
+
+                    if embed.thumbnail.height:
+                        embed_thumbnail_data.update(
+                            height=embed.thumbnail.height,
+                        )
+
+                    if embed.image.width:
+                        embed_thumbnail_data.update(
+                            width=embed.thumbnail.width,
+                        )
+
+                    embed_data.update(thumbnail=embed_thumbnail_data)
+
+                if embed.video:
+                    embed_video_data = {"url": embed.video.url}
+
+                    if embed.video.proxy_url:
+                        embed_video_data.update(
+                            proxy_url=embed.video.proxy_url,
+                        )
+
+                    if embed.video.height:
+                        embed_video_data.update(height=embed.video.height)
+
+                    if embed.video.width:
+                        embed_video_data.update(width=embed.video.width)
+
+                    embed_data.update(video=embed_video_data)
+
+                if embed.provider:
+                    embed_provider_data = {}
+
+                    if embed.provider.name:
+                        embed_provider_data.update(name=embed.provider.name)
+
+                    if embed.provider.url:
+                        embed_provider_data.update(url=embed.provider.url)
+
+                    embed_data.update(provider=embed_provider_data)
+
+                if embed.author:
+                    embed_author_data = {"name": embed.author.name}
+
+                    if embed.author.url:
+                        embed_author_data.update(url=embed.author.url)
+
+                    if embed.author.icon_url:
+                        embed_author_data.update(
+                            icon_url=embed.author.icon_url,
+                        )
+
+                    if embed.author.proxy_icon_url:
+                        embed_author_data.update(
+                            proxy_icon_url=embed.author.proxy_icon_url,
+                        )
+
+                    embed_data.update(author=embed_author_data)
+
+                if embed.fields:
+                    fields = []
+
+                    for embed_field in embed.fields:
+                        embed_field_data = {
+                            "name": embed_field.name,
+                            "value": embed_field.value,
+                        }
+
+                        if embed_field.inline is not None:
+                            embed_field_data.update(inline=embed_field.inline)
+
+                        fields.append(embed_field_data)
+
+                    embed_data.update(fields=fields)
+
+                json_data["embeds"].append(embed_data)
+
+        if allowed_mentions:
+            allowed_mentions_data = {
+                "parse": allowed_mentions.parse,
+                "roles": allowed_mentions.roles,
+                "users": allowed_mentions.users,
+                "replied_user": allowed_mentions.replied_user,
+            }
+
+            json_data.update(allowed_mentions=allowed_mentions_data)
+
+        if flags is not None:
+            json_data.update(flags=flags)
+
+        res = session.post(
+            "/".join((
+                DiscordClient.__rest_api_url,
+                f"v{DiscordClient.__rest_api_version}",
+                "webhooks",
+                webhook_id,
+                webhook_token,
+            )),
             json=json_data,
         )
         res.raise_for_status()
