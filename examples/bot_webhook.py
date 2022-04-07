@@ -243,19 +243,7 @@ if __name__ == "__main__":
                         )
 
                     elif msg_data[0] == "Heartbeat":
-                        DiscordClient.post_webhook_message(
-                            os.environ["DISCORD_WEBHOOK_ID"],
-                            os.environ["DISCORD_WEBHOOK_TOKEN"],
-                            embeds=[
-                                DiscordModel.Embed(
-                                    title="Heartbeat Received",
-                                    type=DiscordType.Embed.RICH,
-                                    timestamp=dateutil.parser.parse(
-                                        msg_data[1]["Utc"],
-                                    ),
-                                ),
-                            ],
-                        )
+                        pass
 
                     else:
                         DiscordClient.post_webhook_message(

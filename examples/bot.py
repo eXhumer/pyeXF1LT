@@ -240,18 +240,7 @@ if __name__ == "__main__":
                         )
 
                     elif msg_data[0] == "Heartbeat":
-                        discord.post_message(
-                            os.environ["DISCORD_CHANNEL_ID"],
-                            embeds=[
-                                DiscordModel.Embed(
-                                    title="Heartbeat Received",
-                                    type=DiscordType.Embed.RICH,
-                                    timestamp=dateutil.parser.parse(
-                                        msg_data[1]["Utc"],
-                                    ),
-                                ),
-                            ],
-                        )
+                        pass
 
                     else:
                         discord.post_message(

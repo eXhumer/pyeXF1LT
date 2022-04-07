@@ -35,9 +35,11 @@ if __name__ == "__main__":
 
                     if "C" in msg:
                         msg_data = msg["M"][0]["A"]
-                        log_stream.write(
-                            (dumps(msg_data, indent=4) + "\n")
-                        )
+
+                        if msg_data[0] != "Heartbeat":
+                            log_stream.write(
+                                (dumps(msg_data, indent=4) + "\n")
+                            )
 
         except KeyboardInterrupt:
             pass
