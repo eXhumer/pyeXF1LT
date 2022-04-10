@@ -14,7 +14,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import dateutil.parser
-import json
 import os
 from datetime import datetime, timezone
 from enum import Enum
@@ -65,9 +64,14 @@ if __name__ == "__main__":
     if "DISCORD_WEBHOOK_TOKEN" not in os.environ:
         raise RuntimeError("No Discord webhook token specified!")
 
-    DiscordClient.post_webhook_message(
-        os.environ["DISCORD_WEBHOOK_ID"],
-        os.environ["DISCORD_WEBHOOK_TOKEN"],
+    def discord_webhook_message(**args):
+        return DiscordClient.post_webhook_message(
+            os.environ["DISCORD_WEBHOOK_ID"],
+            os.environ["DISCORD_WEBHOOK_TOKEN"],
+            **args,
+        )
+
+    discord_webhook_message(
         embeds=[
             DiscordModel.Embed(
                 title="Live Timing Bot Started",
@@ -90,15 +94,12 @@ if __name__ == "__main__":
                             rc_data = msg_data[1]["Messages"][0]
 
                         else:
-                            rc_data = msg_data[1]["Messages"].values()[0]
+                            rc_data = list(msg_data[1]["Messages"].values())[0]
 
-                        DiscordClient.post_webhook_message(
-                            os.environ["DISCORD_WEBHOOK_ID"],
-                            os.environ["DISCORD_WEBHOOK_TOKEN"],
+                        discord_webhook_message(
                             embeds=[
                                 DiscordModel.Embed(
-                                    title="Race Control Message " +
-                                    f"(Lap {rc_data['Lap']})",
+                                    title="Race Control Message",
                                     description=rc_data["Message"],
                                     type=DiscordType.Embed.RICH,
                                     timestamp=dateutil.parser.parse(
@@ -114,9 +115,7 @@ if __name__ == "__main__":
                     elif msg_data[0] == "SessionInfo":
                         sc_info = msg_data[1]
 
-                        DiscordClient.post_webhook_message(
-                            os.environ["DISCORD_WEBHOOK_ID"],
-                            os.environ["DISCORD_WEBHOOK_TOKEN"],
+                        discord_webhook_message(
                             embeds=[
                                 DiscordModel.Embed(
                                     title="Session Information",
@@ -140,9 +139,7 @@ if __name__ == "__main__":
                     elif msg_data[0] == "WeatherData":
                         weather_data = msg_data[1]
 
-                        DiscordClient.post_webhook_message(
-                            os.environ["DISCORD_WEBHOOK_ID"],
-                            os.environ["DISCORD_WEBHOOK_TOKEN"],
+                        discord_webhook_message(
                             embeds=[
                                 DiscordModel.Embed(
                                     title="Weather Information",
@@ -174,9 +171,7 @@ if __name__ == "__main__":
                         track_status = msg_data[1]
                         status_str = __track_status_str(track_status['Status'])
 
-                        DiscordClient.post_webhook_message(
-                            os.environ["DISCORD_WEBHOOK_ID"],
-                            os.environ["DISCORD_WEBHOOK_TOKEN"],
+                        discord_webhook_message(
                             embeds=[
                                 DiscordModel.Embed(
                                     title="Track Status",
@@ -196,44 +191,50 @@ if __name__ == "__main__":
                         )
 
                     elif msg_data[0] == "SessionData":
-                        session_data = msg_data[1]["StatusSeries"].values()[0]
+                        if "StatusSeries" in msg_data[1]:
+                            if type(msg_data[1]["StatusSeries"]) == list:
+                                series_status = msg_data[1]["StatusSeries"][0]
 
-                        DiscordClient.post_webhook_message(
-                            os.environ["DISCORD_WEBHOOK_ID"],
-                            os.environ["DISCORD_WEBHOOK_TOKEN"],
-                            embeds=[
-                                DiscordModel.Embed(
-                                    title="Session Data",
-                                    description="\n".join((
-                                        ("Track Status: " +
-                                         session_data['TrackStatus'])
-                                        if 'TrackStatus' in session_data
-                                        else ("Session Status: " +
-                                              session_data['SessionStatus']),
-                                    )),
-                                    type=DiscordType.Embed.RICH,
-                                    timestamp=dateutil.parser.parse(
-                                        msg_data[2],
+                            else:
+                                series_status = list(
+                                    msg_data[1]["StatusSeries"].values())[0]
+
+                            discord_webhook_message(
+                                embeds=[
+                                    DiscordModel.Embed(
+                                        title="Session Data",
+                                        description="\n".join((
+                                            ("Track Status: " +
+                                             series_status["TrackStatus"])
+                                            if "TrackStatus" in series_status
+                                            else (
+                                                "Session Status: " +
+                                                series_status["SessionStatus"]
+                                            ),
+                                        )),
+                                        type=DiscordType.Embed.RICH,
+                                        timestamp=dateutil.parser.parse(
+                                            msg_data[2],
+                                        ),
                                     ),
-                                ),
-                            ],
-                        )
+                                ],
+                            )
 
                     elif msg_data[0] == "ExtrapolatedClock":
                         clock_data = msg_data[1]
+                        embed_desc = f"Remaining: {clock_data['Remaining']}"
 
-                        DiscordClient.post_webhook_message(
-                            os.environ["DISCORD_WEBHOOK_ID"],
-                            os.environ["DISCORD_WEBHOOK_TOKEN"],
+                        if "Extrapolating" in clock_data:
+                            embed_desc += "".join((
+                                "\nExtrapolating: ",
+                                clock_data["Extrapolating"],
+                            ))
+
+                        discord_webhook_message(
                             embeds=[
                                 DiscordModel.Embed(
                                     title="Extrapolated Clock",
-                                    description="\n".join((
-                                        "Remaining: " +
-                                        clock_data['Remaining'],
-                                        "Extrapolating: " +
-                                        str(clock_data['Extrapolating']),
-                                    )),
+                                    description=embed_desc,
                                     type=DiscordType.Embed.RICH,
                                     timestamp=dateutil.parser.parse(
                                         msg_data[2],
@@ -246,28 +247,10 @@ if __name__ == "__main__":
                         pass
 
                     else:
-                        DiscordClient.post_webhook_message(
-                            os.environ["DISCORD_WEBHOOK_ID"],
-                            os.environ["DISCORD_WEBHOOK_TOKEN"],
-                            embeds=[
-                                DiscordModel.Embed(
-                                    title=msg_data[0],
-                                    description=json.dumps(
-                                        msg_data[1],
-                                        indent=4,
-                                    ),
-                                    type=DiscordType.Embed.RICH,
-                                    timestamp=dateutil.parser.parse(
-                                        msg_data[2],
-                                    ),
-                                ),
-                            ],
-                        )
+                        print(msg_data)
 
     except KeyboardInterrupt:
-        DiscordClient.post_webhook_message(
-            os.environ["DISCORD_WEBHOOK_ID"],
-            os.environ["DISCORD_WEBHOOK_TOKEN"],
+        discord_webhook_message(
             embeds=[
                 DiscordModel.Embed(
                     title="Live Timing Bot Stopped",
