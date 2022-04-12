@@ -1,4 +1,4 @@
-# pyeXF1LT - Unofficial F1 live timing clients
+# pyeXF1LT - Unofficial F1 live timing client
 # Copyright (C) 2022  eXhumer
 
 # This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import Dict, List
 
 from ._type import DiscordType
 
@@ -185,6 +185,27 @@ class DiscordModel:
             self.author = author
             self.fields = fields
 
+    class Emoji:
+        def __init__(
+            self,
+            id: str | None = None,
+            name: str | None = None,
+            roles: List[str] | None = None,
+            user: DiscordModel.User | None = None,
+            require_colons: bool | None = None,
+            managed: bool | None = None,
+            animated: bool | None = None,
+            available: bool | None = None,
+        ):
+            self.id = id
+            self.name = name
+            self.roles = roles
+            self.user = user
+            self.require_colons = require_colons
+            self.managed = managed
+            self.animated = animated
+            self.available = available
+
     class MessageReference:
         def __init__(
             self,
@@ -197,3 +218,124 @@ class DiscordModel:
             self.channel_id = channel_id
             self.guild_id = guild_id
             self.fail_if_not_exists = fail_if_not_exists
+
+    class ActionRowComponent:
+        def __init__(
+            self,
+            components: List[
+                DiscordModel.ButtonComponent |
+                DiscordModel.SelectMenuComponent |
+                DiscordModel.TextInputComponent,
+            ],
+        ):
+            self.type = DiscordType.Component.ACTION_ROW
+            self.components = components
+
+    class ButtonComponent:
+        def __init__(
+            self,
+            style: DiscordType.ButtonStyle,
+            label: str | None = None,
+            emoji: Dict[str, bool | str] | None = None,
+            custom_id: str | None = None,
+            url: str | None = None,
+            disabled: bool | None = None,
+        ):
+            self.type = DiscordType.Component.BUTTON
+            self.style = style
+            self.label = label
+            self.emoji = emoji
+            self.custom_id = custom_id
+            self.url = url
+            self.disabled = disabled
+
+    class SelectMenuComponent:
+        class Option:
+            def __init__(
+                self,
+                label: str,
+                value: str,
+                description: str | None = None,
+                emoji: Dict[str, bool | str] | None = None,
+                default: bool | None = None,
+            ) -> None:
+                self.label = label
+                self.value = value
+                self.description = description
+                self.emoji = emoji
+                self.default = default
+
+        def __init__(
+            self,
+            custom_id: str,
+            options: List[DiscordModel.SelectMenuComponent.Option],
+            placeholder: str | None = None,
+            min_values: int | None = None,
+            max_values: int | None = None,
+            disabled: bool | None = None,
+        ) -> None:
+            self.type = DiscordType.Component.SELECT_MENU
+            self.custom_id = custom_id
+            self.options = options
+            self.placeholder = placeholder
+            self.min_values = min_values
+            self.max_values = max_values
+            self.disabled = disabled
+
+    class TextInputComponent:
+        def __init__(
+            self,
+            custom_id: str,
+            style: DiscordType.TextInputStyle,
+            label: str,
+            min_length: int | None = None,
+            max_length: int | None = None,
+            required: bool | None = None,
+            value: str | None = None,
+            placeholder: str | None = None,
+        ) -> None:
+            self.type = DiscordType.Component.TEXT_INPUT
+            self.custom_id = custom_id
+            self.style = style
+            self.label = label
+            self.min_length = min_length
+            self.max_length = max_length
+            self.required = required
+            self.value = value
+            self.placeholder = placeholder
+
+    class User:
+        def __init__(
+            self,
+            id: str,
+            username: str,
+            discriminator: str,
+            avatar: str | None = None,
+            bot: bool | None = None,
+            system: bool | None = None,
+            mfa_enabled: bool | None = None,
+            banner: str | None = None,
+            accent_color: int | None = None,
+            locale: str | None = None,
+            verified: bool | None = None,
+            email: str | None = None,
+            flags: int | None = None,
+            premium_type: int | None = None,
+            public_flags: int | None = None,
+
+        ) -> None:
+            self.id = id
+            self.username = username
+            self.discriminator = discriminator
+            self.avatar = avatar
+            self.bot = bot
+            self.system = system
+            self.mfa_enabled = mfa_enabled
+            self.banner = banner
+            self.accent_color = accent_color
+            self.locale = locale
+            self.verified = verified
+            self.email = email
+            self.flags = flags
+            self.premium_type = premium_type
+            self.public_flags = public_flags

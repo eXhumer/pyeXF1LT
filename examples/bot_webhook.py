@@ -1,4 +1,4 @@
-# pyeXF1LT - Unofficial F1 live timing clients
+# pyeXF1LT - Unofficial F1 live timing client
 # Copyright (C) 2022  eXhumer
 
 # This program is free software: you can redistribute it and/or modify
@@ -16,45 +16,15 @@
 import dateutil.parser
 import os
 from datetime import datetime, timezone
-from enum import Enum
 
-from exfolt import F1Client, DiscordClient, DiscordModel, DiscordType
-
-
-class __TrackStatus(str, Enum):
-    ALL_CLEAR = "1"
-    YELLOW = "2"
-    GREEN = "3"
-    SC_DEPLOYED = "4"
-    RED = "5"
-    VSC_DEPLOYED = "6"
-    VSC_ENDING = "7"
-
-
-def __track_status_str(status: __TrackStatus):
-    if status == __TrackStatus.ALL_CLEAR:
-        return "All Clear"
-
-    elif status == __TrackStatus.YELLOW:
-        return "Yellow"
-
-    elif status == __TrackStatus.GREEN:
-        return "Green"
-
-    elif status == __TrackStatus.SC_DEPLOYED:
-        return "Safety Car Deployed"
-
-    elif status == __TrackStatus.RED:
-        return "Red"
-
-    elif status == __TrackStatus.VSC_DEPLOYED:
-        return "Virtual Safety Car Deployed"
-
-    elif status == __TrackStatus.VSC_ENDING:
-        return "Virtual Safety Car Ending"
-
-    else:
-        return "Unknown"
+from exfolt import (
+    DiscordClient,
+    DiscordModel,
+    DiscordType,
+    F1Client,
+    race_control_message_embed,
+    track_status_str,
+)
 
 
 if __name__ == "__main__":
@@ -90,25 +60,9 @@ if __name__ == "__main__":
                     msg_data = msg["M"][0]["A"]
 
                     if msg_data[0] == "RaceControlMessages":
-                        if type(msg_data[1]["Messages"]) == list:
-                            rc_data = msg_data[1]["Messages"][0]
-
-                        else:
-                            rc_data = list(msg_data[1]["Messages"].values())[0]
-
                         discord_webhook_message(
                             embeds=[
-                                DiscordModel.Embed(
-                                    title="Race Control Message",
-                                    description=rc_data["Message"],
-                                    type=DiscordType.Embed.RICH,
-                                    timestamp=dateutil.parser.parse(
-                                        msg_data[2],
-                                    ),
-                                    footer=DiscordModel.Embed.Footer(
-                                        f"Category: {rc_data['Category']}",
-                                    ),
-                                ),
+                                race_control_message_embed(msg_data),
                             ],
                         )
 
@@ -121,11 +75,11 @@ if __name__ == "__main__":
                                     title="Session Information",
                                     description="\n".join((
                                         "Official Name: " +
-                                        sc_info['Meeting']['OfficialName'],
+                                        sc_info["Meeting"]["OfficialName"],
                                         "Location: " +
-                                        sc_info['Meeting']['Location'],
+                                        sc_info["Meeting"]["Location"],
                                         "Country: " +
-                                        sc_info['Meeting']['Country']['Name'],
+                                        sc_info["Meeting"]["Country"]["Name"],
                                         f"Type: {sc_info['Type']}",
                                     )),
                                     type=DiscordType.Embed.RICH,
@@ -137,6 +91,7 @@ if __name__ == "__main__":
                         )
 
                     elif msg_data[0] == "WeatherData":
+                        pass
                         weather_data = msg_data[1]
 
                         discord_webhook_message(
@@ -145,19 +100,19 @@ if __name__ == "__main__":
                                     title="Weather Information",
                                     description="\n".join((
                                         "Air Temperature: " +
-                                        weather_data['AirTemp'],
+                                        weather_data["AirTemp"],
                                         "Track Temperature: " +
-                                        weather_data['TrackTemp'],
+                                        weather_data["TrackTemp"],
                                         "Humidity: " +
-                                        weather_data['Humidity'],
+                                        weather_data["Humidity"],
                                         "Pressure: " +
-                                        weather_data['Pressure'],
+                                        weather_data["Pressure"],
                                         "Rainfall: " +
-                                        weather_data['Rainfall'],
+                                        weather_data["Rainfall"],
                                         "Wind Direction: " +
-                                        weather_data['WindDirection'],
+                                        weather_data["WindDirection"],
                                         "Wind Speed: " +
-                                        weather_data['WindSpeed'],
+                                        weather_data["WindSpeed"],
                                     )),
                                     type=DiscordType.Embed.RICH,
                                     timestamp=dateutil.parser.parse(
@@ -169,7 +124,7 @@ if __name__ == "__main__":
 
                     elif msg_data[0] == "TrackStatus":
                         track_status = msg_data[1]
-                        status_str = __track_status_str(track_status['Status'])
+                        status_str = track_status_str(track_status["Status"])
 
                         discord_webhook_message(
                             embeds=[
@@ -177,10 +132,10 @@ if __name__ == "__main__":
                                     title="Track Status",
                                     description="\n".join((
                                         "Status: " +
-                                        track_status['Status'] +
+                                        track_status["Status"] +
                                         f"({status_str})",
                                         "Message: " +
-                                        track_status['Message'],
+                                        track_status["Message"],
                                     )),
                                     type=DiscordType.Embed.RICH,
                                     timestamp=dateutil.parser.parse(

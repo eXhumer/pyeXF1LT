@@ -1,4 +1,4 @@
-# pyeXF1LT - Unofficial F1 live timing clients
+# pyeXF1LT - Unofficial F1 live timing client
 # Copyright (C) 2022  eXhumer
 
 # This program is free software: you can redistribute it and/or modify
@@ -14,15 +14,15 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import json
-from asyncio import TimeoutError
 from datetime import datetime, timedelta
+from mimetypes import guess_type
 from pathlib import Path
 from random import randint
 from typing import Any, Dict, List
 from urllib.parse import quote, urlencode
 
-from aiohttp import ClientSession, ClientWebSocketResponse
 from requests import ConnectionError, Session
+from requests_toolbelt import MultipartEncoder
 from websocket import (
     WebSocket,
     WebSocketBadStatusException,
@@ -52,6 +52,7 @@ class F1Client:
         self.__groups_token: str | None = None
         self.__connected_at: datetime | None = None
         self.__last_ping_at: datetime | None = None
+        self.__old_data: Any | None = None
         self.__reconnect = reconnect
 
     def __enter__(self):
@@ -83,22 +84,26 @@ class F1Client:
 
     def __close(self):
         if self.__connection_token:
-            res = self.__rest_session.post(
-                "/".join((
-                    self.__signalr_rest_url,
-                    "abort",
-                )) + "?" + urlencode(
-                    {
-                        "transport": "webSockets",
-                        "connectionToken": self.__connection_token,
-                        "clientProtocol": F1Client.__client_protocol,
-                        "connectionData": [{"name": "streaming"}],
-                    },
-                    quote_via=quote,
-                ),
-                json={},
-            )
-            res.raise_for_status()
+            try:
+                res = self.__rest_session.post(
+                    "/".join((
+                        self.__signalr_rest_url,
+                        "abort",
+                    )) + "?" + urlencode(
+                        {
+                            "transport": "webSockets",
+                            "connectionToken": self.__connection_token,
+                            "clientProtocol": F1Client.__client_protocol,
+                            "connectionData": [{"name": "streaming"}],
+                        },
+                        quote_via=quote,
+                    ),
+                    json={},
+                )
+                res.raise_for_status()
+
+            except ConnectionError:
+                print("Connection error while closing active connection!")
 
         if self.__ws.connected:
             self.__ws.close()
@@ -193,9 +198,11 @@ class F1Client:
                 ),
             )
 
-            while "C" in self.__recv()[1]:
+            while "R" not in (msg := self.__recv()[1]):
                 continue
 
+            self.__old_data = msg["R"]
+            print(self.__old_data)
             self.__start()
 
     def __negotiate(self):
@@ -215,7 +222,7 @@ class F1Client:
         res.raise_for_status()
         res_json = res.json()
         self.__connection_token: str = res_json["ConnectionToken"]
-        self.__ws.settimeout(60)
+        self.__ws.settimeout(20)
 
     def __ping(self) -> str | None:
         try:
@@ -270,24 +277,25 @@ class F1Client:
                 continue
 
     def __start(self) -> str:
-        if self.__connection_token:
-            res = self.__rest_session.get(
-                "/".join((
-                    self.__signalr_rest_url,
-                    "start",
-                )) + "?" + urlencode(
-                    {
-                        "transport": "webSockets",
-                        "clientProtocol": F1Client.__client_protocol,
-                        "connectionToken": self.__connection_token,
-                        "connectionData": [{"name": "streaming"}],
-                        "_": str(int(datetime.now().timestamp() * 1000)),
-                    },
-                    quote_via=quote,
-                ),
-            )
-            res.raise_for_status()
-            return res.json()["Response"]
+        assert self.__connection_token
+
+        res = self.__rest_session.get(
+            "/".join((
+                self.__signalr_rest_url,
+                "start",
+            )) + "?" + urlencode(
+                {
+                    "transport": "webSockets",
+                    "clientProtocol": F1Client.__client_protocol,
+                    "connectionToken": self.__connection_token,
+                    "connectionData": [{"name": "streaming"}],
+                    "_": str(int(datetime.now().timestamp() * 1000)),
+                },
+                quote_via=quote,
+            ),
+        )
+        res.raise_for_status()
+        return res.json()["Response"]
 
     def message(self):
         assert self.__ws.connected
@@ -305,258 +313,6 @@ class F1Client:
         )
         res.raise_for_status()
         res_json = json.loads(res.content.decode("utf-8-sig"))
-        streaming_status = res_json["Status"]
-        return streaming_status
-
-
-class AsyncF1Client:
-    """F1 Live Timing Client"""
-    __ping_interval = timedelta(minutes=5)
-    __client_protocol = "1.5"
-
-    def __init__(
-        self,
-        signalr_url: str = "https://livetiming.formula1.com/signalr",
-    ) -> None:
-        self.__signalr_rest_url = signalr_url
-        self.__signalr_wss_url = signalr_url.replace("https://", "wss://")
-        self.__session = ClientSession()
-        self.__ws: ClientWebSocketResponse | None = None
-        self.__connection_token: str | None = None
-        self.__message_id: str | None = None
-        self.__groups_token: str | None = None
-        self.__connected_at: datetime | None = None
-        self.__last_ping_at: datetime | None = None
-
-    async def __aenter__(self):
-        await self.__connect()
-        return self
-
-    async def __aexit__(self, *args):
-        await self.__close()
-        await self.__session.close()
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        if (not self.__ws or self.__ws.closed) and self.__reconnect:
-            await self.__connect()
-
-        if self.__ws and not self.__ws.closed:
-            return await self.message()
-
-        raise StopAsyncIteration
-
-    async def __close(self):
-        if self.__connection_token:
-            res = await self.__session.post(
-                "/".join((
-                    self.__signalr_rest_url,
-                    "abort",
-                )) + "?" + urlencode(
-                    {
-                        "transport": "webSockets",
-                        "connectionToken": self.__connection_token,
-                        "clientProtocol": AsyncF1Client.__client_protocol,
-                        "connectionData": [{"name": "streaming"}],
-                    },
-                    quote_via=quote,
-                ),
-                json={},
-            )
-            res.raise_for_status()
-            res.close()
-
-        if self.__ws and not self.__ws.closed:
-            await self.__ws.close()
-
-        self.__connection_token = None
-        self.__message_id = None
-        self.__groups_token = None
-
-    async def __connect(self):
-        if self.__ws and not self.__ws.closed:
-            return
-
-        if not self.__connection_token:
-            await self.__negotiate()
-
-        if self.__groups_token and self.__message_id:
-            self.__ws = await self.__session.ws_connect(
-                "/".join((
-                    self.__signalr_wss_url,
-                    "reconnect",
-                )) + "?" + urlencode(
-                    {
-                        "transport": "webSockets",
-                        "groupsToken": self.__groups_token,
-                        "messageId": self.__message_id,
-                        "clientProtocol": AsyncF1Client.__client_protocol,
-                        "connectionToken": self.__connection_token,
-                        "connectionData": [{"name": "streaming"}],
-                        "tid": randint(0, 11),
-                    },
-                    quote_via=quote,
-                ),
-                timeout=60,
-            )
-
-        else:
-            self.__ws = await self.__session.ws_connect(
-                "/".join((
-                    self.__signalr_wss_url,
-                    "connect",
-                )) + "?" + urlencode(
-                    {
-                        "transport": "webSockets",
-                        "clientProtocol": AsyncF1Client.__client_protocol,
-                        "connectionToken": self.__connection_token,
-                        "connectionData": [{"name": "streaming"}],
-                        "tid": randint(0, 11),
-                    },
-                    quote_via=quote,
-                ),
-                timeout=60,
-            )
-
-            self.__connected_at = datetime.now()
-            await self.__ws.send_str(
-                json.dumps(
-                    {
-                        "H": "streaming",
-                        "M": "Subscribe",
-                        "A": [[
-                            "Heartbeat",
-                            "CarData.z",
-                            "Position.z",
-                            "ExtrapolatedClock",
-                            "TopThree",
-                            "RcmSeries",
-                            "TimingStats",
-                            "TimingAppData",
-                            "WeatherData",
-                            "TrackStatus",
-                            "DriverList",
-                            "RaceControlMessages",
-                            "SessionInfo",
-                            "SessionData",
-                            "LapCount",
-                            "TimingData",
-                        ]],
-                        "I": 0
-                    },
-                    separators=(',', ':'),
-                ),
-            )
-
-            while "C" in await self.__recv():
-                continue
-
-            await self.__start()
-
-    async def __negotiate(self):
-        res = await self.__session.get(
-            "/".join((
-                self.__signalr_rest_url,
-                "negotiate",
-            )) + "?" + urlencode(
-                {
-                    "_": str(int(datetime.now().timestamp() * 1000)),
-                    "clientProtocol": AsyncF1Client.__client_protocol,
-                    "connectionData": [{"name": "streaming"}],
-                },
-                quote_via=quote,
-            ),
-        )
-        res.raise_for_status()
-        res_json = await res.json()
-        self.__connection_token: str = res_json["ConnectionToken"]
-
-    async def __ping(self) -> str:
-        res = await self.__session.get(
-            "/".join((
-                self.__signalr_rest_url,
-                "ping",
-            )) + "?" + urlencode({
-                "_": str(int(datetime.now().timestamp() * 1000))
-            }),
-        )
-        res.raise_for_status()
-        return (await res.json())["Response"]
-
-    async def __recv(self):
-        assert self.__ws and not self.__ws.closed
-
-        if self.__last_ping_at:
-            if (
-                datetime.now() >=
-                self.__last_ping_at + AsyncF1Client.__ping_interval
-            ):
-                self.__last_ping_at = datetime.now()
-                await self.__ping()
-
-        elif self.__connected_at:
-            if (
-                datetime.now() >=
-                self.__connected_at + AsyncF1Client.__ping_interval
-            ):
-                self.__last_ping_at = datetime.now()
-                await self.__ping()
-
-        else:
-            assert False, "Unreachable code!"
-
-        while True:
-            try:
-                recv_data = await self.__ws.receive_str()
-                json_data: Dict[str, Any] = json.loads(recv_data)
-
-                if "C" in json_data:
-                    self.__message_id: str = json_data["C"]
-
-                if "G" in json_data:
-                    self.__groups_token: str = json_data["G"]
-
-                return json_data
-
-            except TimeoutError:
-                continue
-
-    async def __start(self) -> str:
-        if self.__connection_token:
-            res = await self.__session.get(
-                "/".join((
-                    self.__signalr_rest_url,
-                    "start",
-                )) + "?" + urlencode(
-                    {
-                        "transport": "webSockets",
-                        "clientProtocol": AsyncF1Client.__client_protocol,
-                        "connectionToken": self.__connection_token,
-                        "connectionData": [{"name": "streaming"}],
-                        "_": str(int(datetime.now().timestamp() * 1000)),
-                    },
-                    quote_via=quote,
-                ),
-            )
-            res.raise_for_status()
-            return (await res.json())["Response"]
-
-    async def message(self):
-        assert self.__ws and not self.__ws.closed
-        return await self.__recv()
-
-    async def streaming_status(self) -> str:
-        res = await self.__session.get(
-            "/".join((
-                "https://livetiming.formula1.com",
-                "static",
-                "StreamingStatus.json",
-            )),
-        )
-        res.raise_for_status()
-        res_json = json.loads((await res.content.read()).decode("utf-8-sig"))
         streaming_status = res_json["Status"]
         return streaming_status
 
@@ -585,6 +341,89 @@ class DiscordClient:
         self.__authorization = authorization
         self.__session = session
 
+    @staticmethod
+    def __random_attachment_id():
+        return randint(0, 0x7fffffffffffffff)
+
+    @staticmethod
+    def __button_component_data(
+        component: DiscordModel.ButtonComponent,
+    ):
+        data = {
+            "type": component.type,
+            "style": component.style,
+        }
+
+        if component.label:
+            data.update(label=component.label)
+
+        if component.emoji:
+            data.update(emoji=component.emoji)
+
+        if component.custom_id:
+            data.update(custom_id=component.custom_id)
+
+        if component.url:
+            data.update(url=component.url)
+
+        if component.disabled:
+            data.update(disabled=component.disabled)
+
+        print(data)
+        return data
+
+    @staticmethod
+    def __select_menu_component_data(
+        component: DiscordModel.SelectMenuComponent,
+    ):
+        data = {
+            "type": component.type,
+            "custom_id": component.custom_id,
+            "options": component.options,
+        }
+
+        if component.placeholder:
+            data.update(placeholder=component.placeholder)
+
+        if component.min_values:
+            data.update(min_values=component.min_values)
+
+        if component.min_values:
+            data.update(min_values=component.min_values)
+
+        if component.disabled:
+            data.update(disabled=component.disabled)
+
+        return data
+
+    @staticmethod
+    def __text_input_component_data(
+        component: DiscordModel.TextInputComponent,
+    ):
+        data = {
+            "type": component.type,
+            "custom_id": component.custom_id,
+            "style": component.style,
+            "label": component.label,
+        }
+
+        if component.min_length:
+            data.update(min_length=component.min_length)
+
+        if component.max_length:
+            data.update(max_length=component.max_length)
+
+        if component.required:
+            data.update(required=component.required)
+
+        if component.value:
+            data.update(value=component.value)
+
+        if component.placeholder:
+            data.update(placeholder=component.placeholder)
+
+        return data
+
     def post_message(
         self,
         channel_id: str,
@@ -593,22 +432,37 @@ class DiscordClient:
         embeds: List[DiscordModel.Embed] | None = None,
         allowed_mentions: DiscordModel.AllowedMention | None = None,
         message_reference: DiscordModel.MessageReference | None = None,
+        components: List[DiscordModel.ActionRowComponent] | None = None,
         sticker_ids: List[str] | None = None,
         flags: int | None = None,
         files: List[Path] | None = None,
     ):
         assert content or embeds or sticker_ids or files
 
-        json_data = {}
+        files_data = []
+        payload_json_data = {}
 
         if tts is not None:
-            json_data.update(tts=tts)
+            payload_json_data.update(tts=tts)
+
+        if files:
+            for file in files:
+                attachment_id = DiscordClient.__random_attachment_id()
+                files_data.append({
+                    "id": attachment_id,
+                    "stream": file.open(mode="rb"),
+                    "filename": str(attachment_id) + file.suffix,
+                    "content_type": guess_type(
+                        str(attachment_id) +
+                        file.suffix
+                    )[0],
+                })
 
         if content:
-            json_data.update(content=content)
+            payload_json_data.update(content=content)
 
         if embeds:
-            json_data.update(embeds=[])
+            payload_json_data.update(embeds=[])
 
             for embed in embeds:
                 embed_data = {}
@@ -649,56 +503,125 @@ class DiscordClient:
                     embed_data.update(footer=embed_footer_data)
 
                 if embed.image:
-                    embed_image_data = {"url": embed.image.url}
+                    if isinstance(embed.image, DiscordModel.Embed.Image):
+                        embed_image_data = {"url": embed.image.url}
 
-                    if embed.image.proxy_url:
-                        embed_image_data.update(
-                            proxy_url=embed.image.proxy_url,
+                        if embed.image.proxy_url:
+                            embed_image_data.update(
+                                proxy_url=embed.image.proxy_url,
+                            )
+
+                        if embed.image.height:
+                            embed_image_data.update(height=embed.image.height)
+
+                        if embed.image.width:
+                            embed_image_data.update(width=embed.image.width)
+
+                        embed_data.update(image=embed_image_data)
+
+                    else:
+                        attachment_id = DiscordClient.__random_attachment_id()
+                        files_data.append({
+                            "id": attachment_id,
+                            "stream": embed.image.open(mode="rb"),
+                            "filename": (
+                                str(attachment_id) +
+                                embed.image.suffix
+                            ),
+                            "content_type": guess_type(
+                                str(attachment_id) +
+                                embed.image.suffix
+                            ),
+                        })
+                        embed_data.update(
+                            image={
+                                "url": f"attachment://{str(attachment_id)}" +
+                                       embed.image.suffix,
+                            },
                         )
-
-                    if embed.image.height:
-                        embed_image_data.update(height=embed.image.height)
-
-                    if embed.image.width:
-                        embed_image_data.update(width=embed.image.width)
-
-                    embed_data.update(image=embed_image_data)
 
                 if embed.thumbnail:
-                    embed_thumbnail_data = {"url": embed.thumbnail.url}
+                    if isinstance(
+                        embed.thumbnail,
+                        DiscordModel.Embed.Thumbnail,
+                    ):
+                        embed_thumbnail_data = {"url": embed.thumbnail.url}
 
-                    if embed.thumbnail.proxy_url:
-                        embed_thumbnail_data.update(
-                            proxy_url=embed.thumbnail.proxy_url,
+                        if embed.thumbnail.proxy_url:
+                            embed_thumbnail_data.update(
+                                proxy_url=embed.thumbnail.proxy_url,
+                            )
+
+                        if embed.thumbnail.height:
+                            embed_thumbnail_data.update(
+                                height=embed.thumbnail.height,
+                            )
+
+                        if embed.image.width:
+                            embed_thumbnail_data.update(
+                                width=embed.thumbnail.width,
+                            )
+
+                        embed_data.update(thumbnail=embed_thumbnail_data)
+
+                    else:
+                        attachment_id = DiscordClient.__random_attachment_id()
+                        files_data.append({
+                            "id": attachment_id,
+                            "stream": embed.thumbnail.open(mode="rb"),
+                            "filename": (
+                                str(attachment_id) +
+                                embed.thumbnail.suffix
+                            ),
+                            "content_type": guess_type(
+                                str(attachment_id) +
+                                embed.thumbnail.suffix
+                            ),
+                        })
+                        embed_data.update(
+                            thumbnail={
+                                "url": f"attachment://{str(attachment_id)}" +
+                                       embed.thumbnail.suffix,
+                            },
                         )
-
-                    if embed.thumbnail.height:
-                        embed_thumbnail_data.update(
-                            height=embed.thumbnail.height,
-                        )
-
-                    if embed.image.width:
-                        embed_thumbnail_data.update(
-                            width=embed.thumbnail.width,
-                        )
-
-                    embed_data.update(thumbnail=embed_thumbnail_data)
 
                 if embed.video:
-                    embed_video_data = {"url": embed.video.url}
+                    if isinstance(embed.video, DiscordModel.Embed.Video):
+                        embed_video_data = {"url": embed.video.url}
 
-                    if embed.video.proxy_url:
-                        embed_video_data.update(
-                            proxy_url=embed.video.proxy_url,
+                        if embed.video.proxy_url:
+                            embed_video_data.update(
+                                proxy_url=embed.video.proxy_url,
+                            )
+
+                        if embed.video.height:
+                            embed_video_data.update(height=embed.video.height)
+
+                        if embed.video.width:
+                            embed_video_data.update(width=embed.video.width)
+
+                        embed_data.update(video=embed_video_data)
+
+                    else:
+                        attachment_id = DiscordClient.__random_attachment_id()
+                        files_data.append({
+                            "id": attachment_id,
+                            "stream": embed.video.open(mode="rb"),
+                            "filename": (
+                                str(attachment_id) +
+                                embed.video.suffix
+                            ),
+                            "content_type": guess_type(
+                                str(attachment_id) +
+                                embed.video.suffix
+                            ),
+                        })
+                        embed_data.update(
+                            video={
+                                "url": f"attachment://{str(attachment_id)}" +
+                                       embed.video.suffix,
+                            },
                         )
-
-                    if embed.video.height:
-                        embed_video_data.update(height=embed.video.height)
-
-                    if embed.video.width:
-                        embed_video_data.update(width=embed.video.width)
-
-                    embed_data.update(video=embed_video_data)
 
                 if embed.provider:
                     embed_provider_data = {}
@@ -745,10 +668,10 @@ class DiscordClient:
 
                     embed_data.update(fields=fields)
 
-                json_data["embeds"].append(embed_data)
+                payload_json_data["embeds"].append(embed_data)
 
         if sticker_ids:
-            json_data.update(sticker_ids=sticker_ids)
+            payload_json_data.update(sticker_ids=sticker_ids)
 
         if allowed_mentions:
             allowed_mentions_data = {
@@ -758,7 +681,7 @@ class DiscordClient:
                 "replied_user": allowed_mentions.replied_user,
             }
 
-            json_data.update(allowed_mentions=allowed_mentions_data)
+            payload_json_data.update(allowed_mentions=allowed_mentions_data)
 
         if message_reference:
             message_reference_data = {}
@@ -783,17 +706,94 @@ class DiscordClient:
                     fail_if_not_exists=message_reference.fail_if_not_exists,
                 )
 
-            json_data.update(message_reference=message_reference_data)
+            payload_json_data.update(message_reference=message_reference_data)
+
+        if components:
+            components_data = []
+
+            for component in components:
+                action_comps_data = []
+
+                for action_component in component.components:
+                    if isinstance(
+                        action_component,
+                        DiscordModel.ButtonComponent,
+                    ):
+                        action_comps_data.append(
+                            DiscordClient.__button_component_data(
+                                action_component,
+                            ),
+                        )
+
+                    elif isinstance(
+                        action_component,
+                        DiscordModel.SelectMenuComponent,
+                    ):
+                        action_comps_data.append(
+                            DiscordClient.__select_menu_component_data(
+                                action_component,
+                            ),
+                        )
+
+                    elif isinstance(
+                        action_component,
+                        DiscordModel.TextInputComponent,
+                    ):
+                        action_comps_data.append(
+                            DiscordClient.__text_input_component_data(
+                                action_component,
+                            ),
+                        )
+
+                    else:
+                        assert False
+
+            payload_json_data.update(components=components_data)
 
         if flags is not None:
-            json_data.update(flags=flags)
+            payload_json_data.update(flags=flags)
 
-        res = self.__post(
-            f"channels/{channel_id}/messages",
-            json=json_data,
-        )
+        if len(files_data) > 0:
+            files_dict = {}
+            payload_json_data.update(attachments=[])
+
+            for file_data in files_data:
+                files_dict.update({
+                    f"files[{file_data['id']}]": (
+                        file_data["filename"],
+                        file_data["stream"],
+                        file_data["content_type"],
+                    )
+                })
+                payload_json_data["attachments"].append({
+                    "id": file_data["id"],
+                    "filename": file_data["filename"],
+                })
+
+            mp_encoder = MultipartEncoder(
+                fields={
+                    "payload_json": (
+                        None,
+                        json.dumps(payload_json_data, separators=(',', ':')),
+                        "application/json",
+                    ),
+                    **files_dict,
+                }
+            )
+
+            res = self.__post(
+                f"channels/{channel_id}/messages",
+                data=mp_encoder,
+                headers={"Content-Type": mp_encoder.content_type},
+            )
+
+        else:
+            res = self.__post(
+                f"channels/{channel_id}/messages",
+                json=payload_json_data,
+            )
+
         res.raise_for_status()
-
         return res
 
     @staticmethod
@@ -806,27 +806,43 @@ class DiscordClient:
         tts: bool | None = None,
         embeds: List[DiscordModel.Embed] | None = None,
         allowed_mentions: DiscordModel.AllowedMention | None = None,
+        components: List[DiscordModel.ActionRowComponent] | None = None,
         flags: int | None = None,
+        files: List[Path] | None = None,
     ):
+        assert content or embeds or files
         session = Session()
-        assert content or embeds
 
-        json_data = {}
+        files_data = []
+        payload_json_data = {}
 
         if tts is not None:
-            json_data.update(tts=tts)
+            payload_json_data.update(tts=tts)
+
+        if files:
+            for file in files:
+                attachment_id = DiscordClient.__random_attachment_id()
+                files_data.append({
+                    "id": attachment_id,
+                    "stream": file.open(mode="rb"),
+                    "filename": str(attachment_id) + file.suffix,
+                    "content_type": guess_type(
+                        str(attachment_id) +
+                        file.suffix
+                    )[0],
+                })
 
         if content:
-            json_data.update(content=content)
+            payload_json_data.update(content=content)
 
         if username:
-            json_data.update(username=username)
+            payload_json_data.update(username=username)
 
         if avatar_url:
-            json_data.update(avatar_url=avatar_url)
+            payload_json_data.update(avatar_url=avatar_url)
 
         if embeds:
-            json_data.update(embeds=[])
+            payload_json_data.update(embeds=[])
 
             for embed in embeds:
                 embed_data = {}
@@ -867,56 +883,125 @@ class DiscordClient:
                     embed_data.update(footer=embed_footer_data)
 
                 if embed.image:
-                    embed_image_data = {"url": embed.image.url}
+                    if isinstance(embed.image, DiscordModel.Embed.Image):
+                        embed_image_data = {"url": embed.image.url}
 
-                    if embed.image.proxy_url:
-                        embed_image_data.update(
-                            proxy_url=embed.image.proxy_url,
+                        if embed.image.proxy_url:
+                            embed_image_data.update(
+                                proxy_url=embed.image.proxy_url,
+                            )
+
+                        if embed.image.height:
+                            embed_image_data.update(height=embed.image.height)
+
+                        if embed.image.width:
+                            embed_image_data.update(width=embed.image.width)
+
+                        embed_data.update(image=embed_image_data)
+
+                    else:
+                        attachment_id = DiscordClient.__random_attachment_id()
+                        files_data.append({
+                            "id": attachment_id,
+                            "stream": embed.image.open(mode="rb"),
+                            "filename": (
+                                str(attachment_id) +
+                                embed.image.suffix
+                            ),
+                            "content_type": guess_type(
+                                str(attachment_id) +
+                                embed.image.suffix
+                            ),
+                        })
+                        embed_data.update(
+                            image={
+                                "url": f"attachment://{str(attachment_id)}" +
+                                       embed.image.suffix,
+                            },
                         )
-
-                    if embed.image.height:
-                        embed_image_data.update(height=embed.image.height)
-
-                    if embed.image.width:
-                        embed_image_data.update(width=embed.image.width)
-
-                    embed_data.update(image=embed_image_data)
 
                 if embed.thumbnail:
-                    embed_thumbnail_data = {"url": embed.thumbnail.url}
+                    if isinstance(
+                        embed.thumbnail,
+                        DiscordModel.Embed.Thumbnail,
+                    ):
+                        embed_thumbnail_data = {"url": embed.thumbnail.url}
 
-                    if embed.thumbnail.proxy_url:
-                        embed_thumbnail_data.update(
-                            proxy_url=embed.thumbnail.proxy_url,
+                        if embed.thumbnail.proxy_url:
+                            embed_thumbnail_data.update(
+                                proxy_url=embed.thumbnail.proxy_url,
+                            )
+
+                        if embed.thumbnail.height:
+                            embed_thumbnail_data.update(
+                                height=embed.thumbnail.height,
+                            )
+
+                        if embed.image.width:
+                            embed_thumbnail_data.update(
+                                width=embed.thumbnail.width,
+                            )
+
+                        embed_data.update(thumbnail=embed_thumbnail_data)
+
+                    else:
+                        attachment_id = DiscordClient.__random_attachment_id()
+                        files_data.append({
+                            "id": attachment_id,
+                            "stream": embed.thumbnail.open(mode="rb"),
+                            "filename": (
+                                str(attachment_id) +
+                                embed.thumbnail.suffix
+                            ),
+                            "content_type": guess_type(
+                                str(attachment_id) +
+                                embed.thumbnail.suffix
+                            ),
+                        })
+                        embed_data.update(
+                            thumbnail={
+                                "url": f"attachment://{str(attachment_id)}" +
+                                       embed.thumbnail.suffix,
+                            },
                         )
-
-                    if embed.thumbnail.height:
-                        embed_thumbnail_data.update(
-                            height=embed.thumbnail.height,
-                        )
-
-                    if embed.image.width:
-                        embed_thumbnail_data.update(
-                            width=embed.thumbnail.width,
-                        )
-
-                    embed_data.update(thumbnail=embed_thumbnail_data)
 
                 if embed.video:
-                    embed_video_data = {"url": embed.video.url}
+                    if isinstance(embed.video, DiscordModel.Embed.Video):
+                        embed_video_data = {"url": embed.video.url}
 
-                    if embed.video.proxy_url:
-                        embed_video_data.update(
-                            proxy_url=embed.video.proxy_url,
+                        if embed.video.proxy_url:
+                            embed_video_data.update(
+                                proxy_url=embed.video.proxy_url,
+                            )
+
+                        if embed.video.height:
+                            embed_video_data.update(height=embed.video.height)
+
+                        if embed.video.width:
+                            embed_video_data.update(width=embed.video.width)
+
+                        embed_data.update(video=embed_video_data)
+
+                    else:
+                        attachment_id = DiscordClient.__random_attachment_id()
+                        files_data.append({
+                            "id": attachment_id,
+                            "stream": embed.video.open(mode="rb"),
+                            "filename": (
+                                str(attachment_id) +
+                                embed.video.suffix
+                            ),
+                            "content_type": guess_type(
+                                str(attachment_id) +
+                                embed.video.suffix
+                            ),
+                        })
+                        embed_data.update(
+                            video={
+                                "url": f"attachment://{str(attachment_id)}" +
+                                       embed.video.suffix,
+                            },
                         )
-
-                    if embed.video.height:
-                        embed_video_data.update(height=embed.video.height)
-
-                    if embed.video.width:
-                        embed_video_data.update(width=embed.video.width)
-
-                    embed_data.update(video=embed_video_data)
 
                 if embed.provider:
                     embed_provider_data = {}
@@ -963,7 +1048,7 @@ class DiscordClient:
 
                     embed_data.update(fields=fields)
 
-                json_data["embeds"].append(embed_data)
+                payload_json_data["embeds"].append(embed_data)
 
         if allowed_mentions:
             allowed_mentions_data = {
@@ -973,23 +1058,106 @@ class DiscordClient:
                 "replied_user": allowed_mentions.replied_user,
             }
 
-            json_data.update(allowed_mentions=allowed_mentions_data)
+            payload_json_data.update(allowed_mentions=allowed_mentions_data)
+
+        if components:
+            components_data = []
+
+            for component in components:
+                action_comps_data = []
+
+                for action_component in component.components:
+                    if isinstance(
+                        action_component,
+                        DiscordModel.ButtonComponent,
+                    ):
+                        action_comps_data.append(
+                            DiscordClient.__button_component_data(
+                                action_component,
+                            ),
+                        )
+
+                    elif isinstance(
+                        action_component,
+                        DiscordModel.SelectMenuComponent,
+                    ):
+                        action_comps_data.append(
+                            DiscordClient.__select_menu_component_data(
+                                action_component,
+                            ),
+                        )
+
+                    elif isinstance(
+                        action_component,
+                        DiscordModel.TextInputComponent,
+                    ):
+                        action_comps_data.append(
+                            DiscordClient.__text_input_component_data(
+                                action_component,
+                            ),
+                        )
+
+                    else:
+                        assert False
+
+            payload_json_data.update(components=components_data)
 
         if flags is not None:
-            json_data.update(flags=flags)
+            payload_json_data.update(flags=flags)
 
-        res = session.post(
-            "/".join((
-                DiscordClient.__rest_api_url,
-                f"v{DiscordClient.__rest_api_version}",
-                "webhooks",
-                webhook_id,
-                webhook_token,
-            )),
-            json=json_data,
-        )
+        if len(files_data) > 0:
+            files_dict = {}
+            payload_json_data.update(attachments=[])
+
+            for file_data in files_data:
+                files_dict.update({
+                    f"files[{file_data['id']}]": (
+                        file_data["filename"],
+                        file_data["stream"],
+                        file_data["content_type"],
+                    )
+                })
+                payload_json_data["attachments"].append({
+                    "id": file_data["id"],
+                    "filename": file_data["filename"],
+                })
+
+            mp_encoder = MultipartEncoder(
+                fields={
+                    "payload_json": (
+                        None,
+                        json.dumps(payload_json_data, separators=(',', ':')),
+                        "application/json",
+                    ),
+                    **files_dict,
+                }
+            )
+
+            res = session.post(
+                "/".join((
+                    DiscordClient.__rest_api_url,
+                    f"v{DiscordClient.__rest_api_version}",
+                    "webhooks",
+                    webhook_id,
+                    webhook_token,
+                )),
+                data=mp_encoder,
+                headers={"Content-Type": mp_encoder.content_type},
+            )
+
+        else:
+            res = session.post(
+                "/".join((
+                    DiscordClient.__rest_api_url,
+                    f"v{DiscordClient.__rest_api_version}",
+                    "webhooks",
+                    webhook_id,
+                    webhook_token,
+                )),
+                json=payload_json_data,
+            )
+
         res.raise_for_status()
-
         return res
 
     def __get(self, uri: str, **kwargs):

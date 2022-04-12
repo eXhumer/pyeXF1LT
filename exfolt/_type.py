@@ -1,4 +1,4 @@
-# pyeXF1LT - Unofficial F1 live timing clients
+# pyeXF1LT - Unofficial F1 live timing client
 # Copyright (C) 2022  eXhumer
 
 # This program is free software: you can redistribute it and/or modify
@@ -22,6 +22,19 @@ class DiscordType:
         USERS = "users"
         EVERYONE = "everyone"
 
+    class ButtonStyle(IntEnum):
+        PRIMARY = 1
+        SECONDARY = 2
+        SUCCESS = 3
+        DANGER = 4
+        LINK = 5
+
+    class Component(IntEnum):
+        ACTION_ROW = 1
+        BUTTON = 2
+        SELECT_MENU = 3
+        TEXT_INPUT = 4
+
     class Embed(str, Enum):
         RICH = "rich"
         IMAGE = "image"
@@ -40,3 +53,27 @@ class DiscordType:
         EPHEMERAL = 1 << 6
         LOADING = 1 << 7
         FAILED_TO_MENTION_SOME_ROLES_IN_THREAD = 1 << 8
+
+    class TextInputStyle(IntEnum):
+        SHORT = 1
+        PARAGRAPH = 2
+
+
+class FlagStatus(str, Enum):
+    BLUE = "BLUE"
+    CHEQUERED = "CHEQUERED"
+    CLEAR = "CLEAR"
+    GREEN = "GREEN"
+    YELLOW = "YELLOW"
+    DOUBLE_YELLOW = "DOUBLE YELLOW"
+    RED = "RED"
+
+
+class TrackStatus(str, Enum):
+    ALL_CLEAR = "1"
+    YELLOW = "2"
+    GREEN = "3"
+    SC_DEPLOYED = "4"
+    RED = "5"
+    VSC_DEPLOYED = "6"
+    VSC_ENDING = "7"

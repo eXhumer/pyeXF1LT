@@ -1,4 +1,4 @@
-# pyeXF1LT - Unofficial F1 live timing clients
+# pyeXF1LT - Unofficial F1 live timing client
 # Copyright (C) 2022  eXhumer
 
 # This program is free software: you can redistribute it and/or modify
@@ -13,6 +13,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from ._client import AsyncF1Client, DiscordClient, F1Client  # noqa: F401
+from ._client import DiscordClient, F1Client  # noqa: F401
 from ._model import DiscordModel  # noqa: F401
-from ._type import DiscordType  # noqa: F401
+from ._type import DiscordType, TrackStatus  # noqa: F401
+from ._utils import (  # noqa: F401
+    RaceControlMessageData,
+    race_control_message_embed,
+    track_status_str,
+)

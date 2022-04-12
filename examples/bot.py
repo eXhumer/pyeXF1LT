@@ -1,4 +1,4 @@
-# pyeXF1LT - Unofficial F1 live timing clients
+# pyeXF1LT - Unofficial F1 live timing client
 # Copyright (C) 2022  eXhumer
 
 # This program is free software: you can redistribute it and/or modify
@@ -14,48 +14,17 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import dateutil.parser
-import json
 import os
 from datetime import datetime, timezone
-from enum import Enum
 
-from exfolt import F1Client, DiscordClient, DiscordModel, DiscordType
-
-
-class __TrackStatus(str, Enum):
-    ALL_CLEAR = "1"
-    YELLOW = "2"
-    GREEN = "3"
-    SC_DEPLOYED = "4"
-    RED = "5"
-    VSC_DEPLOYED = "6"
-    VSC_ENDING = "7"
-
-
-def __track_status_str(status: __TrackStatus):
-    if status == __TrackStatus.ALL_CLEAR:
-        return "All Clear"
-
-    elif status == __TrackStatus.YELLOW:
-        return "Yellow"
-
-    elif status == __TrackStatus.GREEN:
-        return "Green"
-
-    elif status == __TrackStatus.SC_DEPLOYED:
-        return "Safety Car Deployed"
-
-    elif status == __TrackStatus.RED:
-        return "Red"
-
-    elif status == __TrackStatus.VSC_DEPLOYED:
-        return "Virtual Safety Car Deployed"
-
-    elif status == __TrackStatus.VSC_ENDING:
-        return "Virtual Safety Car Ending"
-
-    else:
-        return "Unknown"
+from exfolt import (
+    DiscordClient,
+    DiscordModel,
+    DiscordType,
+    F1Client,
+    race_control_message_embed,
+    track_status_str,
+)
 
 
 if __name__ == "__main__":
@@ -68,8 +37,14 @@ if __name__ == "__main__":
     discord = DiscordClient(
         DiscordClient.BotAuthorization(os.environ["DISCORD_BOT_TOKEN"]),
     )
-    discord.post_message(
-        os.environ["DISCORD_CHANNEL_ID"],
+
+    def discord_message(**args):
+        return discord.post_message(
+            os.environ["DISCORD_CHANNEL_ID"],
+            **args
+        )
+
+    discord_message(
         embeds=[
             DiscordModel.Embed(
                 title="Live Timing Bot Started",
@@ -89,45 +64,26 @@ if __name__ == "__main__":
                     msg_data = msg["M"][0]["A"]
 
                     if msg_data[0] == "RaceControlMessages":
-                        if type(msg_data[1]["Messages"]) == list:
-                            rc_data = msg_data[1]["Messages"][0]
-
-                        else:
-                            rc_data = msg_data[1]["Messages"].values()[0]
-
-                        discord.post_message(
-                            os.environ["DISCORD_CHANNEL_ID"],
+                        discord_message(
                             embeds=[
-                                DiscordModel.Embed(
-                                    title="Race Control Message " +
-                                    f"(Lap {rc_data['Lap']})",
-                                    description=rc_data["Message"],
-                                    type=DiscordType.Embed.RICH,
-                                    timestamp=dateutil.parser.parse(
-                                        msg_data[2],
-                                    ),
-                                    footer=DiscordModel.Embed.Footer(
-                                        f"Category: {rc_data['Category']}",
-                                    ),
-                                ),
+                                race_control_message_embed(msg_data),
                             ],
                         )
 
                     elif msg_data[0] == "SessionInfo":
                         sc_info = msg_data[1]
 
-                        discord.post_message(
-                            os.environ["DISCORD_CHANNEL_ID"],
+                        discord_message(
                             embeds=[
                                 DiscordModel.Embed(
                                     title="Session Information",
                                     description="\n".join((
                                         "Official Name: " +
-                                        sc_info['Meeting']['OfficialName'],
+                                        sc_info["Meeting"]["OfficialName"],
                                         "Location: " +
-                                        sc_info['Meeting']['Location'],
+                                        sc_info["Meeting"]["Location"],
                                         "Country: " +
-                                        sc_info['Meeting']['Country']['Name'],
+                                        sc_info["Meeting"]["Country"]["Name"],
                                         f"Type: {sc_info['Type']}",
                                     )),
                                     type=DiscordType.Embed.RICH,
@@ -139,28 +95,28 @@ if __name__ == "__main__":
                         )
 
                     elif msg_data[0] == "WeatherData":
+                        pass
                         weather_data = msg_data[1]
 
-                        discord.post_message(
-                            os.environ["DISCORD_CHANNEL_ID"],
+                        discord_message(
                             embeds=[
                                 DiscordModel.Embed(
                                     title="Weather Information",
                                     description="\n".join((
                                         "Air Temperature: " +
-                                        weather_data['AirTemp'],
+                                        weather_data["AirTemp"],
                                         "Track Temperature: " +
-                                        weather_data['TrackTemp'],
+                                        weather_data["TrackTemp"],
                                         "Humidity: " +
-                                        weather_data['Humidity'],
+                                        weather_data["Humidity"],
                                         "Pressure: " +
-                                        weather_data['Pressure'],
+                                        weather_data["Pressure"],
                                         "Rainfall: " +
-                                        weather_data['Rainfall'],
+                                        weather_data["Rainfall"],
                                         "Wind Direction: " +
-                                        weather_data['WindDirection'],
+                                        weather_data["WindDirection"],
                                         "Wind Speed: " +
-                                        weather_data['WindSpeed'],
+                                        weather_data["WindSpeed"],
                                     )),
                                     type=DiscordType.Embed.RICH,
                                     timestamp=dateutil.parser.parse(
@@ -172,19 +128,18 @@ if __name__ == "__main__":
 
                     elif msg_data[0] == "TrackStatus":
                         track_status = msg_data[1]
-                        status_str = __track_status_str(track_status['Status'])
+                        status_str = track_status_str(track_status["Status"])
 
-                        discord.post_message(
-                            os.environ["DISCORD_CHANNEL_ID"],
+                        discord_message(
                             embeds=[
                                 DiscordModel.Embed(
                                     title="Track Status",
                                     description="\n".join((
                                         "Status: " +
-                                        track_status['Status'] +
+                                        track_status["Status"] +
                                         f"({status_str})",
                                         "Message: " +
-                                        track_status['Message'],
+                                        track_status["Message"],
                                     )),
                                     type=DiscordType.Embed.RICH,
                                     timestamp=dateutil.parser.parse(
@@ -195,42 +150,50 @@ if __name__ == "__main__":
                         )
 
                     elif msg_data[0] == "SessionData":
-                        session_data = msg_data[1]["StatusSeries"].values()[0]
+                        if "StatusSeries" in msg_data[1]:
+                            if type(msg_data[1]["StatusSeries"]) == list:
+                                series_status = msg_data[1]["StatusSeries"][0]
 
-                        discord.post_message(
-                            os.environ["DISCORD_CHANNEL_ID"],
-                            embeds=[
-                                DiscordModel.Embed(
-                                    title="Session Data",
-                                    description="\n".join((
-                                        ("Track Status: " +
-                                         session_data['TrackStatus'])
-                                        if 'TrackStatus' in session_data
-                                        else ("Session Status: " +
-                                              session_data['SessionStatus']),
-                                    )),
-                                    type=DiscordType.Embed.RICH,
-                                    timestamp=dateutil.parser.parse(
-                                        msg_data[2],
+                            else:
+                                series_status = list(
+                                    msg_data[1]["StatusSeries"].values())[0]
+
+                            discord_message(
+                                embeds=[
+                                    DiscordModel.Embed(
+                                        title="Session Data",
+                                        description="\n".join((
+                                            ("Track Status: " +
+                                             series_status["TrackStatus"])
+                                            if "TrackStatus" in series_status
+                                            else (
+                                                "Session Status: " +
+                                                series_status["SessionStatus"]
+                                            ),
+                                        )),
+                                        type=DiscordType.Embed.RICH,
+                                        timestamp=dateutil.parser.parse(
+                                            msg_data[2],
+                                        ),
                                     ),
-                                ),
-                            ],
-                        )
+                                ],
+                            )
 
                     elif msg_data[0] == "ExtrapolatedClock":
                         clock_data = msg_data[1]
+                        embed_desc = f"Remaining: {clock_data['Remaining']}"
 
-                        discord.post_message(
-                            os.environ["DISCORD_CHANNEL_ID"],
+                        if "Extrapolating" in clock_data:
+                            embed_desc += "".join((
+                                "\nExtrapolating: ",
+                                clock_data["Extrapolating"],
+                            ))
+
+                        discord_message(
                             embeds=[
                                 DiscordModel.Embed(
                                     title="Extrapolated Clock",
-                                    description="\n".join((
-                                        "Remaining: " +
-                                        clock_data['Remaining'],
-                                        "Extrapolating: " +
-                                        str(clock_data['Extrapolating']),
-                                    )),
+                                    description=embed_desc,
                                     type=DiscordType.Embed.RICH,
                                     timestamp=dateutil.parser.parse(
                                         msg_data[2],
@@ -243,32 +206,15 @@ if __name__ == "__main__":
                         pass
 
                     else:
-                        discord.post_message(
-                            os.environ["DISCORD_CHANNEL_ID"],
-                            embeds=[
-                                DiscordModel.Embed(
-                                    title=msg_data[0],
-                                    description=json.dumps(
-                                        msg_data[1],
-                                        indent=4,
-                                    ),
-                                    type=DiscordType.Embed.RICH,
-                                    timestamp=dateutil.parser.parse(
-                                        msg_data[2],
-                                    ),
-                                ),
-                            ],
-                        )
+                        print(msg_data)
 
     except KeyboardInterrupt:
-        discord.post_message(
-            os.environ["DISCORD_CHANNEL_ID"],
+        discord_message(
             embeds=[
                 DiscordModel.Embed(
                     title="Live Timing Bot Stopped",
                     url="https://github.com/eXhumer/pyeXF1LT",
                     timestamp=datetime.now(tz=timezone.utc),
-                    author=DiscordModel.Embed.Author("eXhumer"),
                 ),
             ],
         )
