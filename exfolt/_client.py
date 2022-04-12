@@ -369,7 +369,6 @@ class DiscordClient:
         if component.disabled:
             data.update(disabled=component.disabled)
 
-        print(data)
         return data
 
     @staticmethod
