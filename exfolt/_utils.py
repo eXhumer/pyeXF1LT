@@ -101,9 +101,10 @@ def race_control_message_embed(
             assert False
 
     else:
-        color = None
+        color = 0XA6EF1F  # Light Green
 
     fields = [
+        DiscordModel.Embed.Field("Message", msg_data["Message"]),
         DiscordModel.Embed.Field("Category", msg_data["Category"]),
     ]
 
@@ -146,7 +147,7 @@ def race_control_message_embed(
         )
 
     return DiscordModel.Embed(
-        description=msg_data["Message"],
+        title="Race Control Message",
         fields=fields,
         color=color,
         timestamp=dateutil.parser.parse(msg_dt),
