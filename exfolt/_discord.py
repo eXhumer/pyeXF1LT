@@ -455,6 +455,11 @@ class DiscordClient:
                     else:
                         assert False
 
+                components_data.append({
+                    "type": component.type,
+                    "components": action_comps_data,
+                })
+
             payload_json_data.update(components=components_data)
 
         if flags is not None:
@@ -806,6 +811,11 @@ class DiscordClient:
 
                     else:
                         assert False
+
+                components_data.append({
+                    "type": component.type,
+                    "components": action_comps_data,
+                })
 
             payload_json_data.update(components=components_data)
 
