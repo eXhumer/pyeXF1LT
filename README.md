@@ -21,7 +21,7 @@ pip install .
 * [recursiveGecko](https://github.com/recursiveGecko) helping me figure out the decompression of CarData.z and Position.z datas.
 
 ## Disclaimer / Notice
-pyeXF1LT is an unofficial software and is not associated with anyway with Formula 1 or any of its companies.
+pyeXF1LT is an unofficial software and is not associated in anyway with Formula 1 or any of its companies.
 
 ## Licensing
 This project is licensed under OSI Approved [GNU GPLv3 **ONLY**](./LICENSE.md).
