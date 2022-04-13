@@ -62,7 +62,10 @@ if __name__ == "__main__":
                     if msg_data[0] == "RaceControlMessages":
                         discord_webhook_message(
                             embeds=[
-                                race_control_message_embed(msg_data),
+                                race_control_message_embed(
+                                    msg_data[1],
+                                    msg_data[2],
+                                ),
                             ],
                         )
 

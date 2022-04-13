@@ -14,7 +14,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import dateutil.parser
-from typing import Dict, List, Literal, Tuple, Union
+from typing import Dict, List, Literal, Union
 
 from ._type import FlagStatus, TrackStatus
 from ._model import DiscordModel
@@ -50,23 +50,12 @@ RaceControlMessageData = Dict[str, Union[str, int]]
 
 
 def race_control_message_embed(
-    msg: Tuple[
-        str,
-        Dict[
-            Literal["Messages"],
-            Dict[str, RaceControlMessageData] | List[RaceControlMessageData],
-        ],
-        str,
-    ]
+    msg_data: Dict[
+        Literal["Messages"],
+        Dict[str, RaceControlMessageData] | List[RaceControlMessageData],
+    ],
+    msg_dt: str,
 ):
-    [
-        msg_type,
-        msg_data,
-        msg_dt,
-    ] = msg
-
-    assert msg_type == "RaceControlMessages"
-
     if isinstance(msg_data["Messages"], list):
         msg_data = msg_data["Messages"][0]
 
@@ -98,7 +87,7 @@ def race_control_message_embed(
             color = 0xFF0000  # Red
 
         else:
-            assert False
+            raise ValueError(f"Unexpected flag status '{flag_status}'!")
 
     else:
         color = 0XA6EF1F  # Light Green
