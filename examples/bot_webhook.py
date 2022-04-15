@@ -45,9 +45,17 @@ if __name__ == "__main__":
         embeds=[
             DiscordModel.Embed(
                 title="Live Timing Bot Started",
-                url="https://github.com/eXhumer/pyeXF1LT",
                 timestamp=datetime.now(tz=timezone.utc),
             ),
+        ],
+        components=[
+            DiscordModel.ActionRowComponent([
+                DiscordModel.ButtonComponent(
+                    DiscordType.ButtonStyle.LINK,
+                    label="Source Code",
+                    url="https://github.com/eXhumer/pyeXF1LT",
+                )
+            ])
         ],
     )
 
@@ -212,8 +220,16 @@ if __name__ == "__main__":
             embeds=[
                 DiscordModel.Embed(
                     title="Live Timing Bot Stopped",
-                    url="https://github.com/eXhumer/pyeXF1LT",
                     timestamp=datetime.now(tz=timezone.utc),
                 ),
+            ],
+            components=[
+                DiscordModel.ActionRowComponent([
+                    DiscordModel.ButtonComponent(
+                        DiscordType.ButtonStyle.LINK,
+                        label="Source Code",
+                        url="https://github.com/eXhumer/pyeXF1LT",
+                    )
+                ])
             ],
         )
