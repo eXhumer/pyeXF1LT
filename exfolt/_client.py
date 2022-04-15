@@ -46,6 +46,7 @@ class F1Client:
         self.__message_id: str | None = None
         self.__groups_token: str | None = None
         self.__connected_at: datetime | None = None
+        self.__negotiate_at: int | None = None
         self.__last_ping_at: datetime | None = None
         self.__old_data: Any | None = None
         self.__reconnect = reconnect
@@ -201,13 +202,15 @@ class F1Client:
             self.__start()
 
     def __negotiate(self):
+        self.__negotiate_at = int(datetime.now().timestamp() * 1000)
+
         res = self.__rest_session.get(
             "/".join((
                 self.__signalr_rest_url,
                 "negotiate",
             )) + "?" + urlencode(
                 {
-                    "_": str(int(datetime.now().timestamp() * 1000)),
+                    "_": str(self.__negotiate_at),
                     "clientProtocol": F1Client.__client_protocol,
                     "connectionData": [{"name": "streaming"}],
                 },
@@ -220,13 +223,16 @@ class F1Client:
         self.__ws.settimeout(20)
 
     def __ping(self) -> str | None:
+        assert self.__negotiate_at
+        self.__negotiate_at += 1
+
         try:
             res = self.__rest_session.get(
                 "/".join((
                     self.__signalr_rest_url,
                     "ping",
                 )) + "?" + urlencode({
-                    "_": str(int(datetime.now().timestamp() * 1000))
+                    "_": str(self.__negotiate_at)
                 }),
             )
             res.raise_for_status()
@@ -272,7 +278,8 @@ class F1Client:
                 continue
 
     def __start(self) -> str:
-        assert self.__connection_token
+        assert self.__connection_token and self.__negotiate_at
+        self.__negotiate_at += 1
 
         res = self.__rest_session.get(
             "/".join((
@@ -284,7 +291,7 @@ class F1Client:
                     "clientProtocol": F1Client.__client_protocol,
                     "connectionToken": self.__connection_token,
                     "connectionData": [{"name": "streaming"}],
-                    "_": str(int(datetime.now().timestamp() * 1000)),
+                    "_": str(self.__negotiate_at),
                 },
                 quote_via=quote,
             ),
