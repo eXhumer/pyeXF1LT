@@ -12,9 +12,8 @@ pip install .
 ```
 
 ## Usage Examples
-* [examples/bot.py](./examples/bot.py) - Retrieves all the messages supported and sends them to a Discord channel via Discord bot
-* [examples/bot_webhook.py](./examples/bot_webhook.py) - Retrieves all the messages supported and sends them to a Discord channel via Discord webhook system
-* [examples/message_logger.py](./examples/message_logger.py) - Retrieves all the messages supported and logs them to a local file
+* [examples/bot.py](./examples/bot.py) - Post supported received messages as Discord embed messages
+* [examples/message_logger.py](./examples/message_logger.py) - Logs all messages to a local file
 
 ## Special Thanks
 * [theOehrly](https://github.com/theOehrly) and their work on [Fast-F1](https://github.com/theOehrly/Fast-F1) package. Some documented aspect of live timing has been used in this project.
