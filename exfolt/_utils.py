@@ -16,7 +16,7 @@
 import dateutil.parser
 from typing import Dict, List, Literal, Union
 
-from ._type import FlagStatus, TrackStatus
+from ._type import FlagStatus, TimingDataStatus, TrackStatus
 from ._model import DiscordModel
 
 
@@ -141,3 +141,97 @@ def race_control_message_embed(
         color=color,
         timestamp=dateutil.parser.parse(msg_dt),
     )
+
+
+def timing_data_embed(
+    msg_data: Dict[
+        Literal["Lines"],
+        Dict[
+            str,
+            Dict[
+                Literal["Sectors"],
+                Dict[
+                    str,
+                    Dict[
+                        Literal["Segments"],
+                        Dict[
+                            str,
+                            Dict[
+                                Literal["Status"],
+                                int,
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ],
+    ],
+    msg_dt: str,
+):
+    if "Lines" in msg_data and len(msg_data["Lines"]) == 1:
+        for drv_num, drv_data in msg_data["Lines"].items():
+            if "Sectors" in drv_data and len(drv_data["Sectors"]) == 1:
+                for sector_num, sector_data in drv_data["Sectors"].items():
+                    if (
+                        "Segments" in sector_data and
+                        len(sector_data["Segments"]) == 1
+                    ):
+                        for (
+                            segment_num,
+                            segment_data,
+                        ) in sector_data["Segments"].items():
+                            if (
+                                "Status" in segment_data and
+                                segment_data["Status"] in [
+                                    TimingDataStatus.PURPLE,
+                                    TimingDataStatus.STOPPED,
+                                    TimingDataStatus.PITTED,
+                                    TimingDataStatus.PIT_ISSUE,
+                                ]
+                            ):
+                                color = None
+
+                                if segment_data["Status"] == \
+                                        TimingDataStatus.PURPLE:
+                                    color = 0xA020F0
+
+                                elif segment_data["Status"] in [
+                                    TimingDataStatus.STOPPED,
+                                    TimingDataStatus.PIT_ISSUE,
+                                ]:
+                                    color = 0xFFFF00
+
+                                return DiscordModel.Embed(
+                                    title="Timing Data",
+                                    fields=[
+                                        DiscordModel.Embed.Field(
+                                            "Driver",
+                                            drv_num,
+                                        ),
+                                        DiscordModel.Embed.Field(
+                                            "Sector",
+                                            str(int(sector_num) + 1),
+                                        ),
+                                        DiscordModel.Embed.Field(
+                                            "Segment",
+                                            str(int(segment_num) + 1),
+                                        ),
+                                        DiscordModel.Embed.Field(
+                                            "Status",
+                                            (
+                                                "Purple"
+                                                if segment_data["Status"] ==
+                                                TimingDataStatus.PURPLE
+                                                else "Pitted"
+                                                if segment_data["Status"] ==
+                                                TimingDataStatus.PITTED
+                                                else "Pit issues"
+                                                if segment_data["Status"] ==
+                                                TimingDataStatus.PIT_ISSUE
+                                                else "Stopped"
+                                            )
+                                        ),
+                                    ],
+                                    color=color,
+                                    timestamp=dateutil.parser.parse(msg_dt),
+                                )

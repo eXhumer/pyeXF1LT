@@ -20,5 +20,6 @@ from ._type import DiscordType, TrackStatus  # noqa: F401
 from ._utils import (  # noqa: F401
     RaceControlMessageData,
     race_control_message_embed,
+    timing_data_embed,
     track_status_str,
 )

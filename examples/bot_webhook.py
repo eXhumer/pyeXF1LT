@@ -23,6 +23,7 @@ from exfolt import (
     DiscordType,
     F1Client,
     race_control_message_embed,
+    timing_data_embed,
     track_status_str,
 )
 
@@ -76,6 +77,15 @@ if __name__ == "__main__":
                                 ),
                             ],
                         )
+
+                    elif msg_data[0] == "TimingData":
+                        embed = timing_data_embed(
+                            msg_data[1],
+                            msg_data[2],
+                        )
+
+                        if embed:
+                            discord_webhook_message(embeds=[embed])
 
                     elif msg_data[0] == "SessionInfo":
                         sc_info = msg_data[1]
