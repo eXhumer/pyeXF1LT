@@ -69,6 +69,15 @@ class FlagStatus(str, Enum):
     RED = "RED"
 
 
+class TimingDataStatus(IntEnum):
+    YELLOW = 2048
+    GREEN = 2049
+    PURPLE = 2051
+    STOPPED = 2052
+    PITTED = 2064
+    PIT_ISSUE = 2068
+
+
 class TrackStatus(str, Enum):
     ALL_CLEAR = "1"
     YELLOW = "2"
