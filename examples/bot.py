@@ -14,9 +14,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import argparse
-import dateutil.parser
+import datetime
 import os
-from datetime import datetime, timezone
 
 from exfolt import (
     DiscordClient,
@@ -24,9 +23,12 @@ from exfolt import (
     DiscordType,
     F1Client,
     Snowflake,
+    extrapolated_clock_embed,
     race_control_message_embed,
+    session_data_embed,
+    session_info_embed,
     timing_data_embed,
-    track_status_str,
+    track_status_embed,
 )
 
 
@@ -80,7 +82,7 @@ if __name__ == "__main__":
             embeds=[
                 DiscordModel.Embed(
                     title="Live Timing Bot Started",
-                    timestamp=datetime.now(tz=timezone.utc),
+                    timestamp=datetime.datetime.now(tz=datetime.timezone.utc),
                 ),
             ],
             components=[
@@ -97,7 +99,11 @@ if __name__ == "__main__":
         try:
             with F1Client() as exfolt:
                 for msg in exfolt:
-                    print(f"Message Received at {datetime.now()}!")
+                    print(
+                        "Message Received at " +
+                        str(datetime.datetime.now(tz=datetime.timezone.utc)) +
+                        "!"
+                    )
 
                     if "C" in msg:
                         msg_data = msg["M"][0]["A"]
@@ -122,29 +128,44 @@ if __name__ == "__main__":
                                 discord_message(embeds=[embed])
 
                         elif msg_data[0] == "SessionInfo":
-                            print(msg_data)
-                            # sc_info = msg_data[1]
+                            discord_message(
+                                embed=[
+                                    session_info_embed(
+                                        msg_data[1],
+                                        msg_data[2],
+                                    ),
+                                ],
+                            )
 
-                            # discord_message(
-                            #     embeds=[
-                            #         DiscordModel.Embed(
-                            #             title="Session Information",
-                            #             description="\n".join((
-                            #                 "Official Name: " +
-                            #                 sc_info["Meeting"]["OfficialName"],
-                            #                 "Location: " +
-                            #                 sc_info["Meeting"]["Location"],
-                            #                 "Country: " +
-                            #                 sc_info["Meeting"]["Country"]["Name"],
-                            #                 f"Type: {sc_info['Type']}",
-                            #             )),
-                            #             type=DiscordType.Embed.RICH,
-                            #             timestamp=dateutil.parser.parse(
-                            #                 msg_data[2],
-                            #             ),
-                            #         ),
-                            #     ],
-                            # )
+                        elif msg_data[0] == "TrackStatus":
+                            discord_message(
+                                embeds=[
+                                    track_status_embed(
+                                        msg_data[1],
+                                        msg_data[2],
+                                    ),
+                                ],
+                            )
+
+                        elif msg_data[0] == "SessionData":
+                            discord_message(
+                                embeds=[
+                                    session_data_embed(
+                                        msg_data[1],
+                                        msg_data[2],
+                                    ),
+                                ],
+                            )
+
+                        elif msg_data[0] == "ExtrapolatedClock":
+                            discord_message(
+                                embeds=[
+                                    extrapolated_clock_embed(
+                                        msg_data[1],
+                                        msg_data[2],
+                                    ),
+                                ],
+                            )
 
                         elif msg_data[0] == "WeatherData":
                             print(msg_data)
@@ -178,95 +199,6 @@ if __name__ == "__main__":
                             #     ],
                             # )
 
-                        elif msg_data[0] == "TrackStatus":
-                            track_status = msg_data[1]
-                            status_str = track_status_str(
-                                track_status["Status"],
-                            )
-
-                            discord_message(
-                                embeds=[
-                                    DiscordModel.Embed(
-                                        title="Track Status",
-                                        description="\n".join((
-                                            "Status: " +
-                                            track_status["Status"] +
-                                            f"({status_str})",
-                                            "Message: " +
-                                            track_status["Message"],
-                                        )),
-                                        type=DiscordType.Embed.RICH,
-                                        timestamp=dateutil.parser.parse(
-                                            msg_data[2],
-                                        ),
-                                    ),
-                                ],
-                            )
-
-                        elif msg_data[0] == "SessionData":
-                            if "StatusSeries" in msg_data[1]:
-                                if type(msg_data[1]["StatusSeries"]) == list:
-                                    series_status = msg_data[1][
-                                        "StatusSeries"
-                                    ][0]
-
-                                else:
-                                    series_status = list(
-                                        msg_data[1][
-                                            "StatusSeries"
-                                        ].values())[0]
-
-                                discord_message(
-                                    embeds=[
-                                        DiscordModel.Embed(
-                                            title="Session Data",
-                                            description="\n".join((
-                                                ("Track Status: " +
-                                                 series_status["TrackStatus"])
-                                                if "TrackStatus"
-                                                in series_status
-                                                else (
-                                                    "Session Status: " +
-                                                    series_status[
-                                                        "SessionStatus"
-                                                    ]
-                                                ),
-                                            )),
-                                            type=DiscordType.Embed.RICH,
-                                            timestamp=dateutil.parser.parse(
-                                                msg_data[2],
-                                            ),
-                                        ),
-                                    ],
-                                )
-
-                        elif msg_data[0] == "ExtrapolatedClock":
-                            clock_data = msg_data[1]
-                            embed_desc = "Remaining: " + \
-                                clock_data["Remaining"]
-
-                            if "Extrapolating" in clock_data:
-                                embed_desc += "".join((
-                                    "\nExtrapolating: ",
-                                    clock_data["Extrapolating"],
-                                ))
-
-                            discord_message(
-                                embeds=[
-                                    DiscordModel.Embed(
-                                        title="Extrapolated Clock",
-                                        description=embed_desc,
-                                        type=DiscordType.Embed.RICH,
-                                        timestamp=dateutil.parser.parse(
-                                            msg_data[2],
-                                        ),
-                                    ),
-                                ],
-                            )
-
-                        elif msg_data[0] == "Heartbeat":
-                            print(msg_data)
-
                         else:
                             print(msg_data)
 
@@ -275,7 +207,9 @@ if __name__ == "__main__":
                 embeds=[
                     DiscordModel.Embed(
                         title="Live Timing Bot Stopped",
-                        timestamp=datetime.now(tz=timezone.utc),
+                        timestamp=datetime.datetime.now(
+                            tz=datetime.timezone.utc,
+                        ),
                     ),
                 ],
                 components=[
