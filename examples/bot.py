@@ -13,9 +13,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import argparse
-import datetime
-import os
+from argparse import ArgumentParser
+from datetime import datetime, timezone
+from os import environ
 
 from exfolt import (
     DiscordClient,
@@ -33,7 +33,7 @@ from exfolt import (
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = ArgumentParser()
     parser.add_argument("--bot-token")
     parser.add_argument("--channel-id", type=Snowflake)
     parser.add_argument("--webhook-token")
@@ -45,17 +45,17 @@ if __name__ == "__main__":
     webhook_token = args.webhook_token
     webhook_id = str(args.webhook_id) if args.webhook_id else None
 
-    if not bot_token and "DISCORD_BOT_TOKEN" in os.environ:
-        bot_token = os.environ["DISCORD_BOT_TOKEN"]
+    if not bot_token and "DISCORD_BOT_TOKEN" in environ:
+        bot_token = environ["DISCORD_BOT_TOKEN"]
 
-    if not channel_id and "DISCORD_CHANNEL_ID" in os.environ:
-        channel_id = os.environ["DISCORD_CHANNEL_ID"]
+    if not channel_id and "DISCORD_CHANNEL_ID" in environ:
+        channel_id = environ["DISCORD_CHANNEL_ID"]
 
-    if not webhook_token and "DISCORD_WEBHOOK_TOKEN" in os.environ:
-        webhook_token = os.environ["DISCORD_WEBHOOK_TOKEN"]
+    if not webhook_token and "DISCORD_WEBHOOK_TOKEN" in environ:
+        webhook_token = environ["DISCORD_WEBHOOK_TOKEN"]
 
-    if not webhook_id and "DISCORD_WEBHOOK_ID" in os.environ:
-        webhook_id = os.environ["DISCORD_WEBHOOK_ID"]
+    if not webhook_id and "DISCORD_WEBHOOK_ID" in environ:
+        webhook_id = environ["DISCORD_WEBHOOK_ID"]
 
     if (
         bot_token and channel_id
@@ -82,7 +82,7 @@ if __name__ == "__main__":
             embeds=[
                 DiscordModel.Embed(
                     title="Live Timing Bot Started",
-                    timestamp=datetime.datetime.now(tz=datetime.timezone.utc),
+                    timestamp=datetime.now(tz=timezone.utc),
                 ),
             ],
             components=[
@@ -101,7 +101,7 @@ if __name__ == "__main__":
                 for msg in exfolt:
                     print(
                         "Message Received at " +
-                        str(datetime.datetime.now(tz=datetime.timezone.utc)) +
+                        str(datetime.now(tz=timezone.utc)) +
                         "!"
                     )
 
@@ -207,9 +207,7 @@ if __name__ == "__main__":
                 embeds=[
                     DiscordModel.Embed(
                         title="Live Timing Bot Stopped",
-                        timestamp=datetime.datetime.now(
-                            tz=datetime.timezone.utc,
-                        ),
+                        timestamp=datetime.now(tz=timezone.utc),
                     ),
                 ],
                 components=[
