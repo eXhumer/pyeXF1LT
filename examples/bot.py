@@ -64,15 +64,15 @@ if __name__ == "__main__":
     ):
         def discord_message(**args):
             if bot_token and channel_id:
-                return DiscordClient(
+                DiscordClient(
                     DiscordClient.BotAuthorization(bot_token),
                 ).post_message(
                     channel_id,
                     **args,
                 )
 
-            else:
-                return DiscordClient.post_webhook_message(
+            if webhook_token and webhook_id:
+                DiscordClient.post_webhook_message(
                     webhook_id,
                     webhook_token,
                     **args,
