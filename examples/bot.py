@@ -23,6 +23,7 @@ from exfolt import (
     DiscordType,
     F1Client,
     Snowflake,
+    WeatherTracker,
     extrapolated_clock_embed,
     race_control_message_embed,
     session_data_embed,
@@ -97,6 +98,8 @@ if __name__ == "__main__":
         )
 
         try:
+            tracker = WeatherTracker()
+
             with F1Client() as exfolt:
                 for msg in exfolt:
                     print(
@@ -168,36 +171,11 @@ if __name__ == "__main__":
                             )
 
                         elif msg_data[0] == "WeatherData":
-                            print(msg_data)
-                            # weather_data = msg_data[1]
+                            tracker.update_data(msg_data[1])
+                            embeds = tracker.notify_change_embed()
 
-                            # discord_message(
-                            #     embeds=[
-                            #         DiscordModel.Embed(
-                            #             title="Weather Information",
-                            #             description="\n".join((
-                            #                 "Air Temperature: " +
-                            #                 weather_data["AirTemp"],
-                            #                 "Track Temperature: " +
-                            #                 weather_data["TrackTemp"],
-                            #                 "Humidity: " +
-                            #                 weather_data["Humidity"],
-                            #                 "Pressure: " +
-                            #                 weather_data["Pressure"],
-                            #                 "Rainfall: " +
-                            #                 weather_data["Rainfall"],
-                            #                 "Wind Direction: " +
-                            #                 weather_data["WindDirection"],
-                            #                 "Wind Speed: " +
-                            #                 weather_data["WindSpeed"],
-                            #             )),
-                            #             type=DiscordType.Embed.RICH,
-                            #             timestamp=dateutil.parser.parse(
-                            #                 msg_data[2],
-                            #             ),
-                            #         ),
-                            #     ],
-                            # )
+                            if embeds:
+                                discord_message(embeds=embeds)
 
                         else:
                             print(msg_data)

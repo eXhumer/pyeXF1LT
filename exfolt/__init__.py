@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from ._client import F1Client  # noqa: F401
+from ._client import F1Client, WeatherTracker  # noqa: F401
 from ._discord import DiscordClient  # noqa: F401
 from ._model import DiscordModel, Snowflake  # noqa: F401
 from ._type import DiscordType, TrackStatus  # noqa: F401
