@@ -1076,10 +1076,6 @@ class F1Client:
                                         ),
                                         fields=[
                                             DiscordModel.Embed.Field(
-                                                "Driver",
-                                                self.__driver_string(drv_num),
-                                            ),
-                                            DiscordModel.Embed.Field(
                                                 "Sector",
                                                 str(int(sector_num) + 1),
                                             ),
@@ -1178,13 +1174,6 @@ class F1Client:
             fields.append(DiscordModel.Embed.Field("Scope", msg_data["Scope"]))
 
         if "RacingNumber" in msg_data:
-            fields.append(
-                DiscordModel.Embed.Field(
-                    "Driver",
-                    self.__driver_string(msg_data["RacingNumber"]),
-                ),
-            )
-
             author = DiscordModel.Embed.Author(
                 self.__driver_string(msg_data["RacingNumber"]),
                 icon_url=self.__driver_headshot_url(msg_data["RacingNumber"]),
