@@ -37,6 +37,8 @@ if __name__ == "__main__":
     parser.add_argument("--channel-id", type=Snowflake)
     parser.add_argument("--webhook-token")
     parser.add_argument("--webhook-id", type=Snowflake)
+    parser.add_argument("--disable-start-message", action="store_true")
+    parser.add_argument("--disable-stop-message", action="store_true")
     args = parser.parse_args()
 
     bot_token = args.bot_token
@@ -77,23 +79,24 @@ if __name__ == "__main__":
                     **args,
                 )
 
-        discord_message(
-            embeds=[
-                DiscordModel.Embed(
-                    title="Live Timing Bot Started",
-                    timestamp=datetime.now(tz=timezone.utc),
-                ),
-            ],
-            components=[
-                DiscordModel.ActionRowComponent([
-                    DiscordModel.ButtonComponent(
-                        DiscordType.ButtonStyle.LINK,
-                        label="Source Code",
-                        url="https://github.com/eXhumer/pyeXF1LT",
-                    )
-                ])
-            ],
-        )
+        if not args.disable_start_message:
+            discord_message(
+                embeds=[
+                    DiscordModel.Embed(
+                        title="Live Timing Bot Started",
+                        timestamp=datetime.now(tz=timezone.utc),
+                    ),
+                ],
+                components=[
+                    DiscordModel.ActionRowComponent([
+                        DiscordModel.ButtonComponent(
+                            DiscordType.ButtonStyle.LINK,
+                            label="Source Code",
+                            url="https://github.com/eXhumer/pyeXF1LT",
+                        )
+                    ])
+                ],
+            )
 
         try:
             tracker = WeatherTracker()
@@ -179,20 +182,21 @@ if __name__ == "__main__":
                             print(msg_data)
 
         except KeyboardInterrupt:
-            discord_message(
-                embeds=[
-                    DiscordModel.Embed(
-                        title="Live Timing Bot Stopped",
-                        timestamp=datetime.now(tz=timezone.utc),
-                    ),
-                ],
-                components=[
-                    DiscordModel.ActionRowComponent([
-                        DiscordModel.ButtonComponent(
-                            DiscordType.ButtonStyle.LINK,
-                            label="Source Code",
-                            url="https://github.com/eXhumer/pyeXF1LT",
-                        )
-                    ])
-                ],
-            )
+            if not args.disable_stop_message:
+                discord_message(
+                    embeds=[
+                        DiscordModel.Embed(
+                            title="Live Timing Bot Stopped",
+                            timestamp=datetime.now(tz=timezone.utc),
+                        ),
+                    ],
+                    components=[
+                        DiscordModel.ActionRowComponent([
+                            DiscordModel.ButtonComponent(
+                                DiscordType.ButtonStyle.LINK,
+                                label="Source Code",
+                                url="https://github.com/eXhumer/pyeXF1LT",
+                            )
+                        ])
+                    ],
+                )
