@@ -62,28 +62,40 @@ def race_control_message_embed(
     else:
         msg_data = list(msg_data["Messages"].values())[0]
 
+    description = None
+
     if msg_data["Category"] == "Flag":
         flag_status: FlagStatus = msg_data["Flag"]
 
         if flag_status == FlagStatus.BLUE:
             color = 0x0000FF  # Blue
+            description = "<:blue:964569378999898143>"
 
         elif flag_status == FlagStatus.CHEQUERED:
             color = 0x000000  # Black
+            description = "<:chequered:964569378769235990>"
 
         elif flag_status == FlagStatus.CLEAR:
             color = 0xFFFFFF  # White
+            description = "<:green:964569379205414932>"
 
         elif flag_status == FlagStatus.GREEN:
+            description = "<:green:964569379205414932>"
             color = 0x00FF00  # Green
 
         elif flag_status == FlagStatus.YELLOW:
+            description = "<:yellow:964569379037671484>"
             color = 0xFFFF00  # Yellow
 
         elif flag_status == FlagStatus.DOUBLE_YELLOW:
+            description = "".join((
+                "<:yellow:964569379037671484>",
+                "<:yellow:964569379037671484>",
+            ))
             color = 0xFFA500  # Orange
 
         elif flag_status == FlagStatus.RED:
+            description = "<:red:964569379234779136>"
             color = 0xFF0000  # Red
 
         else:
@@ -137,6 +149,7 @@ def race_control_message_embed(
 
     return DiscordModel.Embed(
         title="Race Control Message",
+        description=description,
         fields=fields,
         color=color,
         timestamp=dateutil.parser.parse(msg_dt),
@@ -311,6 +324,23 @@ def track_status_embed(
             ),
             DiscordModel.Embed.Field("Message", msg_data["Message"]),
         ],
+        description=(
+            "<:green:964569379205414932>"
+            if msg_data["Status"] in [
+                TrackStatus.ALL_CLEAR,
+                TrackStatus.GREEN,
+                TrackStatus.VSC_ENDING,
+            ]
+            else "<:yellow:964569379037671484>"
+            if msg_data["Status"] in TrackStatus.YELLOW
+            else "<:sc:964569379163496538>"
+            if msg_data["Status"] in TrackStatus.SC_DEPLOYED
+            else "<:vsc:964569379352244284>"
+            if msg_data["Status"] in TrackStatus.VSC_DEPLOYED
+            else "<:red:964569379234779136>"
+            if msg_data["Status"] in TrackStatus.RED
+            else None
+        ),
         timestamp=dateutil.parser.parse(msg_dt),
     )
 
