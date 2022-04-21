@@ -508,6 +508,9 @@ class WeatherTracker:
             if len(changes) > 0:
                 for change in changes:
                     if change.key() == "AirTemp":
+                        self.__last_at_notify_at = datetime.now()
+                        self.__last_at_notify_reason = change["Reason"]
+
                         embeds.append(
                             DiscordModel.Embed(
                                 title="Air Temperature Change Information",
@@ -530,6 +533,9 @@ class WeatherTracker:
                         )
 
                     elif change.key() == "TrackTemp":
+                        self.__last_tt_notify_at = datetime.now()
+                        self.__last_tt_notify_reason = change["Reason"]
+
                         embeds.append(
                             DiscordModel.Embed(
                                 title="Track Temperature Change Information",
@@ -552,6 +558,9 @@ class WeatherTracker:
                         )
 
                     elif change.key() == "Humidity":
+                        self.__last_hu_notify_at = datetime.now()
+                        self.__last_hu_notify_reason = change["Reason"]
+
                         embeds.append(
                             DiscordModel.Embed(
                                 title="Humidity Change Information",
@@ -574,6 +583,9 @@ class WeatherTracker:
                         )
 
                     elif change.key() == "Pressure":
+                        self.__last_pa_notify_at = datetime.now()
+                        self.__last_pa_notify_reason = change["Reason"]
+
                         embeds.append(
                             DiscordModel.Embed(
                                 title="Pressure Change Information",
@@ -610,6 +622,8 @@ class WeatherTracker:
                         )
 
                     elif change.key() == "WindDirection":
+                        self.__last_wd_notify_at = datetime.now()
+
                         embeds.append(
                             DiscordModel.Embed(
                                 title="Wind Direction Information",
@@ -628,6 +642,9 @@ class WeatherTracker:
                         )
 
                     elif change.key() == "WindSpeed":
+                        self.__last_ws_notify_at = datetime.now()
+                        self.__last_ws_notify_reason = change["Reason"]
+
                         embeds.append(
                             DiscordModel.Embed(
                                 title="Wind Speed Information",
