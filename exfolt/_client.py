@@ -13,11 +13,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import dateutil.parser
 import json
 from datetime import datetime, timedelta, timezone
 from enum import IntEnum
 from random import randint
-from typing import Any, Dict, List, Literal
+from typing import Any, Dict, List, Literal, Union
 from urllib.parse import quote, urlencode
 
 from requests import ConnectionError, Session
@@ -29,6 +30,7 @@ from websocket import (
 )
 
 from ._model import DiscordModel
+from ._type import FlagStatus, TimingDataStatus
 
 
 WeatherDataEntry = Dict[
@@ -676,6 +678,33 @@ class WeatherTracker:
             return embeds if len(embeds) > 0 else None
 
 
+TimingData = Dict[
+    Literal["Lines"],
+    Dict[
+        str,
+        Dict[
+            Literal["Sectors"],
+            Dict[
+                str,
+                Dict[
+                    Literal["Segments"],
+                    Dict[
+                        str,
+                        Dict[
+                            Literal["Status"],
+                            int,
+                        ],
+                    ],
+                ],
+            ],
+        ],
+    ],
+]
+
+
+RaceControlMessageData = Dict[str, Union[str, int]]
+
+
 class F1Client:
     """F1 Live Timing Client"""
     __ping_interval = timedelta(minutes=5)
@@ -698,6 +727,7 @@ class F1Client:
         self.__last_ping_at: datetime | None = None
         self.__old_data: Any | None = None
         self.__reconnect = reconnect
+        self.__driver_data = {}
 
     def __enter__(self):
         self.__connect()
@@ -846,7 +876,12 @@ class F1Client:
                 continue
 
             self.__old_data = msg["R"]
-            print(self.__old_data)
+
+            if "DriverList" in self.__old_data:
+                self.__driver_data.update(
+                    self.__old_data["DriverList"],
+                )
+
             self.__start()
 
     def __negotiate(self):
@@ -920,6 +955,18 @@ class F1Client:
                 if "G" in json_data:
                     self.__groups_token: str = json_data["G"]
 
+                if (
+                    "M" in json_data and
+                    len(json_data["M"]) == 1 and
+                    json_data["M"][0]["A"][0] == "DriverList"
+                ):
+                    for drv_num, drv_data in json_data["M"][0]["A"][1].items():
+                        if "Line" in drv_data and len(drv_data) == 1:
+                            continue
+
+                        else:
+                            self.__driver_data.update({drv_num: drv_data})
+
                 return opcode, json_data
 
             except WebSocketTimeoutException:
@@ -965,3 +1012,218 @@ class F1Client:
         res_json = json.loads(res.content.decode("utf-8-sig"))
         streaming_status = res_json["Status"]
         return streaming_status
+
+    def __driver_string(self, number: str) -> str:
+        if number not in self.__driver_data:
+            return number
+
+        fn = self.__driver_data[number]["FirstName"]
+        ln = self.__driver_data[number]["LastName"]
+        return f"{fn} {ln} ({number})"
+
+    def __driver_headshot_url(self, number: str) -> str | None:
+        if number not in self.__driver_data:
+            return
+
+        return self.__driver_data[number]["HeadshotUrl"]
+
+    def timing_data_embed(
+        self,
+        msg_data: TimingData,
+        msg_dt: str,
+    ):
+        if "Lines" in msg_data and len(msg_data["Lines"]) == 1:
+            for drv_num, drv_data in msg_data["Lines"].items():
+                if "Sectors" in drv_data and len(drv_data["Sectors"]) == 1:
+                    for sector_num, sector_data in drv_data["Sectors"].items():
+                        if (
+                            "Segments" in sector_data and
+                            len(sector_data["Segments"]) == 1
+                        ):
+                            for (
+                                segment_num,
+                                segment_data,
+                            ) in sector_data["Segments"].items():
+                                if (
+                                    "Status" in segment_data and
+                                    segment_data["Status"] in [
+                                        TimingDataStatus.PURPLE,
+                                        TimingDataStatus.STOPPED,
+                                        TimingDataStatus.PITTED,
+                                        TimingDataStatus.PIT_ISSUE,
+                                    ]
+                                ):
+                                    color = None
+
+                                    if segment_data["Status"] == \
+                                            TimingDataStatus.PURPLE:
+                                        color = 0xA020F0
+
+                                    elif segment_data["Status"] in [
+                                        TimingDataStatus.STOPPED,
+                                        TimingDataStatus.PIT_ISSUE,
+                                    ]:
+                                        color = 0xFFFF00
+
+                                    drv_hs_url = \
+                                        self.__driver_headshot_url(drv_num)
+
+                                    return DiscordModel.Embed(
+                                        title="Timing Data",
+                                        image=(
+                                            DiscordModel.Embed.Image(
+                                                drv_hs_url,
+                                            )
+                                            if drv_hs_url
+                                            else None
+                                        ),
+                                        fields=[
+                                            DiscordModel.Embed.Field(
+                                                "Driver",
+                                                self.__driver_string(drv_num),
+                                            ),
+                                            DiscordModel.Embed.Field(
+                                                "Sector",
+                                                str(int(sector_num) + 1),
+                                            ),
+                                            DiscordModel.Embed.Field(
+                                                "Segment",
+                                                str(int(segment_num) + 1),
+                                            ),
+                                            DiscordModel.Embed.Field(
+                                                "Status",
+                                                (
+                                                    "Purple"
+                                                    if segment_data["Status"]
+                                                    == TimingDataStatus.PURPLE
+                                                    else "Pitted"
+                                                    if segment_data["Status"]
+                                                    == TimingDataStatus.PITTED
+                                                    else "Pit issues"
+                                                    if segment_data["Status"]
+                                                    ==
+                                                    TimingDataStatus.PIT_ISSUE
+                                                    else "Stopped"
+                                                )
+                                            ),
+                                        ],
+                                        color=color,
+                                        timestamp=dateutil.parser.parse(
+                                            msg_dt,
+                                        ),
+                                    )
+
+    def race_control_message_embed(
+        self,
+        msg_data: Dict[
+            Literal["Messages"],
+            Dict[str, RaceControlMessageData] | List[RaceControlMessageData],
+        ],
+        msg_dt: str,
+    ):
+        if isinstance(msg_data["Messages"], list):
+            msg_data = msg_data["Messages"][0]
+
+        else:
+            msg_data = list(msg_data["Messages"].values())[0]
+
+        description = None
+
+        if msg_data["Category"] == "Flag":
+            flag_status: FlagStatus = msg_data["Flag"]
+
+            if flag_status == FlagStatus.BLUE:
+                color = 0x0000FF  # Blue
+                description = "<:blue:964569378999898143>"
+
+            elif flag_status == FlagStatus.CHEQUERED:
+                color = 0x000000  # Black
+                description = "<:chequered:964569378769235990>"
+
+            elif flag_status == FlagStatus.CLEAR:
+                color = 0xFFFFFF  # White
+                description = "<:green:964569379205414932>"
+
+            elif flag_status == FlagStatus.GREEN:
+                description = "<:green:964569379205414932>"
+                color = 0x00FF00  # Green
+
+            elif flag_status == FlagStatus.YELLOW:
+                description = "<:yellow:964569379037671484>"
+                color = 0xFFFF00  # Yellow
+
+            elif flag_status == FlagStatus.DOUBLE_YELLOW:
+                description = "".join((
+                    "<:yellow:964569379037671484>",
+                    "<:yellow:964569379037671484>",
+                ))
+                color = 0xFFA500  # Orange
+
+            elif flag_status == FlagStatus.RED:
+                description = "<:red:964569379234779136>"
+                color = 0xFF0000  # Red
+
+            else:
+                raise ValueError(f"Unexpected flag status '{flag_status}'!")
+
+        else:
+            color = 0XA6EF1F  # Light Green
+
+        fields = [
+            DiscordModel.Embed.Field("Message", msg_data["Message"]),
+            DiscordModel.Embed.Field("Category", msg_data["Category"]),
+        ]
+
+        if "Flag" in msg_data:
+            fields.append(DiscordModel.Embed.Field("Flag", msg_data["Flag"]))
+
+        if "Scope" in msg_data:
+            fields.append(DiscordModel.Embed.Field("Scope", msg_data["Scope"]))
+
+        if "RacingNumber" in msg_data:
+            fields.append(
+                DiscordModel.Embed.Field(
+                    "Driver",
+                    self.__driver_string(msg_data["RacingNumber"]),
+                ),
+            )
+
+            image = DiscordModel.Embed.Image(
+                self.__driver_headshot_url(msg_data["RacingNumber"])
+            )
+
+        else:
+            image = None
+
+        if "Sector" in msg_data:
+            fields.append(
+                DiscordModel.Embed.Field(
+                    "Track Sector",
+                    msg_data["Sector"],
+                ),
+            )
+
+        if "Lap" in msg_data:
+            fields.append(
+                DiscordModel.Embed.Field(
+                    "Lap Number",
+                    str(msg_data["Lap"]),
+                ),
+            )
+
+        if "Status" in msg_data and msg_data["Category"] == "Drs":
+            fields.append(
+                DiscordModel.Embed.Field(
+                    "DRS Status",
+                    msg_data["Status"],
+                ),
+            )
+
+        return DiscordModel.Embed(
+            title="Race Control Message",
+            image=image,
+            description=description,
+            fields=fields,
+            color=color,
+            timestamp=dateutil.parser.parse(msg_dt),
+        )

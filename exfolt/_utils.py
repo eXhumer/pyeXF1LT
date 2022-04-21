@@ -14,9 +14,9 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import dateutil.parser
-from typing import Dict, List, Literal, Union
+from typing import Dict, List, Literal
 
-from ._type import FlagStatus, TimingDataStatus, TrackStatus
+from ._type import TrackStatus
 from ._model import DiscordModel
 
 
@@ -44,213 +44,6 @@ def track_status_str(status: TrackStatus):
 
     else:
         return "Unknown"
-
-
-RaceControlMessageData = Dict[str, Union[str, int]]
-
-
-def race_control_message_embed(
-    msg_data: Dict[
-        Literal["Messages"],
-        Dict[str, RaceControlMessageData] | List[RaceControlMessageData],
-    ],
-    msg_dt: str,
-):
-    if isinstance(msg_data["Messages"], list):
-        msg_data = msg_data["Messages"][0]
-
-    else:
-        msg_data = list(msg_data["Messages"].values())[0]
-
-    description = None
-
-    if msg_data["Category"] == "Flag":
-        flag_status: FlagStatus = msg_data["Flag"]
-
-        if flag_status == FlagStatus.BLUE:
-            color = 0x0000FF  # Blue
-            description = "<:blue:964569378999898143>"
-
-        elif flag_status == FlagStatus.CHEQUERED:
-            color = 0x000000  # Black
-            description = "<:chequered:964569378769235990>"
-
-        elif flag_status == FlagStatus.CLEAR:
-            color = 0xFFFFFF  # White
-            description = "<:green:964569379205414932>"
-
-        elif flag_status == FlagStatus.GREEN:
-            description = "<:green:964569379205414932>"
-            color = 0x00FF00  # Green
-
-        elif flag_status == FlagStatus.YELLOW:
-            description = "<:yellow:964569379037671484>"
-            color = 0xFFFF00  # Yellow
-
-        elif flag_status == FlagStatus.DOUBLE_YELLOW:
-            description = "".join((
-                "<:yellow:964569379037671484>",
-                "<:yellow:964569379037671484>",
-            ))
-            color = 0xFFA500  # Orange
-
-        elif flag_status == FlagStatus.RED:
-            description = "<:red:964569379234779136>"
-            color = 0xFF0000  # Red
-
-        else:
-            raise ValueError(f"Unexpected flag status '{flag_status}'!")
-
-    else:
-        color = 0XA6EF1F  # Light Green
-
-    fields = [
-        DiscordModel.Embed.Field("Message", msg_data["Message"]),
-        DiscordModel.Embed.Field("Category", msg_data["Category"]),
-    ]
-
-    if "Flag" in msg_data:
-        fields.append(DiscordModel.Embed.Field("Flag", msg_data["Flag"]))
-
-    if "Scope" in msg_data:
-        fields.append(DiscordModel.Embed.Field("Scope", msg_data["Scope"]))
-
-    if "RacingNumber" in msg_data:
-        fields.append(
-            DiscordModel.Embed.Field(
-                "Driver Number",
-                msg_data["RacingNumber"],
-            ),
-        )
-
-    if "Sector" in msg_data:
-        fields.append(
-            DiscordModel.Embed.Field(
-                "Track Sector",
-                msg_data["Sector"],
-            ),
-        )
-
-    if "Lap" in msg_data:
-        fields.append(
-            DiscordModel.Embed.Field(
-                "Lap Number",
-                str(msg_data["Lap"]),
-            ),
-        )
-
-    if "Status" in msg_data and msg_data["Category"] == "Drs":
-        fields.append(
-            DiscordModel.Embed.Field(
-                "DRS Status",
-                msg_data["Status"],
-            ),
-        )
-
-    return DiscordModel.Embed(
-        title="Race Control Message",
-        description=description,
-        fields=fields,
-        color=color,
-        timestamp=dateutil.parser.parse(msg_dt),
-    )
-
-
-TimingData = Dict[
-    Literal["Lines"],
-    Dict[
-        str,
-        Dict[
-            Literal["Sectors"],
-            Dict[
-                str,
-                Dict[
-                    Literal["Segments"],
-                    Dict[
-                        str,
-                        Dict[
-                            Literal["Status"],
-                            int,
-                        ],
-                    ],
-                ],
-            ],
-        ],
-    ],
-]
-
-
-def timing_data_embed(
-    msg_data: TimingData,
-    msg_dt: str,
-):
-    if "Lines" in msg_data and len(msg_data["Lines"]) == 1:
-        for drv_num, drv_data in msg_data["Lines"].items():
-            if "Sectors" in drv_data and len(drv_data["Sectors"]) == 1:
-                for sector_num, sector_data in drv_data["Sectors"].items():
-                    if (
-                        "Segments" in sector_data and
-                        len(sector_data["Segments"]) == 1
-                    ):
-                        for (
-                            segment_num,
-                            segment_data,
-                        ) in sector_data["Segments"].items():
-                            if (
-                                "Status" in segment_data and
-                                segment_data["Status"] in [
-                                    TimingDataStatus.PURPLE,
-                                    TimingDataStatus.STOPPED,
-                                    TimingDataStatus.PITTED,
-                                    TimingDataStatus.PIT_ISSUE,
-                                ]
-                            ):
-                                color = None
-
-                                if segment_data["Status"] == \
-                                        TimingDataStatus.PURPLE:
-                                    color = 0xA020F0
-
-                                elif segment_data["Status"] in [
-                                    TimingDataStatus.STOPPED,
-                                    TimingDataStatus.PIT_ISSUE,
-                                ]:
-                                    color = 0xFFFF00
-
-                                return DiscordModel.Embed(
-                                    title="Timing Data",
-                                    fields=[
-                                        DiscordModel.Embed.Field(
-                                            "Driver",
-                                            drv_num,
-                                        ),
-                                        DiscordModel.Embed.Field(
-                                            "Sector",
-                                            str(int(sector_num) + 1),
-                                        ),
-                                        DiscordModel.Embed.Field(
-                                            "Segment",
-                                            str(int(segment_num) + 1),
-                                        ),
-                                        DiscordModel.Embed.Field(
-                                            "Status",
-                                            (
-                                                "Purple"
-                                                if segment_data["Status"] ==
-                                                TimingDataStatus.PURPLE
-                                                else "Pitted"
-                                                if segment_data["Status"] ==
-                                                TimingDataStatus.PITTED
-                                                else "Pit issues"
-                                                if segment_data["Status"] ==
-                                                TimingDataStatus.PIT_ISSUE
-                                                else "Stopped"
-                                            )
-                                        ),
-                                    ],
-                                    color=color,
-                                    timestamp=dateutil.parser.parse(msg_dt),
-                                )
 
 
 SessionInfoData = Dict[str, str | Dict[str, str | Dict[str, str]]]
@@ -339,6 +132,23 @@ def track_status_embed(
             if msg_data["Status"] in TrackStatus.VSC_DEPLOYED
             else "<:red:964569379234779136>"
             if msg_data["Status"] in TrackStatus.RED
+            else None
+        ),
+        color=(
+            0x00FF00
+            if msg_data["Status"] in [
+                TrackStatus.ALL_CLEAR,
+                TrackStatus.GREEN,
+                TrackStatus.VSC_ENDING,
+            ]
+            else 0xFFFF00
+            if msg_data["Status"] in [
+                TrackStatus.YELLOW,
+                TrackStatus.SC_DEPLOYED,
+                TrackStatus.VSC_DEPLOYED,
+            ]
+            else 0xFF0000
+            if msg_data["Status"] == TrackStatus.RED
             else None
         ),
         timestamp=dateutil.parser.parse(msg_dt),

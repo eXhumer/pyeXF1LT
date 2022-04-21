@@ -25,10 +25,8 @@ from exfolt import (
     Snowflake,
     WeatherTracker,
     extrapolated_clock_embed,
-    race_control_message_embed,
     session_data_embed,
     session_info_embed,
-    timing_data_embed,
     track_status_embed,
 )
 
@@ -114,7 +112,7 @@ if __name__ == "__main__":
                         if msg_data[0] == "RaceControlMessages":
                             discord_message(
                                 embeds=[
-                                    race_control_message_embed(
+                                    exfolt.race_control_message_embed(
                                         msg_data[1],
                                         msg_data[2],
                                     ),
@@ -122,7 +120,7 @@ if __name__ == "__main__":
                             )
 
                         elif msg_data[0] == "TimingData":
-                            embed = timing_data_embed(
+                            embed = exfolt.timing_data_embed(
                                 msg_data[1],
                                 msg_data[2],
                             )
