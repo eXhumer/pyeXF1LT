@@ -1070,12 +1070,9 @@ class F1Client:
 
                                     return DiscordModel.Embed(
                                         title="Timing Data",
-                                        image=(
-                                            DiscordModel.Embed.Image(
-                                                drv_hs_url,
-                                            )
-                                            if drv_hs_url
-                                            else None
+                                        author=DiscordModel.Embed.Author(
+                                            self.__driver_string(drv_num),
+                                            icon_url=drv_hs_url,
                                         ),
                                         fields=[
                                             DiscordModel.Embed.Field(
@@ -1188,12 +1185,13 @@ class F1Client:
                 ),
             )
 
-            image = DiscordModel.Embed.Image(
-                self.__driver_headshot_url(msg_data["RacingNumber"])
+            author = DiscordModel.Embed.Author(
+                self.__driver_string(msg_data["RacingNumber"]),
+                icon_url=self.__driver_headshot_url(msg_data["RacingNumber"]),
             )
 
         else:
-            image = None
+            author = None
 
         if "Sector" in msg_data:
             fields.append(
@@ -1221,7 +1219,7 @@ class F1Client:
 
         return DiscordModel.Embed(
             title="Race Control Message",
-            image=image,
+            author=author,
             description=description,
             fields=fields,
             color=color,
