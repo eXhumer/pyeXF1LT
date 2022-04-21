@@ -59,7 +59,7 @@ class WeatherTracker:
         tt_threshold_delta: float = 0.5,
         tt_threshold_interval: int = 5,
         hu_notify_interval: int = 60,
-        hu_threshold_delta: float = 0.5,
+        hu_threshold_delta: float = 5,
         hu_threshold_interval: int = 5,
         pa_notify_interval: int = 60,
         pa_threshold_delta: float = 0.5,
@@ -162,7 +162,7 @@ class WeatherTracker:
                 len(self.__at_data_history),
             )
 
-            at_history = self.__at_data_history[-at_interval:0]
+            at_history = self.__at_data_history[-at_interval:]
 
             if at_history[-1] - at_history[0] > 0:
                 if at_history[-1] - at_history[0] > self.__at_threshold_delta:
@@ -225,7 +225,7 @@ class WeatherTracker:
                 len(self.__tt_data_history),
             )
 
-            tt_history = self.__tt_data_history[-tt_interval:0]
+            tt_history = self.__tt_data_history[-tt_interval:]
 
             if tt_history[-1] - tt_history[0] > 0:
                 if tt_history[-1] - tt_history[0] > self.__tt_threshold_delta:
@@ -288,7 +288,7 @@ class WeatherTracker:
                 len(self.__hu_data_history),
             )
 
-            hu_history = self.__hu_data_history[-hu_interval:0]
+            hu_history = self.__hu_data_history[-hu_interval:]
 
             if hu_history[-1] - hu_history[0] > 0:
                 if hu_history[-1] - hu_history[0] > self.__hu_threshold_delta:
@@ -351,7 +351,7 @@ class WeatherTracker:
                 len(self.__pa_data_history),
             )
 
-            pa_history = self.__pa_data_history[-pa_interval:0]
+            pa_history = self.__pa_data_history[-pa_interval:]
 
             if pa_history[-1] - pa_history[0] > 0:
                 if pa_history[-1] - pa_history[0] > self.__pa_threshold_delta:
@@ -409,7 +409,7 @@ class WeatherTracker:
                             }
                         })
 
-            rf_history = self.__rf_data_history[-2:0]
+            rf_history = self.__rf_data_history[-2:]
 
             if rf_history[0] != rf_history[1]:
                 ts = "Dry" if rf_history[1] == 0 else "Wet"
@@ -420,7 +420,7 @@ class WeatherTracker:
                     }
                 })
 
-            wd_history = self.__wd_data_history[-2:0]
+            wd_history = self.__wd_data_history[-2:]
 
             if wd_history[0] != wd_history[1]:
                 notify_change = True
@@ -445,7 +445,7 @@ class WeatherTracker:
                 len(self.__ws_data_history),
             )
 
-            ws_history = self.__ws_data_history[-ws_interval:0]
+            ws_history = self.__ws_data_history[-ws_interval:]
 
             if ws_history[-1] - ws_history[0] > 0:
                 if ws_history[-1] - ws_history[0] > self.__ws_threshold_delta:
@@ -507,7 +507,8 @@ class WeatherTracker:
 
             if len(changes) > 0:
                 for change in changes:
-                    if change.key() == "AirTemp":
+                    if "AirTemp" in change.keys():
+                        change = change["AirTemp"]
                         self.__last_at_notify_at = datetime.now()
                         self.__last_at_notify_reason = change["Reason"]
 
@@ -532,7 +533,8 @@ class WeatherTracker:
                             )
                         )
 
-                    elif change.key() == "TrackTemp":
+                    elif "TrackTemp" in change.keys():
+                        change = change["TrackTemp"]
                         self.__last_tt_notify_at = datetime.now()
                         self.__last_tt_notify_reason = change["Reason"]
 
@@ -557,7 +559,8 @@ class WeatherTracker:
                             )
                         )
 
-                    elif change.key() == "Humidity":
+                    elif "Humidity" in change.keys():
+                        change = change["Humidity"]
                         self.__last_hu_notify_at = datetime.now()
                         self.__last_hu_notify_reason = change["Reason"]
 
@@ -582,7 +585,8 @@ class WeatherTracker:
                             )
                         )
 
-                    elif change.key() == "Pressure":
+                    elif "Pressure" in change.keys():
+                        change = change["Pressure"]
                         self.__last_pa_notify_at = datetime.now()
                         self.__last_pa_notify_reason = change["Reason"]
 
@@ -607,7 +611,8 @@ class WeatherTracker:
                             )
                         )
 
-                    elif change.key() == "Rainfall":
+                    elif "Rainfall" in change.keys():
+                        change = change["Rainfall"]
                         embeds.append(
                             DiscordModel.Embed(
                                 title="Track Status Change Information",
@@ -621,12 +626,13 @@ class WeatherTracker:
                             )
                         )
 
-                    elif change.key() == "WindDirection":
+                    elif "WindDirection" in change.keys():
+                        change = change["WindDirection"]
                         self.__last_wd_notify_at = datetime.now()
 
                         embeds.append(
                             DiscordModel.Embed(
-                                title="Wind Direction Information",
+                                title="Wind Direction Change Information",
                                 fields=[
                                     DiscordModel.Embed.Field(
                                         "New",
@@ -641,13 +647,14 @@ class WeatherTracker:
                             )
                         )
 
-                    elif change.key() == "WindSpeed":
+                    elif "WindSpeed" in change.keys():
+                        change = change["WindSpeed"]
                         self.__last_ws_notify_at = datetime.now()
                         self.__last_ws_notify_reason = change["Reason"]
 
                         embeds.append(
                             DiscordModel.Embed(
-                                title="Wind Speed Information",
+                                title="Wind Speed Change Information",
                                 fields=[
                                     DiscordModel.Embed.Field(
                                         "Change",
