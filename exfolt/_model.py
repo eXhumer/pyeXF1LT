@@ -227,7 +227,7 @@ class DiscordModel:
             self.fields = fields
 
         def __repr__(self) -> str:
-            return f"DiscordModel.Embed(title={self.title}), " + \
+            return f"DiscordModel.Embed(title={self.title}, " + \
                 f"type={self.type}, description={self.description}, " + \
                 f"url={self.url}, timestamp={self.timestamp}, " + \
                 f"color={self.color}, footer={self.footer}, " + \
@@ -257,7 +257,7 @@ class DiscordModel:
             self.available = available
 
         def __repr__(self) -> str:
-            return f"DiscordModel.Emoji(id={self.id}), name={self.name}, " + \
+            return f"DiscordModel.Emoji(id={self.id}, name={self.name}, " + \
                 f"roles={self.roles}, user={self.user}, " + \
                 f"require_colons={self.require_colons}, " + \
                 f"managed={self.managed}, animated={self.animated}, " + \
