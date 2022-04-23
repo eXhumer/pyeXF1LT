@@ -961,8 +961,6 @@ class F1Client:
                     json_data["M"][0]["A"][0] == "DriverList"
                 ):
                     for drv_num, drv_data in json_data["M"][0]["A"][1].items():
-                        print(f"{drv_num}:{drv_data}")
-
                         if type(drv_data) == dict:
                             if "Line" in drv_data and len(drv_data) == 1:
                                 continue
@@ -1028,7 +1026,6 @@ class F1Client:
         if number not in self.__driver_data:
             return
 
-        print(self.__driver_data[number])
         return (
             self.__driver_data[number]["HeadshotUrl"]
             if "HeadshotUrl" in self.__driver_data[number]
