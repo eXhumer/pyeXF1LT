@@ -133,7 +133,7 @@ if __name__ == "__main__":
 
                         elif msg_data[0] == "SessionInfo":
                             discord_message(
-                                embed=[
+                                embeds=[
                                     session_info_embed(
                                         msg_data[1],
                                         msg_data[2],

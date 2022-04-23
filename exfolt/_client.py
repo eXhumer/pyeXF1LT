@@ -961,12 +961,14 @@ class F1Client:
                     json_data["M"][0]["A"][0] == "DriverList"
                 ):
                     for drv_num, drv_data in json_data["M"][0]["A"][1].items():
-                        print(drv_data)
-                        if "Line" in drv_data and len(drv_data) == 1:
-                            continue
+                        print(f"{drv_num}:{drv_data}")
 
-                        else:
-                            self.__driver_data.update({drv_num: drv_data})
+                        if type(drv_data) == dict:
+                            if "Line" in drv_data and len(drv_data) == 1:
+                                continue
+
+                            else:
+                                self.__driver_data.update({drv_num: drv_data})
 
                 return opcode, json_data
 
