@@ -1134,7 +1134,11 @@ class F1Client:
                 color = 0x0000FF  # Blue
                 description = "<:blue:964569378999898143>"
 
-            elif flag_status == FlagStatus.CHEQUERED:
+            elif flag_status in [
+                FlagStatus.BLACK,
+                FlagStatus.BLACK_AND_WHITE,
+                FlagStatus.CHEQUERED,
+            ]:
                 color = 0x000000  # Black
                 description = "<:chequered:964569378769235990>"
 
