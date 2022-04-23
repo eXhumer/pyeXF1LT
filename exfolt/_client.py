@@ -185,10 +185,11 @@ class WeatherTracker:
                                 notify_change = False
 
                     if notify_change:
+                        change = round(at_history[-1] - at_history[0], 1)
                         changes.append({
                             "AirTemp": {
                                 "Reason": WeatherTracker.NotifyReason.POSITIVE,
-                                "Change": f"{at_history[-1] - at_history[0]}",
+                                "Change": f"{change}",
                                 "New": f"{at_history[-1]}",
                                 "Previous": f"{at_history[0]}",
                             }
@@ -213,10 +214,11 @@ class WeatherTracker:
                                 notify_change = False
 
                     if notify_change:
+                        change = round(at_history[-1] - at_history[0], 1)
                         changes.append({
                             "AirTemp": {
                                 "Reason": WeatherTracker.NotifyReason.NEGATIVE,
-                                "Change": f"{at_history[-1] - at_history[0]}",
+                                "Change": f"{change}",
                                 "New": f"{at_history[-1]}",
                                 "Previous": f"{at_history[0]}",
                             }
@@ -248,10 +250,11 @@ class WeatherTracker:
                                 notify_change = False
 
                     if notify_change:
+                        change = round(tt_history[-1] - tt_history[0], 1)
                         changes.append({
                             "TrackTemp": {
                                 "Reason": WeatherTracker.NotifyReason.POSITIVE,
-                                "Change": f"{tt_history[-1] - tt_history[0]}",
+                                "Change": f"{change}",
                                 "New": f"{tt_history[-1]}",
                                 "Previous": f"{tt_history[0]}",
                             }
@@ -276,10 +279,11 @@ class WeatherTracker:
                                 notify_change = False
 
                     if notify_change:
+                        change = round(tt_history[-1] - tt_history[0], 1)
                         changes.append({
                             "TrackTemp": {
                                 "Reason": WeatherTracker.NotifyReason.NEGATIVE,
-                                "Change": f"{tt_history[-1] - tt_history[0]}",
+                                "Change": f"{change}",
                                 "New": f"{tt_history[-1]}",
                                 "Previous": f"{tt_history[0]}",
                             }
@@ -311,10 +315,11 @@ class WeatherTracker:
                                 notify_change = False
 
                     if notify_change:
+                        change = round(hu_history[-1] - hu_history[0], 1)
                         changes.append({
                             "Humidity": {
                                 "Reason": WeatherTracker.NotifyReason.POSITIVE,
-                                "Change": f"{hu_history[-1] - hu_history[0]}",
+                                "Change": f"{change}",
                                 "New": f"{hu_history[-1]}",
                                 "Previous": f"{hu_history[0]}",
                             }
@@ -339,10 +344,11 @@ class WeatherTracker:
                                 notify_change = False
 
                     if notify_change:
+                        change = round(hu_history[-1] - hu_history[0], 1)
                         changes.append({
                             "Humidity": {
                                 "Reason": WeatherTracker.NotifyReason.NEGATIVE,
-                                "Change": f"{hu_history[-1] - hu_history[0]}",
+                                "Change": f"{change}",
                                 "New": f"{hu_history[-1]}",
                                 "Previous": f"{hu_history[0]}",
                             }
@@ -374,10 +380,11 @@ class WeatherTracker:
                                 notify_change = False
 
                     if notify_change:
+                        change = round(pa_history[-1] - pa_history[0], 1)
                         changes.append({
                             "Pressure": {
                                 "Reason": WeatherTracker.NotifyReason.POSITIVE,
-                                "Change": f"{pa_history[-1] - pa_history[0]}",
+                                "Change": f"{change}",
                                 "New": f"{pa_history[-1]}",
                                 "Previous": f"{pa_history[0]}",
                             }
@@ -402,10 +409,11 @@ class WeatherTracker:
                                 notify_change = False
 
                     if notify_change:
+                        change = round(pa_history[-1] - pa_history[0], 1)
                         changes.append({
                             "Pressure": {
                                 "Reason": WeatherTracker.NotifyReason.NEGATIVE,
-                                "Change": f"{pa_history[-1] - pa_history[0]}",
+                                "Change": f"{change}",
                                 "New": f"{pa_history[-1]}",
                                 "Previous": f"{pa_history[0]}",
                             }
@@ -468,10 +476,11 @@ class WeatherTracker:
                                 notify_change = False
 
                     if notify_change:
+                        change = round(ws_history[-1] - ws_history[0], 1)
                         changes.append({
                             "WindSpeed": {
                                 "Reason": WeatherTracker.NotifyReason.POSITIVE,
-                                "Change": f"{ws_history[-1] - ws_history[0]}",
+                                "Change": f"{change}",
                                 "New": f"{ws_history[-1]}",
                                 "Previous": f"{ws_history[0]}",
                             }
@@ -496,10 +505,11 @@ class WeatherTracker:
                                 notify_change = False
 
                     if notify_change:
+                        change = round(ws_history[-1] - ws_history[0], 1)
                         changes.append({
                             "WindSpeed": {
                                 "Reason": WeatherTracker.NotifyReason.NEGATIVE,
-                                "Change": f"{ws_history[-1] - ws_history[0]}",
+                                "Change": f"{change}",
                                 "New": f"{ws_history[-1]}",
                                 "Previous": f"{ws_history[0]}",
                             }
