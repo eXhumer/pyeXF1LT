@@ -21,7 +21,7 @@ from random import randint
 from typing import Any, Dict, List, Literal, Union
 from urllib.parse import quote, urlencode
 
-from requests import ConnectionError, Session
+from requests import ConnectionError, HTTPError, Session
 from websocket import (
     WebSocket,
     WebSocketBadStatusException,
@@ -786,7 +786,7 @@ class F1Client:
                 )
                 res.raise_for_status()
 
-            except ConnectionError:
+            except (ConnectionError, HTTPError):
                 print("Connection error while closing active connection!")
 
         if self.__ws.connected:
@@ -931,7 +931,7 @@ class F1Client:
             res.raise_for_status()
             return res.json()["Response"]
 
-        except ConnectionError:
+        except (ConnectionError, HTTPError):
             print("Connection error while pinging!")
 
     def __recv(self):
