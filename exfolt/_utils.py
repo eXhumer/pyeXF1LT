@@ -13,11 +13,48 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import dateutil.parser
+from datetime import datetime, timezone
 from typing import Dict, List, Literal
 
 from ._type import TrackStatus
 from ._model import DiscordModel
+
+
+def datetime_string_parser(dt_str: str):
+    assert (
+        "Z" in dt_str and
+        dt_str.count("Z") == 1 and
+        dt_str.endswith("Z") and
+        "T" in dt_str and
+        dt_str.count("T") == 1
+    ), "Unexpected datetime string format!"
+
+    [date, time] = dt_str.replace("Z", "").split("T")
+    assert date.count("-") == 2, "Unexpected date string format!"
+    assert (
+        time.count(":") == 2 and
+        time.count(".") == 1
+    ), "Unexpected date string format!"
+
+    [year, month, day] = date.split("-")
+    [hour, minute, second] = time.split(":")
+    [second, microsecond] = second.split(".")
+
+    if len(microsecond) > 6:
+        microsecond = microsecond[:6]
+    else:
+        microsecond += "0" * (6 - len(microsecond))
+
+    return datetime(
+        int(year),
+        int(month),
+        int(day),
+        hour=int(hour),
+        minute=int(minute),
+        second=int(second),
+        microsecond=int(microsecond),
+        tzinfo=timezone.utc,
+    )
 
 
 def track_status_str(status: TrackStatus):
@@ -93,7 +130,7 @@ def session_info_embed(
                 msg_data["GmtOffset"],
             ),
         ],
-        timestamp=dateutil.parser.parse(msg_dt),
+        timestamp=datetime_string_parser(msg_dt),
         color=0xFFFFFF,
     )
 
@@ -151,7 +188,7 @@ def track_status_embed(
             if msg_data["Status"] == TrackStatus.RED
             else None
         ),
-        timestamp=dateutil.parser.parse(msg_dt),
+        timestamp=datetime_string_parser(msg_dt),
     )
 
 
@@ -236,7 +273,7 @@ def session_data_embed(
     return DiscordModel.Embed(
         title="Session Data",
         fields=fields,
-        timestamp=dateutil.parser.parse(msg_dt),
+        timestamp=datetime_string_parser(msg_dt),
     )
 
 
@@ -262,5 +299,5 @@ def extrapolated_clock_embed(
     return DiscordModel.Embed(
         title="Extrapolated Clock",
         fields=fields,
-        timestamp=dateutil.parser.parse(msg_dt),
+        timestamp=datetime_string_parser(msg_dt),
     )

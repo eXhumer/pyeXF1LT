@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import dateutil.parser
 import json
 from datetime import datetime, timedelta, timezone
 from enum import IntEnum
@@ -31,6 +30,7 @@ from websocket import (
 
 from ._model import DiscordModel
 from ._type import FlagStatus, TimingDataStatus
+from ._utils import datetime_string_parser
 
 
 WeatherDataEntry = Dict[
@@ -1116,7 +1116,7 @@ class F1Client:
                                             ),
                                         ],
                                         color=color,
-                                        timestamp=dateutil.parser.parse(
+                                        timestamp=datetime_string_parser(
                                             msg_dt,
                                         ),
                                     )
@@ -1231,5 +1231,5 @@ class F1Client:
             description=description,
             fields=fields,
             color=color,
-            timestamp=dateutil.parser.parse(msg_dt),
+            timestamp=datetime_string_parser(msg_dt),
         )
