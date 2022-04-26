@@ -61,6 +61,7 @@ class DiscordType:
 
 class FlagStatus(str, Enum):
     BLACK = "BLACK"
+    BLACK_AND_ORANGE = "BLACK AND ORANGE"
     BLACK_AND_WHITE = "BLACK AND WHITE"
     BLUE = "BLUE"
     CHEQUERED = "CHEQUERED"

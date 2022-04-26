@@ -1144,17 +1144,26 @@ class F1Client:
                 color = 0x0000FF  # Blue
                 description = "<:blue:964569378999898143>"
 
-            elif flag_status in [
-                FlagStatus.BLACK,
-                FlagStatus.BLACK_AND_WHITE,
-                FlagStatus.CHEQUERED,
-            ]:
+            elif flag_status == FlagStatus.BLACK:
                 color = 0x000000  # Black
-                description = "<:chequered:964569378769235990>"
+                description = "<:black:964569379264147556>"
 
-            elif flag_status == FlagStatus.CLEAR:
+            elif flag_status == FlagStatus.BLACK_AND_ORANGE:
+                color = 0xFFA500  # Orange
+                description = "<:blackorange:968388147148914688>"
+
+            elif flag_status == FlagStatus.BLACK_AND_WHITE:
+                color = 0xFFA500  # Orange
+                description = "<:blackwhite:968388147123728405>"
+
+            elif flag_status in [FlagStatus.CLEAR, FlagStatus.CHEQUERED]:
                 color = 0xFFFFFF  # White
-                description = "<:green:964569379205414932>"
+
+                if flag_status == FlagStatus.CLEAR:
+                    description = "<:green:964569379205414932>"
+
+                else:
+                    description = "<:chequered:964569378769235990>"
 
             elif flag_status == FlagStatus.GREEN:
                 description = "<:green:964569379205414932>"
