@@ -37,7 +37,7 @@ if __name__ == "__main__":
     parser.add_argument("--channel-id", type=Snowflake)
     parser.add_argument("--webhook-token")
     parser.add_argument("--webhook-id", type=Snowflake)
-    parser.add_argument("--timing-data", action="store_true")
+    parser.add_argument("--purple-segments", action="store_true")
     parser.add_argument("--disable-start-message", action="store_true")
     parser.add_argument("--disable-stop-message", action="store_true")
     args = parser.parse_args()
@@ -123,12 +123,11 @@ if __name__ == "__main__":
                                 ],
                             )
 
-                        elif (
-                            args.timing_data and msg_data[0] == "TimingData"
-                        ):
+                        elif msg_data[0] == "TimingData":
                             embed = exfolt.timing_data_embed(
                                 msg_data[1],
                                 msg_data[2],
+                                notify_fastest_segment=args.purple_segments,
                             )
 
                             if embed:

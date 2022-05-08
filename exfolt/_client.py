@@ -1046,6 +1046,7 @@ class F1Client:
         self,
         msg_data: TimingData,
         msg_dt: str,
+        notify_fastest_segment: bool = False,
     ):
         if "Lines" in msg_data and len(msg_data["Lines"]) == 1:
             for drv_num, drv_data in msg_data["Lines"].items():
@@ -1072,6 +1073,9 @@ class F1Client:
 
                                     if segment_data["Status"] == \
                                             TimingDataStatus.PURPLE:
+                                        if not notify_fastest_segment:
+                                            continue
+
                                         color = 0xA020F0
 
                                     elif segment_data["Status"] in [
