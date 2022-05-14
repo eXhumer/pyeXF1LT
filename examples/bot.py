@@ -16,12 +16,14 @@
 from argparse import ArgumentParser
 from datetime import datetime, timezone
 from os import environ
+from queue import Queue
 
 from exfolt import (
     DiscordClient,
     DiscordModel,
     DiscordType,
     F1Client,
+    RateLimiter,
     Snowflake,
     WeatherTracker,
     extrapolated_clock_embed,
@@ -66,7 +68,7 @@ if __name__ == "__main__":
     ):
         def discord_message(**args):
             if bot_token and channel_id:
-                DiscordClient(
+                return DiscordClient(
                     DiscordClient.BotAuthorization(bot_token),
                 ).post_message(
                     channel_id,
@@ -74,11 +76,14 @@ if __name__ == "__main__":
                 )
 
             if webhook_token and webhook_id:
-                DiscordClient.post_webhook_message(
+                return DiscordClient.post_webhook_message(
                     webhook_id,
                     webhook_token,
                     **args,
                 )
+
+            else:
+                assert False
 
         if not args.disable_start_message:
             discord_message(
@@ -101,6 +106,8 @@ if __name__ == "__main__":
 
         try:
             tracker = WeatherTracker()
+            rate_limiter = RateLimiter()
+            msg_q = Queue()
 
             with F1Client() as exfolt:
                 for msg in exfolt:
@@ -114,14 +121,11 @@ if __name__ == "__main__":
                         msg_data = msg["M"][0]["A"]
 
                         if msg_data[0] == "RaceControlMessages":
-                            discord_message(
-                                embeds=[
-                                    exfolt.race_control_message_embed(
-                                        msg_data[1],
-                                        msg_data[2],
-                                    ),
-                                ],
+                            embed = exfolt.race_control_message_embed(
+                                msg_data[1],
+                                msg_data[2],
                             )
+                            msg_q.put(embed)
 
                         elif msg_data[0] == "TimingData":
                             embed = exfolt.timing_data_embed(
@@ -131,57 +135,74 @@ if __name__ == "__main__":
                             )
 
                             if embed:
-                                discord_message(embeds=[embed])
+                                msg_q.put(embed)
 
                         elif msg_data[0] == "SessionInfo":
-                            discord_message(
-                                embeds=[
-                                    session_info_embed(
-                                        msg_data[1],
-                                        msg_data[2],
-                                    ),
-                                ],
+                            embed = session_info_embed(
+                                msg_data[1],
+                                msg_data[2],
                             )
+                            msg_q.put(embed)
 
                         elif msg_data[0] == "TrackStatus":
-                            discord_message(
-                                embeds=[
-                                    track_status_embed(
-                                        msg_data[1],
-                                        msg_data[2],
-                                    ),
-                                ],
+                            embed = track_status_embed(
+                                msg_data[1],
+                                msg_data[2],
                             )
+                            msg_q.put(embed)
 
                         elif msg_data[0] == "SessionData":
-                            discord_message(
-                                embeds=[
-                                    session_data_embed(
-                                        msg_data[1],
-                                        msg_data[2],
-                                    ),
-                                ],
+                            embed = session_data_embed(
+                                msg_data[1],
+                                msg_data[2],
                             )
+                            msg_q.put(embed)
 
                         elif msg_data[0] == "ExtrapolatedClock":
-                            discord_message(
-                                embeds=[
-                                    extrapolated_clock_embed(
-                                        msg_data[1],
-                                        msg_data[2],
-                                    ),
-                                ],
+                            embed = extrapolated_clock_embed(
+                                msg_data[1],
+                                msg_data[2],
                             )
+                            msg_q.put(embed)
 
                         elif msg_data[0] == "WeatherData":
                             tracker.update_data(msg_data[1])
                             embeds = tracker.notify_change_embed()
 
                             if embeds:
-                                discord_message(embeds=embeds)
+                                for embed in embeds:
+                                    msg_q.put(embed)
 
                         else:
                             print(msg_data)
+
+                    if not msg_q.empty():
+                        if rate_limiter.remaining is not None:
+                            assert rate_limiter.reset and rate_limiter.limit
+
+                            if (
+                                rate_limiter.remaining == 0
+                            ) and (
+                                rate_limiter.reset >
+                                datetime.utcnow().replace(timezone.utc)
+                            ):  # Rate Limited
+                                print(
+                                    "\n".join((
+                                        "Rate Limited!",
+                                        f"Limit: {rate_limiter.limit}",
+                                        f"Remaining: {rate_limiter.remaining}",
+                                        f"Reset: {rate_limiter.reset}",
+                                    ))
+                                )
+                                continue
+
+                        embeds = []
+
+                        for _ in range(min(len(msg_q), 10)):
+                            embeds.append(msg_q.get())
+
+                        res = discord_message(embeds=embeds)
+                        rate_limiter.update_limit(**res.headers)
 
         except KeyboardInterrupt:
             if not args.disable_stop_message:

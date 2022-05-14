@@ -18,6 +18,7 @@ from ._discord import DiscordClient  # noqa: F401
 from ._model import DiscordModel, Snowflake  # noqa: F401
 from ._type import DiscordType, TrackStatus  # noqa: F401
 from ._utils import (  # noqa: F401
+    RateLimiter,
     datetime_string_parser,
     extrapolated_clock_embed,
     session_data_embed,

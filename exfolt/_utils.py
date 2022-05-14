@@ -20,6 +20,41 @@ from ._type import TrackStatus
 from ._model import DiscordModel
 
 
+class RateLimiter:
+    def __init__(self) -> None:
+        self.__limit: int | None = None
+        self.__remaining: int | None = None
+        self.__reset: int | None = None
+
+    @property
+    def limit(self):
+        return self.__limit
+
+    @property
+    def remaining(self):
+        return self.__remaining
+
+    @property
+    def reset(self):
+        if not self.__reset:
+            return
+
+        return datetime.fromtimestamp(
+            self.__reset
+        ).replace(tzinfo=timezone.utc)
+
+    def update_limit(self, **rate_data: str):
+        for k, v in rate_data:
+            if k.lower() == "x-rate-limit-limit":
+                self.__limit = int(v)
+
+            elif k.lower() == "x-rate-limit-remaining":
+                self.__remaining = int(v)
+
+            elif k.lower() == "x-rate-limit-reset":
+                self.__reset = int(v)
+
+
 def datetime_string_parser(dt_str: str):
     assert (
         "Z" in dt_str and
@@ -27,7 +62,10 @@ def datetime_string_parser(dt_str: str):
         dt_str.endswith("Z") and
         "T" in dt_str and
         dt_str.count("T") == 1
-    ), "Unexpected datetime string format!"
+    ), "\n".join((
+        "Unexpected datetime string format!",
+        f"Received datetime string: {dt_str}",
+    ))
 
     [date, time] = dt_str.replace("Z", "").split("T")
     assert date.count("-") == 2, "Unexpected date string format!"
