@@ -47,13 +47,11 @@ if __name__ == "__main__":
                 msg_data = msg["M"][0]["A"]
 
                 if msg_data[0] == "RaceControlMessages":
-                    if isinstance(msg_data["Messages"], list):
-                        rcm_data = msg_data["Messages"][0]
-
-                    else:
-                        rcm_data = list(msg_data["Messages"].values())[0]
+                    rcm_data = exfolt.race_control_message_data_parser(
+                        msg_data[1],
+                    )
 
                     extc.post(
                         "2/tweets",
-                        json={"text": rcm_data["Message"]},
+                        json={"text": rcm_data.message},
                     )
