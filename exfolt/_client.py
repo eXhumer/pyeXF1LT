@@ -942,7 +942,7 @@ class F1Client:
         streaming_status = res_json["Status"]
         return streaming_status
 
-    def parse_timing_data(self, msg_data: TimingDataDict):
+    def timing_data_parser(self, msg_data: TimingDataDict):
         if "Lines" in msg_data and len(msg_data["Lines"]) == 1:
             for drv_num, drv_data in msg_data["Lines"].items():
                 if "Sectors" in drv_data and len(drv_data["Sectors"]) == 1:
@@ -971,7 +971,7 @@ class F1Client:
                                         segment_data["Status"],
                                     )
 
-    def race_control_message_data(
+    def race_control_message_data_parser(
         self,
         msg_data: Dict[
             Literal["Messages"],
