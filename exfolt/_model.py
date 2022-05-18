@@ -13,460 +13,346 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from __future__ import annotations
-from datetime import datetime
-from pathlib import Path
-from typing import Dict, List
-
-from ._type import DiscordType
+from ._type import TimingDataStatus, TrackStatus
 
 
-class Snowflake:
-    def __init__(self, value: int | str) -> None:
-        assert int(value) <= (1 << 64) - 1, "Value too big!"
-        self.__value = int(value)
-
-    def __str__(self):
-        return str(self.__value)
-
-    def __repr__(self) -> str:
-        return f"Snowflake(value={self.__value}, timestamp={self.timestamp}" +\
-            f", internal_process_id={self.internal_process_id}, " +\
-            f"internal_worker_id={self.internal_worker_id}, " +\
-            f"increment={self.increment})"
+class DriverData:
+    def __init__(
+        self,
+        racing_number: str,
+        first_name: str | None = None,
+        last_name: str | None = None,
+        headshot_url: str | None = None,
+    ) -> None:
+        self.__rn = racing_number
+        self.__fn = first_name
+        self.__ln = last_name
+        self.__hu = headshot_url
 
     @property
-    def __discord_epoch_timestamp_ms(self):
-        return self.__value >> 22
+    def racing_number(self):
+        return self.__rn
 
     @property
-    def __epoch_timestamp_ms(self):
-        return self.__discord_epoch_timestamp_ms + 0x14AA2CAB000
+    def first_name(self):
+        return self.__fn
 
     @property
-    def timestamp(self):
-        return datetime.fromtimestamp(self.__epoch_timestamp_ms / 1000)
+    def last_name(self):
+        return self.__ln
 
     @property
-    def internal_worker_id(self):
-        return (self.__value & 0x3E0000) >> 17
+    def headshot_url(self):
+        return self.__hu
+
+    def __str__(self) -> str:
+        if self.first_name and self.last_name:
+            return f"{self.first_name} {self.last_name} ({self.racing_number})"
+
+        return self.racing_number
+
+
+class ExtrapolatedData:
+    def __init__(
+        self,
+        remanining: str,
+        extrapolating: bool | None = None,
+    ) -> None:
+        self.__remaining = remanining
+        self.__extrapolating = extrapolating
 
     @property
-    def internal_process_id(self):
-        return (self.__value & 0x1F000) >> 12
+    def remaining(self):
+        return self.__remaining
 
     @property
-    def increment(self):
-        return self.__value & 0xFFF
+    def extrapolating(self):
+        return self.__extrapolating
 
 
-class DiscordModel:
-    class AllowedMention:
-        def __init__(
-            self,
-            parse: List[DiscordType.AllowedMention],
-            roles: List[str],
-            users: List[str],
-            replied_user: bool,
-        ) -> None:
-            self.parse = parse
-            self.roles = roles
-            self.users = users
-            self.replied_user = replied_user
+class InitialWeatherData:
+    def __init__(
+        self,
+        airtemp: float,
+        tracktemp: float,
+        humidity: float,
+        pressure: float,
+        rainfall: bool,
+        winddirection: int,
+        windspeed: float,
+    ) -> None:
+        self.__airtemp = airtemp
+        self.__tracktemp = tracktemp
+        self.__humidity = humidity
+        self.__pressure = pressure
+        self.__rainfall = rainfall
+        self.__winddirection = winddirection
+        self.__windspeed = windspeed
 
-        def __repr__(self) -> str:
-            return f"DiscordModel.AllowedMention(parse={self.parse}, " + \
-                f"roles={self.roles}, users={self.users}, " + \
-                f"replied_user={self.replied_user})"
+    @property
+    def airtemp(self):
+        return self.__airtemp
 
-    class Embed:
-        class Footer:
-            def __init__(
-                self,
-                text: str,
-                icon_url: str | None = None,
-                proxy_icon_url: str | None = None,
-            ) -> None:
-                self.text = text
-                self.icon_url = icon_url
-                self.proxy_icon_url = proxy_icon_url
+    @property
+    def tracktemp(self):
+        return self.__tracktemp
 
-            def __repr__(self) -> str:
-                return f"DiscordModel.Embed.Footer(text={self.text}, " + \
-                    f"icon_url={self.icon_url}, " + \
-                    f"proxy_icon_url={self.proxy_icon_url})"
+    @property
+    def humidity(self):
+        return self.__humidity
 
-        class Image:
-            def __init__(
-                self,
-                url: str,
-                proxy_url: str | None = None,
-                height: int | None = None,
-                width: int | None = None,
-            ) -> None:
-                self.url = url
-                self.proxy_url = proxy_url
-                self.height = height
-                self.width = width
+    @property
+    def pressure(self):
+        return self.__pressure
 
-            def __repr__(self) -> str:
-                return f"DiscordModel.Embed.Image(url={self.url}, " + \
-                    f"proxy_url={self.proxy_url}, height={self.height}, " + \
-                    f"width={self.width})"
+    @property
+    def rainfall(self):
+        return self.__rainfall
 
-        class Thumbnail:
-            def __init__(
-                self,
-                url: str,
-                proxy_url: str | None = None,
-                height: int | None = None,
-                width: int | None = None,
-            ) -> None:
-                self.url = url
-                self.proxy_url = proxy_url
-                self.height = height
-                self.width = width
+    @property
+    def winddirection(self):
+        return self.__winddirection
 
-            def __repr__(self) -> str:
-                return f"DiscordModel.Embed.Thumbnail(url={self.url}, " + \
-                    f"proxy_url={self.proxy_url}, height={self.height}, " + \
-                    f"width={self.width})"
+    @property
+    def windspeed(self):
+        return self.__windspeed
 
-        class Video:
-            def __init__(
-                self,
-                url: str,
-                proxy_url: str | None = None,
-                height: int | None = None,
-                width: int | None = None,
-            ) -> None:
-                self.url = url
-                self.proxy_url = proxy_url
-                self.height = height
-                self.width = width
 
-            def __repr__(self) -> str:
-                return f"DiscordModel.Embed.Video(url={self.url}, " + \
-                    f"proxy_url={self.proxy_url}, height={self.height}, " + \
-                    f"width={self.width})"
+class RaceControlMessageData:
+    def __init__(
+        self,
+        category: str,
+        message: str,
+        flag: str | None = None,
+        scope: str | None = None,
+        driver_data: DriverData | None = None,
+        sector: int | None = None,
+        lap: int | None = None,
+        drs_status: str | None = None,
+    ) -> None:
+        self.__category = category
+        self.__message = message
+        self.__flag = flag
+        self.__scope = scope
+        self.__driver_data = driver_data
+        self.__sector = sector
+        self.__lap = lap
+        self.__drs_status = drs_status
 
-        class Provider:
-            def __init__(
-                self,
-                name: str | None = None,
-                url: str | None = None,
-            ) -> None:
-                self.name = name
-                self.url = url
+    @property
+    def category(self):
+        return self.__category
 
-            def __repr__(self) -> str:
-                return f"DiscordModel.Embed.Provider(name={self.name}, " + \
-                    f"url={self.url})"
+    @property
+    def message(self):
+        return self.__message
 
-        class Author:
-            def __init__(
-                self,
-                name: str,
-                url: str | None = None,
-                icon_url: str | None = None,
-                proxy_icon_url: str | None = None,
-            ) -> None:
-                self.name = name
-                self.url = url
-                self.icon_url = icon_url
-                self.proxy_icon_url = proxy_icon_url
+    @property
+    def flag(self):
+        return self.__flag
 
-            def __repr__(self) -> str:
-                return f"DiscordModel.Embed.Author(name={self.name}, " + \
-                    f"url={self.url}, icon_url={self.icon_url}, " + \
-                    f"proxy_icon_url={self.proxy_icon_url})"
+    @property
+    def scope(self):
+        return self.__scope
 
-        class Field:
-            def __init__(
-                self,
-                name: str,
-                value: str,
-                inline: bool | None = None,
-            ) -> None:
-                self.name = name
-                self.value = value
-                self.inline = inline
+    @property
+    def driver_data(self):
+        return self.__driver_data
 
-            def __repr__(self) -> str:
-                return f"DiscordModel.Embed.Field(name={self.name}, " + \
-                    f"value={self.value}, inline={self.inline})"
+    @property
+    def sector(self):
+        return self.__sector
 
-        def __init__(
-            self,
-            title: str | None = None,
-            type: DiscordType.Embed | None = None,
-            description: str | None = None,
-            url: str | None = None,
-            timestamp: datetime | None = None,
-            color: int | None = None,
-            footer: DiscordModel.Embed.Footer | None = None,
-            image: DiscordModel.Embed.Image | Path | None = None,
-            thumbnail: DiscordModel.Embed.Thumbnail | Path | None = None,
-            video: DiscordModel.Embed.Video | Path | None = None,
-            provider: DiscordModel.Embed.Provider | None = None,
-            author: DiscordModel.Embed.Author | None = None,
-            fields: List[DiscordModel.Embed.Field] | None = None,
-        ) -> None:
-            self.title = title
-            self.type = type
-            self.description = description
-            self.url = url
-            self.timestamp = timestamp
-            self.color = color
-            self.footer = footer
-            self.image = image
-            self.thumbnail = thumbnail
-            self.video = video
-            self.provider = provider
-            self.author = author
-            self.fields = fields
+    @property
+    def lap(self):
+        return self.__lap
 
-        def __repr__(self) -> str:
-            return f"DiscordModel.Embed(title={self.title}, " + \
-                f"type={self.type}, description={self.description}, " + \
-                f"url={self.url}, timestamp={self.timestamp}, " + \
-                f"color={self.color}, footer={self.footer}, " + \
-                f"image={self.image}, thumbnail={self.thumbnail}, " + \
-                f"video={self.video}, provider={self.provider}, " + \
-                f"author={self.author}, fields={self.fields})"
+    @property
+    def drs_status(self):
+        return self.__drs_status
 
-    class Emoji:
-        def __init__(
-            self,
-            id: str | None = None,
-            name: str | None = None,
-            roles: List[str] | None = None,
-            user: DiscordModel.User | None = None,
-            require_colons: bool | None = None,
-            managed: bool | None = None,
-            animated: bool | None = None,
-            available: bool | None = None,
-        ):
-            self.id = id
-            self.name = name
-            self.roles = roles
-            self.user = user
-            self.require_colons = require_colons
-            self.managed = managed
-            self.animated = animated
-            self.available = available
 
-        def __repr__(self) -> str:
-            return f"DiscordModel.Emoji(id={self.id}, name={self.name}, " + \
-                f"roles={self.roles}, user={self.user}, " + \
-                f"require_colons={self.require_colons}, " + \
-                f"managed={self.managed}, animated={self.animated}, " + \
-                f"available={self.available})"
+class SessionData:
+    def __init__(
+        self,
+        lap: int | None = None,
+        qualifying_part: int | None = None,
+        track_status: str | None = None,
+        session_status: str | None = None,
+    ) -> None:
+        self.__lap = lap
+        self.__qualifying_part = qualifying_part
+        self.__track_status = track_status
+        self.__session_status = session_status
 
-    class MessageReference:
-        def __init__(
-            self,
-            message_id: str | None = None,
-            channel_id: str | None = None,
-            guild_id: str | None = None,
-            fail_if_not_exists: bool | None = None,
-        ) -> None:
-            self.message_id = message_id
-            self.channel_id = channel_id
-            self.guild_id = guild_id
-            self.fail_if_not_exists = fail_if_not_exists
+    @property
+    def lap(self):
+        return self.__lap
 
-        def __repr__(self) -> str:
-            return "DiscordModel.MessageReference(message_id=" + \
-                f"{self.message_id}, channel_id={self.channel_id}, " + \
-                f"guild_id={self.guild_id}, " + \
-                f"fail_if_not_exists={self.fail_if_not_exists})"
+    @property
+    def qualifying_part(self):
+        return self.__qualifying_part
 
-    class ActionRowComponent:
-        def __init__(
-            self,
-            components: List[
-                DiscordModel.ButtonComponent |
-                DiscordModel.SelectMenuComponent |
-                DiscordModel.TextInputComponent,
-            ],
-        ):
-            self.type = DiscordType.Component.ACTION_ROW
-            self.components = components
+    @property
+    def track_status(self):
+        return self.__track_status
 
-        def __repr__(self) -> str:
-            return "DiscordModel.ActionRowComponent(" + \
-                f"type={self.type}, " + \
-                f"components={self.components}" + \
-                ")"
+    @property
+    def session_status(self):
+        return self.__session_status
 
-    class ButtonComponent:
-        def __init__(
-            self,
-            style: DiscordType.ButtonStyle,
-            label: str | None = None,
-            emoji: Dict[str, bool | str] | None = None,
-            custom_id: str | None = None,
-            url: str | None = None,
-            disabled: bool | None = None,
-        ):
-            self.type = DiscordType.Component.BUTTON
-            self.style = style
-            self.label = label
-            self.emoji = emoji
-            self.custom_id = custom_id
-            self.url = url
-            self.disabled = disabled
 
-        def __repr__(self) -> str:
-            return "DiscordModel.ButtonComponent(" + \
-                f"type={self.type}, " + \
-                f"style={self.style}, " + \
-                f"label={self.label}, " + \
-                f"emoji={self.emoji}, " + \
-                f"custom_id={self.custom_id}, " + \
-                f"url={self.url}, " + \
-                f"disabled={self.disabled}" + \
-                ")"
+class SessionInfoData:
+    def __init__(
+        self,
+        official_name: str,
+        name: str,
+        location: str,
+        country: str,
+        circuit: str,
+        type: str,
+        start_date: str,
+        end_date: str,
+        gmt_offset: str,
+    ) -> None:
+        self.__official_name = official_name
+        self.__name = name
+        self.__location = location
+        self.__country = country
+        self.__circuit = circuit
+        self.__type = type
+        self.__start_date = start_date
+        self.__end_date = end_date
+        self.__gmt_offset = gmt_offset
 
-    class SelectMenuComponent:
-        class Option:
-            def __init__(
-                self,
-                label: str,
-                value: str,
-                description: str | None = None,
-                emoji: Dict[str, bool | str] | None = None,
-                default: bool | None = None,
-            ) -> None:
-                self.label = label
-                self.value = value
-                self.description = description
-                self.emoji = emoji
-                self.default = default
+    @property
+    def official_name(self):
+        return self.__official_name
 
-            def __repr__(self) -> str:
-                return "DiscordModel.SelectMenuComponent.Option(" + \
-                    f"label={self.label}, " + \
-                    f"value={self.value}, " + \
-                    f"description={self.description}, " + \
-                    f"emoji={self.emoji}, " + \
-                    f"default={self.default}" + \
-                    ")"
+    @property
+    def name(self):
+        return self.__name
 
-        def __init__(
-            self,
-            custom_id: str,
-            options: List[DiscordModel.SelectMenuComponent.Option],
-            placeholder: str | None = None,
-            min_values: int | None = None,
-            max_values: int | None = None,
-            disabled: bool | None = None,
-        ) -> None:
-            self.type = DiscordType.Component.SELECT_MENU
-            self.custom_id = custom_id
-            self.options = options
-            self.placeholder = placeholder
-            self.min_values = min_values
-            self.max_values = max_values
-            self.disabled = disabled
+    @property
+    def location(self):
+        return self.__location
 
-        def __repr__(self) -> str:
-            return "DiscordModel.SelectMenuComponent(" + \
-                f"type={self.type}, " + \
-                f"custom_id={self.custom_id}, " + \
-                f"options={self.options}, " + \
-                f"placeholder={self.placeholder}, " + \
-                f"min_values={self.min_values}, " + \
-                f"max_values={self.max_values}, " + \
-                f"disabled={self.disabled}" + \
-                ")"
+    @property
+    def country(self):
+        return self.__country
 
-    class TextInputComponent:
-        def __init__(
-            self,
-            custom_id: str,
-            style: DiscordType.TextInputStyle,
-            label: str,
-            min_length: int | None = None,
-            max_length: int | None = None,
-            required: bool | None = None,
-            value: str | None = None,
-            placeholder: str | None = None,
-        ) -> None:
-            self.type = DiscordType.Component.TEXT_INPUT
-            self.custom_id = custom_id
-            self.style = style
-            self.label = label
-            self.min_length = min_length
-            self.max_length = max_length
-            self.required = required
-            self.value = value
-            self.placeholder = placeholder
+    @property
+    def circuit(self):
+        return self.__circuit
 
-        def __repr__(self) -> str:
-            return "DiscordModel.TextInputComponent(" + \
-                f"type={self.type}, " + \
-                f"custom_id={self.custom_id}, " + \
-                f"style={self.style}, " + \
-                f"label={self.label}, " + \
-                f"min_length={self.min_length}, " + \
-                f"max_length={self.max_length}, " + \
-                f"required={self.required}, " + \
-                f"value={self.value}, " + \
-                f"placeholder={self.placeholder}" + \
-                ")"
+    @property
+    def type(self):
+        return self.__type
 
-    class User:
-        def __init__(
-            self,
-            id: str,
-            username: str,
-            discriminator: str,
-            avatar: str | None = None,
-            bot: bool | None = None,
-            system: bool | None = None,
-            mfa_enabled: bool | None = None,
-            banner: str | None = None,
-            accent_color: int | None = None,
-            locale: str | None = None,
-            verified: bool | None = None,
-            email: str | None = None,
-            flags: int | None = None,
-            premium_type: int | None = None,
-            public_flags: int | None = None,
+    @property
+    def start_date(self):
+        return self.__start_date
 
-        ) -> None:
-            self.id = id
-            self.username = username
-            self.discriminator = discriminator
-            self.avatar = avatar
-            self.bot = bot
-            self.system = system
-            self.mfa_enabled = mfa_enabled
-            self.banner = banner
-            self.accent_color = accent_color
-            self.locale = locale
-            self.verified = verified
-            self.email = email
-            self.flags = flags
-            self.premium_type = premium_type
-            self.public_flags = public_flags
+    @property
+    def end_date(self):
+        return self.__end_date
 
-        def __repr__(self) -> str:
-            return "DiscordModel.User(" + \
-                f"id={self.id}, " + \
-                f"username={self.username}, " + \
-                f"discriminator={self.discriminator}, " + \
-                f"avatar={self.avatar}, " + \
-                f"bot={self.bot}, " + \
-                f"system={self.system}, " + \
-                f"mfa_enabled={self.mfa_enabled}, " + \
-                f"banner={self.banner}, " + \
-                f"accent_color={self.accent_color}, " + \
-                f"locale={self.locale}, " + \
-                f"verified={self.verified}, " + \
-                f"email={self.email}, " + \
-                f"flags={self.flags}, " + \
-                f"premium_type={self.premium_type}, " + \
-                f"public_flags={self.public_flags})"
+    @property
+    def gmt_offset(self):
+        return self.__gmt_offset
+
+
+class TimingData:
+    def __init__(
+        self,
+        driver_data: DriverData,
+        sector_number: int,
+        segment_number: int,
+        segment_status: TimingDataStatus,
+    ) -> None:
+        self.__dd = driver_data
+        self.__sec_num = sector_number
+        self.__seg_num = segment_number
+        self.__seg_sta = segment_status
+
+    @property
+    def driver_data(self):
+        return self.__dd
+
+    @property
+    def sector_number(self):
+        return self.__sec_num
+
+    @property
+    def segment_number(self):
+        return self.__seg_num
+
+    @property
+    def segment_status(self):
+        return self.__seg_sta
+
+
+class TrackStatusData:
+    def __init__(self, status: TrackStatus, message: str) -> None:
+        self.__status = status
+        self.__message = message
+
+    @property
+    def status(self):
+        if self.__status == TrackStatus.ALL_CLEAR:
+            return "All Clear"
+
+        elif self.__status == TrackStatus.YELLOW:
+            return "Yellow"
+
+        elif self.__status == TrackStatus.GREEN:
+            return "Green"
+
+        elif self.__status == TrackStatus.SC_DEPLOYED:
+            return "Safety Car Deployed"
+
+        elif self.__status == TrackStatus.RED:
+            return "Red"
+
+        elif self.__status == TrackStatus.VSC_DEPLOYED:
+            return "Virtual Safety Car Deployed"
+
+        elif self.__status == TrackStatus.VSC_ENDING:
+            return "Virtual Safety Car Ending"
+
+        else:
+            return self.__status
+
+    @property
+    def message(self):
+        return self.__message
+
+
+class WeatherDataChange:
+    def __init__(
+        self,
+        title: str,
+        change: str | None = None,
+        previous: str | None = None,
+        new: str | None = None,
+    ) -> None:
+        self.__title = title
+        self.__change = change
+        self.__previous = previous
+        self.__new = new
+
+    @property
+    def title(self):
+        return self.__title
+
+    @property
+    def change(self):
+        return self.__change
+
+    @property
+    def previous(self):
+        return self.__previous
+
+    @property
+    def new(self):
+        return self.__new

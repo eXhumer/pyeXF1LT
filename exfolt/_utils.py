@@ -16,8 +16,9 @@
 from datetime import datetime, timezone
 from typing import Dict, List, Literal
 
-from ._type import TrackStatus
-from ._model import DiscordModel
+from ._model import (
+    ExtrapolatedData, SessionData, SessionInfoData, TrackStatusData,
+)
 
 
 class RateLimiter:
@@ -95,142 +96,31 @@ def datetime_string_parser(dt_str: str):
     )
 
 
-def track_status_str(status: TrackStatus):
-    if status == TrackStatus.ALL_CLEAR:
-        return "All Clear"
-
-    elif status == TrackStatus.YELLOW:
-        return "Yellow"
-
-    elif status == TrackStatus.GREEN:
-        return "Green"
-
-    elif status == TrackStatus.SC_DEPLOYED:
-        return "Safety Car Deployed"
-
-    elif status == TrackStatus.RED:
-        return "Red"
-
-    elif status == TrackStatus.VSC_DEPLOYED:
-        return "Virtual Safety Car Deployed"
-
-    elif status == TrackStatus.VSC_ENDING:
-        return "Virtual Safety Car Ending"
-
-    else:
-        return "Unknown"
+SessionInfoDataDict = Dict[str, str | Dict[str, str | Dict[str, str]]]
 
 
-SessionInfoData = Dict[str, str | Dict[str, str | Dict[str, str]]]
-
-
-def session_info_embed(
-    msg_data: SessionInfoData,
-    msg_dt: str,
-):
-    return DiscordModel.Embed(
-        title="Session Information",
-        fields=[
-            DiscordModel.Embed.Field(
-                "Official Name",
-                msg_data["Meeting"]["OfficialName"],
-            ),
-            DiscordModel.Embed.Field(
-                "Name",
-                msg_data["Meeting"]["Name"],
-            ),
-            DiscordModel.Embed.Field(
-                "Location",
-                msg_data["Meeting"]["Location"],
-            ),
-            DiscordModel.Embed.Field(
-                "Country",
-                msg_data["Meeting"]["Country"]["Name"],
-            ),
-            DiscordModel.Embed.Field(
-                "Circuit",
-                msg_data["Meeting"]["Circuit"]["ShortName"],
-            ),
-            DiscordModel.Embed.Field(
-                "Type",
-                msg_data["Name"],
-            ),
-            DiscordModel.Embed.Field(
-                "Start Date",
-                msg_data["StartDate"],
-            ),
-            DiscordModel.Embed.Field(
-                "End Date",
-                msg_data["EndDate"],
-            ),
-            DiscordModel.Embed.Field(
-                "GMT Offset",
-                msg_data["GmtOffset"],
-            ),
-        ],
-        timestamp=datetime_string_parser(msg_dt),
-        color=0xFFFFFF,
+def session_info_parser(msg_data: SessionInfoDataDict):
+    return SessionInfoData(
+        msg_data["Meeting"]["OfficialName"],
+        msg_data["Meeting"]["Name"],
+        msg_data["Meeting"]["Location"],
+        msg_data["Meeting"]["Country"]["Name"],
+        msg_data["Meeting"]["Circuit"]["ShortName"],
+        msg_data["Name"],
+        msg_data["StartDate"],
+        msg_data["EndDate"],
+        msg_data["GmtOffset"],
     )
 
 
-TrackStatusData = Dict[Literal["Status", "Message"], str]
+TrackStatusDataDict = Dict[Literal["Status", "Message"], str]
 
 
-def track_status_embed(
-    msg_data: TrackStatusData,
-    msg_dt: str,
-):
-    return DiscordModel.Embed(
-        title="Track Status",
-        fields=[
-            DiscordModel.Embed.Field(
-                "Status",
-                (
-                    track_status_str(msg_data["Status"]) +
-                    f" ({msg_data['Status']})"
-                ),
-            ),
-            DiscordModel.Embed.Field("Message", msg_data["Message"]),
-        ],
-        description=(
-            "<:green:964569379205414932>"
-            if msg_data["Status"] in [
-                TrackStatus.ALL_CLEAR,
-                TrackStatus.GREEN,
-                TrackStatus.VSC_ENDING,
-            ]
-            else "<:yellow:964569379037671484>"
-            if msg_data["Status"] in TrackStatus.YELLOW
-            else "<:sc:964569379163496538>"
-            if msg_data["Status"] in TrackStatus.SC_DEPLOYED
-            else "<:vsc:964569379352244284>"
-            if msg_data["Status"] in TrackStatus.VSC_DEPLOYED
-            else "<:red:964569379234779136>"
-            if msg_data["Status"] in TrackStatus.RED
-            else None
-        ),
-        color=(
-            0x00FF00
-            if msg_data["Status"] in [
-                TrackStatus.ALL_CLEAR,
-                TrackStatus.GREEN,
-                TrackStatus.VSC_ENDING,
-            ]
-            else 0xFFFF00
-            if msg_data["Status"] in [
-                TrackStatus.YELLOW,
-                TrackStatus.SC_DEPLOYED,
-                TrackStatus.VSC_DEPLOYED,
-            ]
-            else 0xFF0000
-            if msg_data["Status"] == TrackStatus.RED
-            else None
-        ),
-        timestamp=datetime_string_parser(msg_dt),
-    )
+def track_status_parser(msg_data: TrackStatusDataDict):
+    return TrackStatusData(msg_data["Status"], msg_data["Message"])
 
 
-SessionData = Dict[
+SessionDataDict = Dict[
     Literal["Series", "StatusSeries"],
     List[
         Dict[
@@ -247,23 +137,15 @@ SessionData = Dict[
 ]
 
 
-def session_data_embed(
-    msg_data: SessionData,
-    msg_dt: str,
-):
-    fields = []
-
+def session_data_parser(msg_data: SessionDataDict):
     if (
         "Series" in msg_data and
         isinstance(msg_data["Series"], list) and
         "StatusSeries" in msg_data and
         isinstance(msg_data["StatusSeries"], list)
     ):
-        fields.append(
-            DiscordModel.Embed.Field(
-                "Track Status",
-                msg_data["StatusSeries"][0]["TrackStatus"],
-            ),
+        return SessionData(
+            track_status=msg_data["StatusSeries"][0]["TrackStatus"],
         )
 
     elif "Series" in msg_data:
@@ -271,19 +153,11 @@ def session_data_embed(
 
         for series_data in msg_data["Series"].values():
             if "Lap" in series_data:
-                fields.append(
-                    DiscordModel.Embed.Field(
-                        "Lap Count",
-                        str(series_data["Lap"]),
-                    ),
-                )
+                return SessionData(lap=series_data["Lap"])
 
             elif "QualifyingPart" in series_data:
-                fields.append(
-                    DiscordModel.Embed.Field(
-                        "Qualifying Part",
-                        str(series_data["QualifyingPart"]),
-                    ),
+                return SessionData(
+                    qualifying_part=series_data["QualifyingPart"],
                 )
 
     elif "StatusSeries" in msg_data:
@@ -291,51 +165,24 @@ def session_data_embed(
 
         for status_series_data in msg_data["StatusSeries"].values():
             if "TrackStatus" in status_series_data:
-                fields.append(
-                    DiscordModel.Embed.Field(
-                        "Track Status",
-                        status_series_data["TrackStatus"],
-                    ),
+                return SessionData(
+                    track_status=status_series_data["TrackStatus"],
                 )
 
             elif "SessionStatus" in status_series_data:
-                fields.append(
-                    DiscordModel.Embed.Field(
-                        "Session Status",
-                        status_series_data["SessionStatus"],
-                    ),
+                return SessionData(
+                    session_status=status_series_data["SessionStatus"],
                 )
 
-    assert len(fields) > 0
-
-    return DiscordModel.Embed(
-        title="Session Data",
-        fields=fields,
-        timestamp=datetime_string_parser(msg_dt),
-    )
+    assert False
 
 
-def extrapolated_clock_embed(
-    msg_data: Dict[str, str | bool],
-    msg_dt: str,
-):
-    fields = [
-        DiscordModel.Embed.Field(
-            "Remaining",
-            msg_data["Remaining"],
-        ),
-    ]
-
-    if "Extrapolating" in msg_data:
-        fields.append(
-            DiscordModel.Embed.Field(
-                "Extrapolating",
-                str(msg_data["Extrapolating"]),
-            ),
+def extrapolated_clock_parser(msg_data: Dict[str, str | bool]):
+    return ExtrapolatedData(
+        msg_data["Remaining"],
+        extrapolating=(
+            msg_data["Extrapolating"]
+            if "Extrapolating" in msg_data
+            else None
         )
-
-    return DiscordModel.Embed(
-        title="Extrapolated Clock",
-        fields=fields,
-        timestamp=datetime_string_parser(msg_dt),
     )

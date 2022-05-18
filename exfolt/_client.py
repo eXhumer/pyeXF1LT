@@ -14,7 +14,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from enum import IntEnum
 from random import randint
 from typing import Any, Dict, List, Literal, Union
@@ -28,9 +28,14 @@ from websocket import (
     WebSocketTimeoutException,
 )
 
-from ._model import DiscordModel
-from ._type import FlagStatus, TimingDataStatus
-from ._utils import datetime_string_parser
+from ._model import (
+    DriverData,
+    InitialWeatherData,
+    RaceControlMessageData,
+    TimingData,
+    WeatherDataChange,
+)
+from ._type import TimingDataStatus
 
 
 WeatherDataEntry = Dict[
@@ -115,46 +120,17 @@ class WeatherTracker:
         self.__wd_data_history.append(int(data["WindDirection"]))
         self.__ws_data_history.append(float(data["WindSpeed"]))
 
-    def notify_change_embed(self):
+    def notify_changes(self):
         if len(self.__at_data_history) == 1:
-            ts = "Dry" if self.__rf_data_history[0] == 0 else "Wet"
-
-            return [
-                DiscordModel.Embed(
-                    title="Initial Weather Information",
-                    fields=[
-                        DiscordModel.Embed.Field(
-                            "Air Temperature (Celsius)",
-                            f"{self.__at_data_history[0]}",
-                        ),
-                        DiscordModel.Embed.Field(
-                            "Track Temperature (Celsius)",
-                            f"{self.__tt_data_history[0]}",
-                        ),
-                        DiscordModel.Embed.Field(
-                            "Humidity (%)",
-                            f"{self.__hu_data_history[0]}",
-                        ),
-                        DiscordModel.Embed.Field(
-                            "Pressure (mbar)",
-                            f"{self.__pa_data_history[0]}",
-                        ),
-                        DiscordModel.Embed.Field(
-                            "Track Status (Wet / Dry)",
-                            ts,
-                        ),
-                        DiscordModel.Embed.Field(
-                            "Wind Direction (Degree)",
-                            f"{self.__wd_data_history[0]}",
-                        ),
-                        DiscordModel.Embed.Field(
-                            "Wind Speed",
-                            f"{self.__ws_data_history[0]}",
-                        ),
-                    ],
-                    timestamp=datetime.now(tz=timezone.utc),
-                )
-            ]
+            return InitialWeatherData(
+                self.__at_data_history[0],
+                self.__tt_data_history[0],
+                self.__hu_data_history[0],
+                self.__pa_data_history[0],
+                bool(self.__rf_data_history[0]),
+                self.__wd_data_history[0],
+                self.__ws_data_history[0],
+            )
 
         else:
             changes = []
@@ -422,11 +398,13 @@ class WeatherTracker:
             rf_history = self.__rf_data_history[-2:]
 
             if rf_history[0] != rf_history[1]:
-                ts = "Dry" if rf_history[1] == 0 else "Wet"
-
                 changes.append({
                     "Rainfall": {
-                        "Change": ts,
+                        "Change": (
+                            "Wet"
+                            if bool(rf_history[1])
+                            else "Dry"
+                        ),
                     }
                 })
 
@@ -515,7 +493,7 @@ class WeatherTracker:
                             }
                         })
 
-            embeds = []
+            changes_list = []
 
             if len(changes) > 0:
                 for change in changes:
@@ -524,24 +502,12 @@ class WeatherTracker:
                         self.__last_at_notify_at = datetime.now()
                         self.__last_at_notify_reason = change["Reason"]
 
-                        embeds.append(
-                            DiscordModel.Embed(
-                                title="Air Temperature Change Information",
-                                fields=[
-                                    DiscordModel.Embed.Field(
-                                        "Change",
-                                        f"{change['Change']}"
-                                    ),
-                                    DiscordModel.Embed.Field(
-                                        "New",
-                                        f"{change['New']}"
-                                    ),
-                                    DiscordModel.Embed.Field(
-                                        "Previous",
-                                        f"{change['Previous']}"
-                                    ),
-                                ],
-                                timestamp=datetime.now(tz=timezone.utc),
+                        changes_list.append(
+                            WeatherDataChange(
+                                "Air Temperature Change Information",
+                                change=change["Change"],
+                                new=change["New"],
+                                previous=change["Previous"],
                             )
                         )
 
@@ -550,24 +516,12 @@ class WeatherTracker:
                         self.__last_tt_notify_at = datetime.now()
                         self.__last_tt_notify_reason = change["Reason"]
 
-                        embeds.append(
-                            DiscordModel.Embed(
-                                title="Track Temperature Change Information",
-                                fields=[
-                                    DiscordModel.Embed.Field(
-                                        "Change",
-                                        f"{change['Change']}"
-                                    ),
-                                    DiscordModel.Embed.Field(
-                                        "New",
-                                        f"{change['New']}"
-                                    ),
-                                    DiscordModel.Embed.Field(
-                                        "Previous",
-                                        f"{change['Previous']}"
-                                    ),
-                                ],
-                                timestamp=datetime.now(tz=timezone.utc),
+                        changes_list.append(
+                            WeatherDataChange(
+                                "Track Temperature Change Information",
+                                change=change["Change"],
+                                new=change["New"],
+                                previous=change["Previous"],
                             )
                         )
 
@@ -576,24 +530,12 @@ class WeatherTracker:
                         self.__last_hu_notify_at = datetime.now()
                         self.__last_hu_notify_reason = change["Reason"]
 
-                        embeds.append(
-                            DiscordModel.Embed(
-                                title="Humidity Change Information",
-                                fields=[
-                                    DiscordModel.Embed.Field(
-                                        "Change",
-                                        f"{change['Change']}"
-                                    ),
-                                    DiscordModel.Embed.Field(
-                                        "New",
-                                        f"{change['New']}"
-                                    ),
-                                    DiscordModel.Embed.Field(
-                                        "Previous",
-                                        f"{change['Previous']}"
-                                    ),
-                                ],
-                                timestamp=datetime.now(tz=timezone.utc),
+                        changes_list.append(
+                            WeatherDataChange(
+                                "Humidity Change Information",
+                                change=change["Change"],
+                                new=change["New"],
+                                previous=change["Previous"],
                             )
                         )
 
@@ -602,39 +544,21 @@ class WeatherTracker:
                         self.__last_pa_notify_at = datetime.now()
                         self.__last_pa_notify_reason = change["Reason"]
 
-                        embeds.append(
-                            DiscordModel.Embed(
-                                title="Pressure Change Information",
-                                fields=[
-                                    DiscordModel.Embed.Field(
-                                        "Change",
-                                        f"{change['Change']}"
-                                    ),
-                                    DiscordModel.Embed.Field(
-                                        "New",
-                                        f"{change['New']}"
-                                    ),
-                                    DiscordModel.Embed.Field(
-                                        "Previous",
-                                        f"{change['Previous']}"
-                                    ),
-                                ],
-                                timestamp=datetime.now(tz=timezone.utc),
+                        changes_list.append(
+                            WeatherDataChange(
+                                "Pressure Change Information",
+                                change=change["Change"],
+                                new=change["New"],
+                                previous=change["Previous"],
                             )
                         )
 
                     elif "Rainfall" in change.keys():
                         change = change["Rainfall"]
-                        embeds.append(
-                            DiscordModel.Embed(
-                                title="Track Status Change Information",
-                                fields=[
-                                    DiscordModel.Embed.Field(
-                                        "Change",
-                                        f"{change['Change']}"
-                                    ),
-                                ],
-                                timestamp=datetime.now(tz=timezone.utc),
+                        changes_list.append(
+                            WeatherDataChange(
+                                "Track Status Change Information",
+                                change=change["Change"],
                             )
                         )
 
@@ -642,20 +566,11 @@ class WeatherTracker:
                         change = change["WindDirection"]
                         self.__last_wd_notify_at = datetime.now()
 
-                        embeds.append(
-                            DiscordModel.Embed(
-                                title="Wind Direction Change Information",
-                                fields=[
-                                    DiscordModel.Embed.Field(
-                                        "New",
-                                        f"{change['New']}"
-                                    ),
-                                    DiscordModel.Embed.Field(
-                                        "Previous",
-                                        f"{change['Previous']}"
-                                    ),
-                                ],
-                                timestamp=datetime.now(tz=timezone.utc),
+                        changes_list.append(
+                            WeatherDataChange(
+                                "Wind Direction Change Information",
+                                new=change["New"],
+                                previous=change["Previous"],
                             )
                         )
 
@@ -664,31 +579,19 @@ class WeatherTracker:
                         self.__last_ws_notify_at = datetime.now()
                         self.__last_ws_notify_reason = change["Reason"]
 
-                        embeds.append(
-                            DiscordModel.Embed(
-                                title="Wind Speed Change Information",
-                                fields=[
-                                    DiscordModel.Embed.Field(
-                                        "Change",
-                                        f"{change['Change']}"
-                                    ),
-                                    DiscordModel.Embed.Field(
-                                        "New",
-                                        f"{change['New']}"
-                                    ),
-                                    DiscordModel.Embed.Field(
-                                        "Previous",
-                                        f"{change['Previous']}"
-                                    ),
-                                ],
-                                timestamp=datetime.now(tz=timezone.utc),
+                        changes_list.append(
+                            WeatherDataChange(
+                                "Wind Speed Change Information",
+                                change=change["Change"],
+                                new=change["New"],
+                                previous=change["Previous"],
                             )
                         )
 
-            return embeds if len(embeds) > 0 else None
+            return changes_list
 
 
-TimingData = Dict[
+TimingDataDict = Dict[
     Literal["Lines"],
     Dict[
         str,
@@ -712,7 +615,7 @@ TimingData = Dict[
 ]
 
 
-RaceControlMessageData = Dict[str, Union[str, int]]
+RaceControlMessageDataDict = Dict[str, Union[str, int]]
 
 
 class F1Client:
@@ -1005,6 +908,21 @@ class F1Client:
         res.raise_for_status()
         return res.json()["Response"]
 
+    def driver_data(self, number: str):
+        if number not in self.__driver_data:
+            return
+
+        return DriverData(
+            number,
+            self.__driver_data[number]["FirstName"],
+            self.__driver_data[number]["LastName"],
+            headshot_url=(
+                self.__driver_data[number]["HeadshotUrl"]
+                if "HeadshotUrl" in self.__driver_data[number]
+                else None
+            ),
+        )
+
     def message(self):
         assert self.__ws.connected
 
@@ -1024,30 +942,7 @@ class F1Client:
         streaming_status = res_json["Status"]
         return streaming_status
 
-    def __driver_string(self, number: str) -> str:
-        if number not in self.__driver_data:
-            return number
-
-        fn = self.__driver_data[number]["FirstName"]
-        ln = self.__driver_data[number]["LastName"]
-        return f"{fn} {ln} ({number})"
-
-    def __driver_headshot_url(self, number: str) -> str | None:
-        if number not in self.__driver_data:
-            return
-
-        return (
-            self.__driver_data[number]["HeadshotUrl"]
-            if "HeadshotUrl" in self.__driver_data[number]
-            else None
-        )
-
-    def timing_data_embed(
-        self,
-        msg_data: TimingData,
-        msg_dt: str,
-        notify_fastest_segment: bool = False,
-    ):
+    def parse_timing_data(self, msg_data: TimingDataDict):
         if "Lines" in msg_data and len(msg_data["Lines"]) == 1:
             for drv_num, drv_data in msg_data["Lines"].items():
                 if "Sectors" in drv_data and len(drv_data["Sectors"]) == 1:
@@ -1069,69 +964,19 @@ class F1Client:
                                         TimingDataStatus.PIT_ISSUE,
                                     ]
                                 ):
-                                    color = None
-
-                                    if segment_data["Status"] == \
-                                            TimingDataStatus.PURPLE:
-                                        if not notify_fastest_segment:
-                                            continue
-
-                                        color = 0xA020F0
-
-                                    elif segment_data["Status"] in [
-                                        TimingDataStatus.STOPPED,
-                                        TimingDataStatus.PIT_ISSUE,
-                                    ]:
-                                        color = 0xFFFF00
-
-                                    drv_hs_url = \
-                                        self.__driver_headshot_url(drv_num)
-
-                                    return DiscordModel.Embed(
-                                        title="Timing Data",
-                                        author=DiscordModel.Embed.Author(
-                                            self.__driver_string(drv_num),
-                                            icon_url=drv_hs_url,
-                                        ),
-                                        fields=[
-                                            DiscordModel.Embed.Field(
-                                                "Sector",
-                                                str(int(sector_num) + 1),
-                                            ),
-                                            DiscordModel.Embed.Field(
-                                                "Segment",
-                                                str(int(segment_num) + 1),
-                                            ),
-                                            DiscordModel.Embed.Field(
-                                                "Status",
-                                                (
-                                                    "Purple"
-                                                    if segment_data["Status"]
-                                                    == TimingDataStatus.PURPLE
-                                                    else "Pitted"
-                                                    if segment_data["Status"]
-                                                    == TimingDataStatus.PITTED
-                                                    else "Pit issues"
-                                                    if segment_data["Status"]
-                                                    ==
-                                                    TimingDataStatus.PIT_ISSUE
-                                                    else "Stopped"
-                                                )
-                                            ),
-                                        ],
-                                        color=color,
-                                        timestamp=datetime_string_parser(
-                                            msg_dt,
-                                        ),
+                                    return TimingData(
+                                        self.driver_data(drv_num),
+                                        int(sector_num) + 1,
+                                        int(segment_num) + 1,
+                                        segment_data["Status"],
                                     )
 
-    def race_control_message_embed(
+    def race_control_message_data(
         self,
         msg_data: Dict[
             Literal["Messages"],
-            Dict[str, RaceControlMessageData] | List[RaceControlMessageData],
+            Dict[str, RaceControlMessageDataDict] | List[RaceControlMessageDataDict],
         ],
-        msg_dt: str,
     ):
         if isinstance(msg_data["Messages"], list):
             msg_data = msg_data["Messages"][0]
@@ -1139,110 +984,37 @@ class F1Client:
         else:
             msg_data = list(msg_data["Messages"].values())[0]
 
-        description = None
-
-        if msg_data["Category"] == "Flag":
-            flag_status: FlagStatus = msg_data["Flag"]
-
-            if flag_status == FlagStatus.BLUE:
-                color = 0x0000FF  # Blue
-                description = "<:blue:964569378999898143>"
-
-            elif flag_status == FlagStatus.BLACK:
-                color = 0x000000  # Black
-                description = "<:black:964569379264147556>"
-
-            elif flag_status == FlagStatus.BLACK_AND_ORANGE:
-                color = 0xFFA500  # Orange
-                description = "<:blackorange:968388147148914688>"
-
-            elif flag_status == FlagStatus.BLACK_AND_WHITE:
-                color = 0xFFA500  # Orange
-                description = "<:blackwhite:968388147123728405>"
-
-            elif flag_status in [FlagStatus.CLEAR, FlagStatus.CHEQUERED]:
-                color = 0xFFFFFF  # White
-
-                if flag_status == FlagStatus.CLEAR:
-                    description = "<:green:964569379205414932>"
-
-                else:
-                    description = "<:chequered:964569378769235990>"
-
-            elif flag_status == FlagStatus.GREEN:
-                description = "<:green:964569379205414932>"
-                color = 0x00FF00  # Green
-
-            elif flag_status == FlagStatus.YELLOW:
-                description = "<:yellow:964569379037671484>"
-                color = 0xFFFF00  # Yellow
-
-            elif flag_status == FlagStatus.DOUBLE_YELLOW:
-                description = "".join((
-                    "<:yellow:964569379037671484>",
-                    "<:yellow:964569379037671484>",
-                ))
-                color = 0xFFA500  # Orange
-
-            elif flag_status == FlagStatus.RED:
-                description = "<:red:964569379234779136>"
-                color = 0xFF0000  # Red
-
-            else:
-                raise ValueError(f"Unexpected flag status '{flag_status}'!")
-
-        else:
-            color = 0XA6EF1F  # Light Green
-
-        fields = [
-            DiscordModel.Embed.Field("Message", msg_data["Message"]),
-            DiscordModel.Embed.Field("Category", msg_data["Category"]),
-        ]
-
-        if "Flag" in msg_data:
-            fields.append(DiscordModel.Embed.Field("Flag", msg_data["Flag"]))
-
-        if "Scope" in msg_data:
-            fields.append(DiscordModel.Embed.Field("Scope", msg_data["Scope"]))
-
-        if "RacingNumber" in msg_data:
-            author = DiscordModel.Embed.Author(
-                self.__driver_string(msg_data["RacingNumber"]),
-                icon_url=self.__driver_headshot_url(msg_data["RacingNumber"]),
-            )
-
-        else:
-            author = None
-
-        if "Sector" in msg_data:
-            fields.append(
-                DiscordModel.Embed.Field(
-                    "Track Sector",
-                    msg_data["Sector"],
-                ),
-            )
-
-        if "Lap" in msg_data:
-            fields.append(
-                DiscordModel.Embed.Field(
-                    "Lap Number",
-                    str(msg_data["Lap"]),
-                ),
-            )
-
-        if "Status" in msg_data and msg_data["Category"] == "Drs":
-            fields.append(
-                DiscordModel.Embed.Field(
-                    "DRS Status",
-                    msg_data["Status"],
-                ),
-            )
-
-        return DiscordModel.Embed(
-            title="Race Control Message",
-            author=author,
-            description=description,
-            fields=fields,
-            color=color,
-            timestamp=datetime_string_parser(msg_dt),
+        return RaceControlMessageData(
+            msg_data["Category"],
+            msg_data["Message"],
+            flag=(
+                msg_data["Flag"]
+                if "Flag" in msg_data
+                else None
+            ),
+            scope=(
+                msg_data["Scope"]
+                if "Scope" in msg_data
+                else None
+            ),
+            driver_data=(
+                self.driver_data(msg_data["RacingNumber"])
+                if "RacingNumber" in msg_data
+                else None
+            ),
+            sector=(
+                msg_data["Sector"]
+                if "Sector" in msg_data
+                else None
+            ),
+            lap=(
+                msg_data["Lap"]
+                if "Lap" in msg_data
+                else None
+            ),
+            drs_status=(
+                msg_data["Status"]
+                if "Status" in msg_data
+                else None
+            ),
         )
