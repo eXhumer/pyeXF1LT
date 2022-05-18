@@ -12,7 +12,8 @@ pip install .
 ```
 
 ## Usage Examples
-* [examples/bot.py](./examples/bot.py) - Post supported received messages as Discord embed messages
+* [examples/discord_bot.py](./examples/discord_bot.py) - Post supported received messages as Discord embed messages
+* [examples/twitter_bot.py](./examples/twitter_bot.py) - Post supported received messages as Twitter tweets
 * [examples/message_logger.py](./examples/message_logger.py) - Logs all messages to a local file
 
 ## Special Thanks
