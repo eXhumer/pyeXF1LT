@@ -18,18 +18,25 @@ from datetime import datetime, timezone
 from os import environ
 from queue import Queue
 
-from exfolt import (
+from exdc import (
     DiscordClient,
     DiscordModel,
     DiscordType,
-    F1Client,
-    RateLimiter,
     Snowflake,
+)
+from exfolt import (
+    F1Client,
+    FlagStatus,
+    RateLimiter,
+    TimingDataStatus,
+    TrackStatus,
+    WeatherDataChange,
     WeatherTracker,
-    extrapolated_clock_embed,
-    session_data_embed,
-    session_info_embed,
-    track_status_embed,
+    datetime_string_parser,
+    extrapolated_clock_parser,
+    session_data_parser,
+    session_info_parser,
+    track_status_parser,
 )
 
 
@@ -121,57 +128,483 @@ if __name__ == "__main__":
                         msg_data = msg["M"][0]["A"]
 
                         if msg_data[0] == "RaceControlMessages":
-                            embed = exfolt.race_control_message_embed(
+                            rcm_data = exfolt.race_control_message_data_parser(
                                 msg_data[1],
-                                msg_data[2],
                             )
+
+                            color = 0XA6EF1F
+                            description = None
+                            fields = [
+                                DiscordModel.Embed.Field(
+                                    "Message",
+                                    rcm_data.message,
+                                ),
+                                DiscordModel.Embed.Field(
+                                    "Category",
+                                    rcm_data.category,
+                                ),
+                            ]
+
+                            if rcm_data.drs_status:
+                                fields.append(
+                                    DiscordModel.Embed.Field(
+                                        "DRS Status",
+                                        rcm_data.drs_status,
+                                    )
+                                )
+
+                            if rcm_data.flag:
+                                fields.append(
+                                    DiscordModel.Embed.Field(
+                                        "Flag",
+                                        rcm_data.flag,
+                                    )
+                                )
+
+                                if rcm_data.flag == FlagStatus.BLUE:
+                                    color = 0x0000FF  # Blue
+                                    description = "<:blue:964569378999898143>"
+
+                                elif rcm_data.flag == FlagStatus.BLACK:
+                                    color = 0x000000  # Black
+                                    description = "<:black:964569379264147556>"
+
+                                elif rcm_data.flag == \
+                                        FlagStatus.BLACK_AND_ORANGE:
+                                    color = 0xFFA500  # Orange
+                                    description = \
+                                        "<:blackorange:968388147148914688>"
+
+                                elif rcm_data.flag == \
+                                        FlagStatus.BLACK_AND_WHITE:
+                                    color = 0xFFA500  # Orange
+                                    description = \
+                                        "<:blackwhite:968388147123728405>"
+
+                                elif rcm_data.flag in [
+                                    FlagStatus.CLEAR, FlagStatus.CHEQUERED,
+                                ]:
+                                    color = 0xFFFFFF  # White
+
+                                    if rcm_data.flag == FlagStatus.CLEAR:
+                                        description = \
+                                            "<:green:964569379205414932>"
+
+                                    else:
+                                        description = \
+                                            "<:chequered:964569378769235990>"
+
+                                elif rcm_data.flag == FlagStatus.GREEN:
+                                    description = "<:green:964569379205414932>"
+                                    color = 0x00FF00  # Green
+
+                                elif rcm_data.flag == FlagStatus.YELLOW:
+                                    description = \
+                                        "<:yellow:964569379037671484>"
+                                    color = 0xFFFF00  # Yellow
+
+                                elif rcm_data.flag == FlagStatus.DOUBLE_YELLOW:
+                                    description = "".join((
+                                        "<:yellow:964569379037671484>",
+                                        "<:yellow:964569379037671484>",
+                                    ))
+                                    color = 0xFFA500  # Orange
+
+                                elif rcm_data.flag == FlagStatus.RED:
+                                    description = "<:red:964569379234779136>"
+                                    color = 0xFF0000  # Red
+
+                                else:
+                                    raise ValueError(
+                                        "Unexpected flag status '" + 
+                                        f"{rcm_data.flag}'!"
+                                    )
+
+                            if rcm_data.lap:
+                                fields.append(
+                                    DiscordModel.Embed.Field(
+                                        "Lap",
+                                        rcm_data.lap,
+                                    )
+                                )
+
+                            if rcm_data.scope:
+                                fields.append(
+                                    DiscordModel.Embed.Field(
+                                        "Scope",
+                                        rcm_data.scope,
+                                    )
+                                )
+
+                            if rcm_data.sector:
+                                fields.append(
+                                    DiscordModel.Embed.Field(
+                                        "Sector",
+                                        rcm_data.sector,
+                                    )
+                                )
+
+                            embed = DiscordModel.Embed(
+                                title="Race Control Message",
+                                author=(
+                                    DiscordModel.Embed.Author(
+                                        str(rcm_data.driver_data),
+                                        icon_url=(
+                                            rcm_data.driver_data.headshot_url
+                                        ),
+                                    )
+                                    if rcm_data.driver_data
+                                    else None
+                                ),
+                                color=color,
+                                description=description,
+                                fields=fields,
+                                timestamp=datetime_string_parser(msg_data[2]),
+                            )
+
                             msg_q.put(embed)
 
                         elif msg_data[0] == "TimingData":
-                            embed = exfolt.timing_data_embed(
+                            timing_data = exfolt.timing_data_parser(
                                 msg_data[1],
-                                msg_data[2],
-                                notify_fastest_segment=args.purple_segments,
                             )
 
-                            if embed:
-                                msg_q.put(embed)
+                            if timing_data:
+                                if (
+                                    timing_data.segment_status ==
+                                    TimingDataStatus.PURPLE and
+                                    not args.purple_segments
+                                ):
+                                    continue
+
+                                if timing_data.segment_status in [
+                                    TimingDataStatus.PURPLE,
+                                    TimingDataStatus.STOPPED,
+                                    TimingDataStatus.PITTED,
+                                    TimingDataStatus.PIT_ISSUE,
+                                ]:
+                                    if timing_data.segment_status == \
+                                            TimingDataStatus.PURPLE:
+                                        color = 0xA020F0
+
+                                    elif timing_data.segment_status in [
+                                        TimingDataStatus.STOPPED,
+                                        TimingDataStatus.PIT_ISSUE,
+                                    ]:
+                                        color = 0xFFFF00
+
+                                    else:
+                                        color = None
+
+                                    embed = DiscordModel.Embed(
+                                        title="Timing Data",
+                                        author=(
+                                            DiscordModel.Embed.Author(
+                                                str(timing_data.driver_data),
+                                                icon_url=(
+                                                    timing_data.driver_dat
+                                                    .headshot_url
+                                                ),
+                                            )
+                                            if timing_data.driver_data
+                                            else None
+                                        ),
+                                        fields=[
+                                            DiscordModel.Embed.Field(
+                                                "Sector",
+                                                timing_data.sector_number,
+                                            ),
+                                            DiscordModel.Embed.Field(
+                                                "Segment",
+                                                timing_data.segment_number,
+                                            ),
+                                            DiscordModel.Embed.Field(
+                                                "Status",
+                                                (
+                                                    "Purple"
+                                                    if timing_data.
+                                                    segment_status
+                                                    == TimingDataStatus.PURPLE
+                                                    else "Pitted"
+                                                    if timing_data.
+                                                    segment_status
+                                                    == TimingDataStatus.PITTED
+                                                    else "Pit issues"
+                                                    if timing_data.
+                                                    segment_status
+                                                    ==
+                                                    TimingDataStatus.PIT_ISSUE
+                                                    else "Stopped"
+                                                ),
+                                            ),
+                                        ],
+                                        color=color,
+                                        timestamp=datetime_string_parser(
+                                            msg_data[2],
+                                        ),
+                                    )
+
+                                    msg_q.put(embed)
 
                         elif msg_data[0] == "SessionInfo":
-                            embed = session_info_embed(
-                                msg_data[1],
-                                msg_data[2],
+                            session_data = session_info_parser(msg_data[1])
+
+                            embed = DiscordModel.Embed(
+                                title="Session Information",
+                                fields=[
+                                    DiscordModel.Embed.Field(
+                                        "Official Name",
+                                        session_data.official_name,
+                                    ),
+                                    DiscordModel.Embed.Field(
+                                        "Name",
+                                        session_data.name,
+                                    ),
+                                    DiscordModel.Embed.Field(
+                                        "Location",
+                                        session_data.location,
+                                    ),
+                                    DiscordModel.Embed.Field(
+                                        "Country",
+                                        session_data.country,
+                                    ),
+                                    DiscordModel.Embed.Field(
+                                        "Circuit",
+                                        session_data.circuit,
+                                    ),
+                                    DiscordModel.Embed.Field(
+                                        "Type",
+                                        session_data.type,
+                                    ),
+                                    DiscordModel.Embed.Field(
+                                        "Start Date",
+                                        session_data.start_date,
+                                    ),
+                                    DiscordModel.Embed.Field(
+                                        "End Date",
+                                        session_data.end_date,
+                                    ),
+                                    DiscordModel.Embed.Field(
+                                        "GMT Offset",
+                                        session_data.gmt_offset,
+                                    ),
+                                ],
+                                timestamp=datetime_string_parser(msg_data[2]),
+                                color=0xFFFFFF,
                             )
+
                             msg_q.put(embed)
 
                         elif msg_data[0] == "TrackStatus":
-                            embed = track_status_embed(
-                                msg_data[1],
-                                msg_data[2],
+                            track_status = track_status_parser(msg_data[1])
+
+                            embed = DiscordModel.Embed(
+                                title="Track Status",
+                                fields=[
+                                    DiscordModel.Embed.Field(
+                                        "Status",
+                                        track_status.status,
+                                    ),
+                                    DiscordModel.Embed.Field(
+                                        "Message",
+                                        track_status.message,
+                                    ),
+                                ],
+                                description=(
+                                    "<:green:964569379205414932>"
+                                    if track_status.status in [
+                                        TrackStatus.ALL_CLEAR,
+                                        TrackStatus.GREEN,
+                                        TrackStatus.VSC_ENDING,
+                                    ]
+                                    else "<:yellow:964569379037671484>"
+                                    if track_status.status
+                                    in TrackStatus.YELLOW
+                                    else "<:sc:964569379163496538>"
+                                    if track_status.status
+                                    in TrackStatus.SC_DEPLOYED
+                                    else "<:vsc:964569379352244284>"
+                                    if track_status.status
+                                    in TrackStatus.VSC_DEPLOYED
+                                    else "<:red:964569379234779136>"
+                                    if track_status.status
+                                    in TrackStatus.RED
+                                    else None
+                                ),
+                                color=(
+                                    0x00FF00
+                                    if track_status.status in [
+                                        TrackStatus.ALL_CLEAR,
+                                        TrackStatus.GREEN,
+                                        TrackStatus.VSC_ENDING,
+                                    ]
+                                    else 0xFFFF00
+                                    if track_status.status in [
+                                        TrackStatus.YELLOW,
+                                        TrackStatus.SC_DEPLOYED,
+                                        TrackStatus.VSC_DEPLOYED,
+                                    ]
+                                    else 0xFF0000
+                                    if track_status.status == TrackStatus.RED
+                                    else None
+                                ),
+                                timestamp=datetime_string_parser(msg_data[2]),
                             )
+
                             msg_q.put(embed)
 
                         elif msg_data[0] == "SessionData":
-                            embed = session_data_embed(
-                                msg_data[1],
-                                msg_data[2],
+                            session_data = session_data_parser(msg_data[1])
+
+                            fields = []
+
+                            if session_data.track_status:
+                                fields.append(
+                                    DiscordModel.Embed.Field(
+                                        "Track Status",
+                                        session_data.track_status,
+                                    ),
+                                )
+
+                            if session_data.lap:
+                                fields.append(
+                                    DiscordModel.Embed.Field(
+                                        "Lap",
+                                        session_data.lap,
+                                    ),
+                                )
+
+                            if session_data.qualifying_part:
+                                fields.append(
+                                    DiscordModel.Embed.Field(
+                                        "Qualifying Part",
+                                        session_data.qualifying_part,
+                                    ),
+                                )
+
+                            if session_data.session_status:
+                                fields.append(
+                                    DiscordModel.Embed.Field(
+                                        "Session Status",
+                                        session_data.session_status,
+                                    ),
+                                )
+
+                            embed = DiscordModel.Embed(
+                                title="Session Data",
+                                fields=fields,
+                                timestamp=datetime_string_parser(msg_data[2]),
                             )
+
                             msg_q.put(embed)
 
                         elif msg_data[0] == "ExtrapolatedClock":
-                            embed = extrapolated_clock_embed(
-                                msg_data[1],
-                                msg_data[2],
+                            clock_data = extrapolated_clock_parser(msg_data[1])
+
+                            fields = [
+                                DiscordModel.Embed.Field(
+                                    "Remaining",
+                                    clock_data.remaining,
+                                ),
+                            ]
+
+                            if clock_data.extrapolating is not None:
+                                fields.append(
+                                    DiscordModel.Embed.Field(
+                                        "Extrapolating",
+                                        str(clock_data.extrapolating),
+                                    )
+                                )
+
+                            embed = DiscordModel.Embed(
+                                title="Extrapolated Clock",
+                                fields=fields,
+                                timestamp=datetime_string_parser(msg_data[2]),
                             )
+
                             msg_q.put(embed)
 
                         elif msg_data[0] == "WeatherData":
                             tracker.update_data(msg_data[1])
-                            embeds = tracker.notify_change_embed()
+                            changes = tracker.notify_changes()
 
-                            if embeds:
-                                for embed in embeds:
+                            if type(changes) == list:
+                                for change in changes:
+                                    change: WeatherDataChange
+
+                                    fields = []
+
+                                    if change.change:
+                                        fields.append(
+                                            DiscordModel.Embed.Field(
+                                                "Change",
+                                                f"{change.change}"
+                                            )
+                                        )
+
+                                    if change.new:
+                                        fields.append(
+                                            DiscordModel.Embed.Field(
+                                                "New",
+                                                f"{change.new}"
+                                            )
+                                        )
+
+                                    if change.previous:
+                                        fields.append(
+                                            DiscordModel.Embed.Field(
+                                                "Previous",
+                                                f"{change.previous}"
+                                            )
+                                        )
+
+                                    embed = DiscordModel.Embed(
+                                        title=change.title,
+                                        timestamp=datetime.now(
+                                            tz=timezone.utc,
+                                        ),
+                                        fields=fields,
+                                    )
+
                                     msg_q.put(embed)
+
+                            else:
+                                ts = "Wet" if changes.rainfall else "Dry"
+                                embed = DiscordModel.Embed(
+                                    title="Initial Weather Information",
+                                    fields=[
+                                        DiscordModel.Embed.Field(
+                                            "Air Temperature (Celsius)",
+                                            f"{changes.airtemp}",
+                                        ),
+                                        DiscordModel.Embed.Field(
+                                            "Track Temperature (Celsius)",
+                                            f"{changes.tracktemp}",
+                                        ),
+                                        DiscordModel.Embed.Field(
+                                            "Humidity (%)",
+                                            f"{changes.humidity}",
+                                        ),
+                                        DiscordModel.Embed.Field(
+                                            "Pressure (mbar)",
+                                            f"{changes.pressure}",
+                                        ),
+                                        DiscordModel.Embed.Field(
+                                            "Track Status (Wet / Dry)",
+                                            ts,
+                                        ),
+                                        DiscordModel.Embed.Field(
+                                            "Wind Direction (Degree)",
+                                            f"{changes.winddirection}",
+                                        ),
+                                        DiscordModel.Embed.Field(
+                                            "Wind Speed",
+                                            f"{changes.windspeed}",
+                                        ),
+                                    ],
+                                    timestamp=datetime.now(tz=timezone.utc),
+                                )
+                                msg_q.put(embed)
 
                         else:
                             print(msg_data)
