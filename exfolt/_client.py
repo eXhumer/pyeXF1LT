@@ -791,9 +791,26 @@ class F1Client:
             self.__old_data = msg["R"]
 
             if "DriverList" in self.__old_data:
-                self.__driver_data.update(
-                    self.__old_data["DriverList"],
-                )
+                for drv_num, drv_data in self.__old_data["DriverList"]:
+                    self.__driver_data.update(
+                        drv_num=DriverData(
+                            drv_num,
+                            broadcast_name=drv_data["BroadcastName"],
+                            full_name=drv_data["FullName"],
+                            tla=drv_data["Tla"],
+                            team_name=drv_data["TeamName"],
+                            team_color=drv_data["TeamColour"],
+                            first_name=drv_data["FirstName"],
+                            last_name=drv_data["LastName"],
+                            reference=drv_data["Reference"],
+                            headshot_url=(
+                                drv_data["HeadshotUrl"]
+                                if "HeadshotUrl" in drv_data
+                                else None
+                            ),
+                            country_code=drv_data["CountryCode"],
+                        )
+                    )
 
             self.__start()
 
@@ -816,7 +833,7 @@ class F1Client:
         res.raise_for_status()
         res_json = res.json()
         self.__connection_token: str = res_json["ConnectionToken"]
-        self.__ws.settimeout(20)
+        self.__ws.settimeout(2)
 
     def __ping(self) -> str | None:
         assert self.__negotiate_at
@@ -879,7 +896,27 @@ class F1Client:
                                 continue
 
                             else:
-                                self.__driver_data.update({drv_num: drv_data})
+                                self.__driver_data.update(
+                                    drv_num=DriverData(
+                                        drv_num,
+                                        broadcast_name=drv_data[
+                                            "BroadcastName"
+                                        ],
+                                        full_name=drv_data["FullName"],
+                                        tla=drv_data["Tla"],
+                                        team_name=drv_data["TeamName"],
+                                        team_color=drv_data["TeamColour"],
+                                        first_name=drv_data["FirstName"],
+                                        last_name=drv_data["LastName"],
+                                        reference=drv_data["Reference"],
+                                        headshot_url=(
+                                            drv_data["HeadshotUrl"]
+                                            if "HeadshotUrl" in drv_data
+                                            else None
+                                        ),
+                                        country_code=drv_data["CountryCode"],
+                                    )
+                                )
 
                 return opcode, json_data
 
@@ -908,20 +945,11 @@ class F1Client:
         res.raise_for_status()
         return res.json()["Response"]
 
-    def driver_data(self, number: str):
+    def driver_data(self, number: str) -> DriverData | None:
         if number not in self.__driver_data:
             return
 
-        return DriverData(
-            number,
-            self.__driver_data[number]["FirstName"],
-            self.__driver_data[number]["LastName"],
-            headshot_url=(
-                self.__driver_data[number]["HeadshotUrl"]
-                if "HeadshotUrl" in self.__driver_data[number]
-                else None
-            ),
-        )
+        return self.__driver_data[number]
 
     def message(self):
         assert self.__ws.connected
@@ -975,7 +1003,8 @@ class F1Client:
         self,
         msg_data: Dict[
             Literal["Messages"],
-            Dict[str, RaceControlMessageDataDict] | List[RaceControlMessageDataDict],
+            Dict[str, RaceControlMessageDataDict] |
+            List[RaceControlMessageDataDict],
         ],
     ):
         if isinstance(msg_data["Messages"], list):
