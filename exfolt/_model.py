@@ -20,42 +20,91 @@ class DriverData:
     def __init__(
         self,
         racing_number: str,
+        broadcast_name: str | None = None,
+        full_name: str | None = None,
+        tla: str | None = None,
+        team_name: str | None = None,
+        team_color: str | None = None,
         first_name: str | None = None,
         last_name: str | None = None,
+        reference: str | None = None,
         headshot_url: str | None = None,
+        country_code: str | None = None,
     ) -> None:
-        self.__rn = racing_number
-        self.__fn = first_name
-        self.__ln = last_name
-        self.__hu = headshot_url
+        self.__racing_number = racing_number
+        self.__broadcast_name = broadcast_name
+        self.__full_name = full_name
+        self.__tla = tla
+        self.__team_name = team_name
+        self.__team_color = team_color
+        self.__first_name = first_name
+        self.__last_name = last_name
+        self.__reference = reference
+        self.__headshot_url = headshot_url
+        self.__country_code = country_code
 
     def __repr__(self) -> str:
         return (
             "DriverData(" +
             ", ".join((
-                f"racing_number={self.__rn}",
-                f"first_name={self.__fn}",
-                f"last_name={self.__ln}",
-                f"headshot_url={self.__hu}",
+                f"racing_number={self.__racing_number}",
+                f"broadcast_name={self.__broadcast_name}",
+                f"full_name={self.__full_name}",
+                f"tla={self.__tla}",
+                f"team_name={self.__team_name}",
+                f"team_color={self.__team_color}",
+                f"first_name={self.__first_name}",
+                f"last_name={self.__last_name}",
+                f"reference={self.__reference}",
+                f"headshot_url={self.__headshot_url}",
+                f"country_code={self.__country_code}",
             )) +
             ")"
         )
 
     @property
     def racing_number(self):
-        return self.__rn
+        return self.__racing_number
+
+    @property
+    def broadcast_name(self):
+        return self.__broadcast_name
+
+    @property
+    def full_name(self):
+        return self.__full_name
+
+    @property
+    def tla(self):
+        return self.__tla
+
+    @property
+    def team_name(self):
+        return self.__team_name
+
+    @property
+    def team_color(self):
+        return self.__team_color
 
     @property
     def first_name(self):
-        return self.__fn
+        return self.__first_name
 
     @property
     def last_name(self):
-        return self.__ln
+        return self.__last_name
+
+    @property
+    def reference(self):
+        return self.__reference
 
     @property
     def headshot_url(self):
-        return self.__hu
+        return self.__headshot_url
+
+    @property
+    def country_code(self):
+        return self.__country_code
 
     def __str__(self) -> str:
         if self.first_name and self.last_name:
