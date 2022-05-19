@@ -791,9 +791,12 @@ class F1Client:
             self.__old_data = msg["R"]
 
             if "DriverList" in self.__old_data:
-                for drv_num, drv_data in self.__old_data["DriverList"]:
-                    self.__driver_data.update(
-                        drv_num=DriverData(
+                for drv_num, drv_data in self.__old_data["DriverList"].items():
+                    if drv_num == "_kf":
+                        continue
+
+                    self.__driver_data.update({
+                        drv_num: DriverData(
                             drv_num,
                             broadcast_name=drv_data["BroadcastName"],
                             full_name=drv_data["FullName"],
@@ -810,7 +813,7 @@ class F1Client:
                             ),
                             country_code=drv_data["CountryCode"],
                         )
-                    )
+                    })
 
             self.__start()
 
@@ -896,8 +899,8 @@ class F1Client:
                                 continue
 
                             else:
-                                self.__driver_data.update(
-                                    drv_num=DriverData(
+                                self.__driver_data.update({
+                                    drv_num: DriverData(
                                         drv_num,
                                         broadcast_name=drv_data[
                                             "BroadcastName"
@@ -916,7 +919,7 @@ class F1Client:
                                         ),
                                         country_code=drv_data["CountryCode"],
                                     )
-                                )
+                                })
 
                 return opcode, json_data
 
