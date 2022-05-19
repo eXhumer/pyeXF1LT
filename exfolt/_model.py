@@ -29,6 +29,18 @@ class DriverData:
         self.__ln = last_name
         self.__hu = headshot_url
 
+    def __repr__(self) -> str:
+        return (
+            "DriverData(" +
+            ", ".join((
+                f"racing_number={self.__rn}",
+                f"first_name={self.__fn}",
+                f"last_name={self.__ln}",
+                f"headshot_url={self.__hu}",
+            )) +
+            ")"
+        )
+
     @property
     def racing_number(self):
         return self.__rn
@@ -61,6 +73,16 @@ class ExtrapolatedData:
         self.__remaining = remanining
         self.__extrapolating = extrapolating
 
+    def __repr__(self) -> str:
+        return (
+            "ExtrapolatedData(" +
+            ", ".join((
+                f"remanining={self.__remaining}",
+                f"extrapolating={self.__extrapolating}",
+            )) +
+            ")"
+        )
+
     @property
     def remaining(self):
         return self.__remaining
@@ -88,6 +110,21 @@ class InitialWeatherData:
         self.__rainfall = rainfall
         self.__winddirection = winddirection
         self.__windspeed = windspeed
+
+    def __repr__(self) -> str:
+        return (
+            "InitialWeatherData(" +
+            ", ".join((
+                f"airtemp={self.__airtemp}",
+                f"tracktemp={self.__tracktemp}",
+                f"humidity={self.__humidity}",
+                f"pressure={self.__pressure}",
+                f"rainfall={self.__rainfall}",
+                f"winddirection={self.__winddirection}",
+                f"windspeed={self.__windspeed}",
+            )) +
+            ")"
+        )
 
     @property
     def airtemp(self):
@@ -139,6 +176,22 @@ class RaceControlMessageData:
         self.__lap = lap
         self.__drs_status = drs_status
 
+    def __repr__(self) -> str:
+        return (
+            "RaceControlMessageData(" +
+            ", ".join((
+                f"category={self.__category}",
+                f"message={self.__message}",
+                f"flag={self.__flag}",
+                f"scope={self.__scope}",
+                f"driver_data={self.__driver_data}",
+                f"sector={self.__sector}",
+                f"lap={self.__lap}",
+                f"drs_status={self.__drs_status}",
+            )) +
+            ")"
+        )
+
     @property
     def category(self):
         return self.__category
@@ -185,6 +238,18 @@ class SessionData:
         self.__track_status = track_status
         self.__session_status = session_status
 
+    def __repr__(self) -> str:
+        return (
+            "SessionData(" +
+            ", ".join((
+                f"lap={self.__lap}",
+                f"qualifying_part={self.__qualifying_part}",
+                f"track_status={self.__track_status}",
+                f"session_status={self.__session_status}",
+            )) +
+            ")"
+        )
+
     @property
     def lap(self):
         return self.__lap
@@ -224,6 +289,23 @@ class SessionInfoData:
         self.__start_date = start_date
         self.__end_date = end_date
         self.__gmt_offset = gmt_offset
+
+    def __repr__(self) -> str:
+        return (
+            "SessionInfoData(" +
+            ", ".join((
+                f"official_name={self.__official_name}",
+                f"name={self.__name}",
+                f"location={self.__location}",
+                f"country={self.__country}",
+                f"circuit={self.__circuit}",
+                f"type={self.__type}",
+                f"start_date={self.__start_date}",
+                f"end_date={self.__end_date}",
+                f"gmt_offset={self.__gmt_offset}",
+            )) +
+            ")"
+        )
 
     @property
     def official_name(self):
@@ -275,6 +357,18 @@ class TimingData:
         self.__seg_num = segment_number
         self.__seg_sta = segment_status
 
+    def __repr__(self) -> str:
+        return (
+            "TimingData(" +
+            ", ".join((
+                f"driver_data={self.__dd}",
+                f"sector_number={self.__sec_num}",
+                f"segment_number={self.__seg_num}",
+                f"segment_status={self.__seg_sta}",
+            )) +
+            ")"
+        )
+
     @property
     def driver_data(self):
         return self.__dd
@@ -296,6 +390,16 @@ class TrackStatusData:
     def __init__(self, status: TrackStatus, message: str) -> None:
         self.__status = status
         self.__message = message
+
+    def __repr__(self) -> str:
+        return (
+            "TrackStatusData(" +
+            ", ".join((
+                f"status={self.status}",
+                f"message={self.__message}",
+            )) +
+            ")"
+        )
 
     @property
     def status(self):
@@ -340,6 +444,18 @@ class WeatherDataChange:
         self.__change = change
         self.__previous = previous
         self.__new = new
+
+    def __repr__(self) -> str:
+        return (
+            "WeatherDataChange(" +
+            ", ".join((
+                f"title={self.__title}",
+                f"change={self.__change}",
+                f"previous={self.__previous}",
+                f"new={self.__new}",
+            )) +
+            ")"
+        )
 
     @property
     def title(self):
