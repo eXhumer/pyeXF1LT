@@ -216,7 +216,7 @@ if __name__ == "__main__":
 
                                 else:
                                     raise ValueError(
-                                        "Unexpected flag status '" + 
+                                        "Unexpected flag status '" +
                                         f"{rcm_data.flag}'!"
                                     )
 
