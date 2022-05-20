@@ -223,7 +223,7 @@ def race_control_message_data_parser(
             if "Scope" in msg_data
             else None
         ),
-        driver_data=(
+        racing_number=(
             msg_data["RacingNumber"]
             if "RacingNumber" in msg_data
             else None
