@@ -625,9 +625,12 @@ class F1Client:
 
     def __init__(
         self,
-        signalr_url: str = "https://livetiming.formula1.com/signalr",
+        base_url: str = "https://livetiming.formula1.com",
+        signalr_endpoint: str = "signalr",
         reconnect: bool = True,
     ) -> None:
+        signalr_url = f"{base_url}/{signalr_endpoint}"
+        self.___base_url = base_url
         self.__signalr_rest_url = signalr_url
         self.__signalr_wss_url = signalr_url.replace("https://", "wss://")
         self.__rest_session = Session()
@@ -693,6 +696,34 @@ class F1Client:
                 print("Connection error while closing active connection!")
 
         if self.__ws.connected:
+            self.__ws.send(
+                json.dumps(
+                    {
+                        "H": "streaming",
+                        "M": "Unsubscribe",
+                        "A": [[
+                            "Heartbeat",
+                            "CarData.z",
+                            "Position.z",
+                            "ExtrapolatedClock",
+                            "TopThree",
+                            "RcmSeries",
+                            "TimingStats",
+                            "TimingAppData",
+                            "WeatherData",
+                            "TrackStatus",
+                            "DriverList",
+                            "RaceControlMessages",
+                            "SessionInfo",
+                            "SessionData",
+                            "LapCount",
+                            "TimingData",
+                        ]],
+                        "I": 0
+                    },
+                    separators=(',', ':'),
+                ),
+            )
             self.__ws.close()
 
         self.__connection_token = None
@@ -963,7 +994,7 @@ class F1Client:
     def streaming_status(self) -> str:
         res = self.__rest_session.get(
             "/".join((
-                "https://livetiming.formula1.com",
+                self.___base_url,
                 "static",
                 "StreamingStatus.json",
             )),
