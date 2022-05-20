@@ -223,7 +223,11 @@ def race_control_message_data_parser(
             if "Scope" in msg_data
             else None
         ),
-        driver_data=msg_data["RacingNumber"],
+        driver_data=(
+            msg_data["RacingNumber"]
+            if "RacingNumber" in msg_data
+            else None
+        ),
         sector=(
             msg_data["Sector"]
             if "Sector" in msg_data
