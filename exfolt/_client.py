@@ -1004,6 +1004,27 @@ class F1Client:
         streaming_status = res_json["Status"]
         return streaming_status
 
+    def get_archived_session_page(
+        self,
+        year: int,
+        event_name: str,
+        event_date: str,
+        session_date: str,
+        session_name: str,
+        page: str,
+        json_stream: bool = False,
+    ):
+        return self.__rest_session.get(
+            "/".join((
+                self.___base_url,
+                "static",
+                str(year),
+                f"{event_date}_{event_name.replace(' ', '_')}",
+                f"{session_date}_{session_name.replace(' ', '_')}",
+                f"{page}.jsonStream" if json_stream else f"{page}.json",
+            )),
+        )
+
     def timing_data_parser(self, msg_data: TimingDataDict):
         if "Lines" in msg_data and len(msg_data["Lines"]) == 1:
             for drv_num, drv_data in msg_data["Lines"].items():
