@@ -17,7 +17,7 @@ import json
 from datetime import datetime, timedelta
 from enum import IntEnum
 from random import randint
-from typing import Any, Dict, List, Literal, Union
+from typing import Any, Dict, List, Literal
 from urllib.parse import quote, urlencode
 
 from requests import ConnectionError, HTTPError, Session
@@ -31,11 +31,8 @@ from websocket import (
 from ._model import (
     DriverData,
     InitialWeatherData,
-    RaceControlMessageData,
-    TimingData,
     WeatherDataChange,
 )
-from ._type import TimingDataStatus
 
 
 WeatherDataEntry = Dict[
@@ -591,33 +588,6 @@ class WeatherTracker:
             return changes_list
 
 
-TimingDataDict = Dict[
-    Literal["Lines"],
-    Dict[
-        str,
-        Dict[
-            Literal["Sectors"],
-            Dict[
-                str,
-                Dict[
-                    Literal["Segments"],
-                    Dict[
-                        str,
-                        Dict[
-                            Literal["Status"],
-                            int,
-                        ],
-                    ],
-                ],
-            ],
-        ],
-    ],
-]
-
-
-RaceControlMessageDataDict = Dict[str, Union[str, int]]
-
-
 class F1Client:
     """F1 Live Timing Client"""
     __ping_interval = timedelta(minutes=5)
@@ -1023,82 +993,4 @@ class F1Client:
                 f"{session_date}_{session_name.replace(' ', '_')}",
                 f"{page}.jsonStream" if json_stream else f"{page}.json",
             )),
-        )
-
-    def timing_data_parser(self, msg_data: TimingDataDict):
-        if "Lines" in msg_data and len(msg_data["Lines"]) == 1:
-            for drv_num, drv_data in msg_data["Lines"].items():
-                if "Sectors" in drv_data and len(drv_data["Sectors"]) == 1:
-                    for sector_num, sector_data in drv_data["Sectors"].items():
-                        if (
-                            "Segments" in sector_data and
-                            len(sector_data["Segments"]) == 1
-                        ):
-                            for (
-                                segment_num,
-                                segment_data,
-                            ) in sector_data["Segments"].items():
-                                if (
-                                    "Status" in segment_data and
-                                    segment_data["Status"] in [
-                                        TimingDataStatus.PURPLE,
-                                        TimingDataStatus.STOPPED,
-                                        TimingDataStatus.PITTED,
-                                        TimingDataStatus.PIT_ISSUE,
-                                    ]
-                                ):
-                                    return TimingData(
-                                        self.driver_data(drv_num),
-                                        int(sector_num) + 1,
-                                        int(segment_num) + 1,
-                                        segment_data["Status"],
-                                    )
-
-    def race_control_message_data_parser(
-        self,
-        msg_data: Dict[
-            Literal["Messages"],
-            Dict[str, RaceControlMessageDataDict] |
-            List[RaceControlMessageDataDict],
-        ],
-    ):
-        if isinstance(msg_data["Messages"], list):
-            msg_data = msg_data["Messages"][0]
-
-        else:
-            msg_data = list(msg_data["Messages"].values())[0]
-
-        return RaceControlMessageData(
-            msg_data["Category"],
-            msg_data["Message"],
-            flag=(
-                msg_data["Flag"]
-                if "Flag" in msg_data
-                else None
-            ),
-            scope=(
-                msg_data["Scope"]
-                if "Scope" in msg_data
-                else None
-            ),
-            driver_data=(
-                self.driver_data(msg_data["RacingNumber"])
-                if "RacingNumber" in msg_data
-                else None
-            ),
-            sector=(
-                msg_data["Sector"]
-                if "Sector" in msg_data
-                else None
-            ),
-            lap=(
-                msg_data["Lap"]
-                if "Lap" in msg_data
-                else None
-            ),
-            drs_status=(
-                msg_data["Status"]
-                if "Status" in msg_data
-                else None
-            ),
         )

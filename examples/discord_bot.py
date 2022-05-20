@@ -34,8 +34,10 @@ from exfolt import (
     WeatherTracker,
     datetime_string_parser,
     extrapolated_clock_parser,
+    race_control_message_data_parser,
     session_data_parser,
     session_info_parser,
+    timing_data_parser,
     track_status_parser,
 )
 
@@ -128,7 +130,7 @@ if __name__ == "__main__":
                         msg_data = msg["M"][0]["A"]
 
                         if msg_data[0] == "RaceControlMessages":
-                            rcm_data = exfolt.race_control_message_data_parser(
+                            rcm_data = race_control_message_data_parser(
                                 msg_data[1],
                             )
 
@@ -244,18 +246,21 @@ if __name__ == "__main__":
                                     )
                                 )
 
+                            if rcm_data.racing_number:
+                                driver_data = exfolt.driver_data(
+                                    rcm_data.racing_number,
+                                )
+                                author = DiscordModel.Embed.Author(
+                                    str(driver_data),
+                                    icon_url=driver_data.headshot_url,
+                                )
+
+                            else:
+                                author = None
+
                             embed = DiscordModel.Embed(
                                 title="Race Control Message",
-                                author=(
-                                    DiscordModel.Embed.Author(
-                                        str(rcm_data.driver_data),
-                                        icon_url=(
-                                            rcm_data.driver_data.headshot_url
-                                        ),
-                                    )
-                                    if rcm_data.driver_data
-                                    else None
-                                ),
+                                author=author,
                                 color=color,
                                 description=description,
                                 fields=fields,
@@ -265,9 +270,7 @@ if __name__ == "__main__":
                             msg_q.put(embed)
 
                         elif msg_data[0] == "TimingData":
-                            timing_data = exfolt.timing_data_parser(
-                                msg_data[1],
-                            )
+                            timing_data = timing_data_parser(msg_data[1])
 
                             if timing_data:
                                 if (
@@ -296,19 +299,21 @@ if __name__ == "__main__":
                                     else:
                                         color = None
 
+                                    if timing_data.racing_number:
+                                        driver_data = exfolt.driver_data(
+                                            timing_data.racing_number,
+                                        )
+                                        author = DiscordModel.Embed.Author(
+                                            str(driver_data),
+                                            icon_url=driver_data.headshot_url,
+                                        )
+
+                                    else:
+                                        author = None
+
                                     embed = DiscordModel.Embed(
                                         title="Timing Data",
-                                        author=(
-                                            DiscordModel.Embed.Author(
-                                                str(timing_data.driver_data),
-                                                icon_url=(
-                                                    timing_data.driver_dat
-                                                    .headshot_url
-                                                ),
-                                            )
-                                            if timing_data.driver_data
-                                            else None
-                                        ),
+                                        author=author,
                                         fields=[
                                             DiscordModel.Embed.Field(
                                                 "Sector",

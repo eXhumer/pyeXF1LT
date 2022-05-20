@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 
-from exfolt import F1Client
+from exfolt import F1Client, race_control_message_data_parser
 from extc import OAuth2Client, OAuth2Scope
 
 
@@ -47,7 +47,7 @@ if __name__ == "__main__":
                 msg_data = msg["M"][0]["A"]
 
                 if msg_data[0] == "RaceControlMessages":
-                    rcm_data = exfolt.race_control_message_data_parser(
+                    rcm_data = race_control_message_data_parser(
                         msg_data[1],
                     )
 

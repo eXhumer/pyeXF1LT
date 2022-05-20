@@ -211,7 +211,7 @@ class RaceControlMessageData:
         message: str,
         flag: str | None = None,
         scope: str | None = None,
-        driver_data: DriverData | None = None,
+        racing_number: str | None = None,
         sector: int | None = None,
         lap: int | None = None,
         drs_status: str | None = None,
@@ -220,7 +220,7 @@ class RaceControlMessageData:
         self.__message = message
         self.__flag = flag
         self.__scope = scope
-        self.__driver_data = driver_data
+        self.__racing_number = racing_number
         self.__sector = sector
         self.__lap = lap
         self.__drs_status = drs_status
@@ -233,7 +233,7 @@ class RaceControlMessageData:
                 f"message={self.__message}",
                 f"flag={self.__flag}",
                 f"scope={self.__scope}",
-                f"driver_data={self.__driver_data}",
+                f"racing_number={self.__racing_number}",
                 f"sector={self.__sector}",
                 f"lap={self.__lap}",
                 f"drs_status={self.__drs_status}",
@@ -258,8 +258,8 @@ class RaceControlMessageData:
         return self.__scope
 
     @property
-    def driver_data(self):
-        return self.__driver_data
+    def racing_number(self):
+        return self.__racing_number
 
     @property
     def sector(self):
@@ -396,43 +396,43 @@ class SessionInfoData:
 class TimingData:
     def __init__(
         self,
-        driver_data: DriverData,
+        racing_number: str,
         sector_number: int,
         segment_number: int,
         segment_status: TimingDataStatus,
     ) -> None:
-        self.__dd = driver_data
-        self.__sec_num = sector_number
-        self.__seg_num = segment_number
-        self.__seg_sta = segment_status
+        self.__racing_number = racing_number
+        self.__sector_number = sector_number
+        self.__segment_number = segment_number
+        self.__segment_status = segment_status
 
     def __repr__(self) -> str:
         return (
             "TimingData(" +
             ", ".join((
-                f"driver_data={self.__dd}",
-                f"sector_number={self.__sec_num}",
-                f"segment_number={self.__seg_num}",
-                f"segment_status={self.__seg_sta}",
+                f"racing_number={self.__racing_number}",
+                f"sector_number={self.__sector_number}",
+                f"segment_number={self.__segment_number}",
+                f"segment_status={self.__segment_status}",
             )) +
             ")"
         )
 
     @property
-    def driver_data(self):
-        return self.__dd
+    def racing_number(self):
+        return self.__racing_number
 
     @property
     def sector_number(self):
-        return self.__sec_num
+        return self.__sector_number
 
     @property
     def segment_number(self):
-        return self.__seg_num
+        return self.__segment_number
 
     @property
     def segment_status(self):
-        return self.__seg_sta
+        return self.__segment_status
 
 
 class TrackStatusData:
