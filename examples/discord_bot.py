@@ -636,7 +636,7 @@ if __name__ == "__main__":
 
                         embeds = []
 
-                        for _ in range(min(len(msg_q), 10)):
+                        for _ in range(min(msg_q.qsize(), 10)):
                             embeds.append(msg_q.get())
 
                         res = discord_message(embeds=embeds)

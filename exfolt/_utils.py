@@ -51,7 +51,7 @@ class RateLimiter:
         ).replace(tzinfo=timezone.utc)
 
     def update_limit(self, **rate_data: str):
-        for k, v in rate_data:
+        for k, v in rate_data.items():
             if k.lower() == "x-rate-limit-limit":
                 self.__limit = int(v)
 
