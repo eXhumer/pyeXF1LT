@@ -24,4 +24,4 @@ pip install .
 pyeXF1LT is an unofficial software and is not associated in anyway with Formula 1 or any of its companies.
 
 ## Licensing
-This project is licensed under OSI Approved [GNU AGPLv3 **ONLY**](./LICENSE.md).
+This project is licensed under OSI Approved [GNU AGPLv3 **ONLY**](./COPYING).
