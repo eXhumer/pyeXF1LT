@@ -2,15 +2,16 @@
 # Copyright (C) 2022  eXhumer
 
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, version 3 of the License.
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, version 3 of the
+# License.
 
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# GNU Affero General Public License for more details.
 
-# You should have received a copy of the GNU General Public License
+# You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from argparse import ArgumentParser
@@ -423,17 +424,17 @@ if __name__ == "__main__":
                                         TrackStatus.VSC_ENDING,
                                     ]
                                     else "<:yellow:964569379037671484>"
-                                    if track_status.status
-                                    in TrackStatus.YELLOW
+                                    if track_status.status ==
+                                    TrackStatus.YELLOW
                                     else "<:sc:964569379163496538>"
-                                    if track_status.status
-                                    in TrackStatus.SC_DEPLOYED
+                                    if track_status.status ==
+                                    TrackStatus.SC_DEPLOYED
                                     else "<:vsc:964569379352244284>"
-                                    if track_status.status
-                                    in TrackStatus.VSC_DEPLOYED
+                                    if track_status.status ==
+                                    TrackStatus.VSC_DEPLOYED
                                     else "<:red:964569379234779136>"
-                                    if track_status.status
-                                    in TrackStatus.RED
+                                    if track_status.status ==
+                                    TrackStatus.RED
                                     else None
                                 ),
                                 color=(

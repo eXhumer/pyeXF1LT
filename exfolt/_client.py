@@ -2,15 +2,16 @@
 # Copyright (C) 2022  eXhumer
 
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, version 3 of the License.
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, version 3 of the
+# License.
 
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# GNU Affero General Public License for more details.
 
-# You should have received a copy of the GNU General Public License
+# You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import json
@@ -728,8 +729,10 @@ class F1Client:
                         ),
                     )
 
-                except WebSocketBadStatusException:
-                    continue
+                except WebSocketBadStatusException as ex:
+                    print(ex.args)
+                    print(ex.resp_headers)
+                    print(ex.status_code)
 
             self.__connected_at = datetime.now()
             self.__last_ping_at = None
@@ -753,8 +756,10 @@ class F1Client:
                         ),
                     )
 
-                except WebSocketBadStatusException:
-                    continue
+                except WebSocketBadStatusException as ex:
+                    print(ex.args)
+                    print(ex.resp_headers)
+                    print(ex.status_code)
 
             self.__connected_at = datetime.now()
             self.__ws.send(
@@ -900,12 +905,15 @@ class F1Client:
                                 continue
 
                             else:
+                                print(drv_data)
                                 self.__driver_data.update({
                                     drv_num: DriverData(
                                         drv_num,
-                                        broadcast_name=drv_data[
-                                            "BroadcastName"
-                                        ],
+                                        broadcast_name=(
+                                            drv_data["BroadcastName"]
+                                            if "BroadcastName" in drv_data
+                                            else None
+                                        ),
                                         full_name=drv_data["FullName"],
                                         tla=drv_data["Tla"],
                                         team_name=drv_data["TeamName"],
