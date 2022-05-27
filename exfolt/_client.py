@@ -737,6 +737,9 @@ class F1Client:
                     logging.warning(ex.resp_headers)
                     logging.warning(ex.status_code)
 
+                except WebSocketTimeoutException:
+                    continue
+
             self.__connected_at = datetime.now()
             self.__last_ping_at = None
 
@@ -763,6 +766,9 @@ class F1Client:
                     logging.warning(ex.args)
                     logging.warning(ex.resp_headers)
                     logging.warning(ex.status_code)
+
+                except WebSocketTimeoutException:
+                    continue
 
             self.__connected_at = datetime.now()
             self.__ws.send(
