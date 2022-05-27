@@ -445,7 +445,7 @@ class TrackStatusData:
         return (
             "TrackStatusData(" +
             ", ".join((
-                f"status={self.status}",
+                f"status={self.status_string}",
                 f"message={self.__message}",
             )) +
             ")"
@@ -453,6 +453,10 @@ class TrackStatusData:
 
     @property
     def status(self):
+        return self.__status
+
+    @property
+    def status_string(self):
         if self.__status == TrackStatus.ALL_CLEAR:
             return "All Clear"
 

@@ -419,7 +419,7 @@ if __name__ == "__main__":
                                 fields=[
                                     DiscordModel.Embed.Field(
                                         "Status",
-                                        track_status.status,
+                                        track_status.status_string,
                                     ),
                                     DiscordModel.Embed.Field(
                                         "Message",
