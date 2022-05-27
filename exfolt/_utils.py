@@ -76,18 +76,21 @@ def datetime_string_parser(dt_str: str):
     ))
 
     [date, time] = dt_str.replace("Z", "").split("T")
-    assert date.count("-") == 2, "Unexpected date string format!"
-    assert (
-        time.count(":") == 2 and
-        time.count(".") == 1
-    ), "Unexpected date string format!"
+    assert date.count("-") == 2, f"Unexpected date string format {dt_str}!"
+    assert time.count(":") == 2, f"Unexpected date string format {dt_str}!"
 
     [year, month, day] = date.split("-")
     [hour, minute, second] = time.split(":")
-    [second, microsecond] = second.split(".")
+
+    if "." in dt_str:
+        [second, microsecond] = second.split(".")
+
+    else:
+        microsecond = "0"
 
     if len(microsecond) > 6:
         microsecond = microsecond[:6]
+
     else:
         microsecond += "0" * (6 - len(microsecond))
 
