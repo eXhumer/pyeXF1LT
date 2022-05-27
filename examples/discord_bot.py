@@ -18,6 +18,8 @@ from argparse import ArgumentParser
 from datetime import datetime, timezone
 from os import environ
 from queue import Queue
+import logging
+import sys
 
 from exdc import (
     DiscordClient,
@@ -114,6 +116,14 @@ if __name__ == "__main__":
                 ],
             )
 
+        logging.basicConfig(
+            level=logging.INFO,
+            handlers=(
+                logging.StreamHandler(sys.stdout),
+                logging.FileHandler("eXF1LT.log"),
+            ),
+        )
+
         try:
             tracker = WeatherTracker()
             rate_limiter = RateLimiter()
@@ -121,7 +131,7 @@ if __name__ == "__main__":
 
             with F1Client() as exfolt:
                 for msg in exfolt:
-                    print(
+                    logging.info(
                         "Message Received at " +
                         str(datetime.now(tz=timezone.utc)) +
                         "!"
@@ -613,7 +623,7 @@ if __name__ == "__main__":
                                 msg_q.put(embed)
 
                         else:
-                            print(msg_data)
+                            logging.info(msg_data)
 
                     if not msg_q.empty():
                         if rate_limiter.remaining is not None:
@@ -625,7 +635,7 @@ if __name__ == "__main__":
                                 rate_limiter.reset >
                                 datetime.utcnow().replace(timezone.utc)
                             ):  # Rate Limited
-                                print(
+                                logging.info(
                                     "\n".join((
                                         "Rate Limited!",
                                         f"Limit: {rate_limiter.limit}",

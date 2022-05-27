@@ -20,6 +20,7 @@ from enum import IntEnum
 from random import randint
 from typing import Any, Dict, List, Literal
 from urllib.parse import quote, urlencode
+import logging
 
 from requests import ConnectionError, HTTPError, Session
 from websocket import (
@@ -664,7 +665,9 @@ class F1Client:
                 res.raise_for_status()
 
             except (ConnectionError, HTTPError):
-                print("Connection error while closing active connection!")
+                logging.warning(
+                    "Connection error while closing active connection!",
+                )
 
         if self.__ws.connected:
             self.__ws.send(
@@ -730,9 +733,9 @@ class F1Client:
                     )
 
                 except WebSocketBadStatusException as ex:
-                    print(ex.args)
-                    print(ex.resp_headers)
-                    print(ex.status_code)
+                    logging.warning(ex.args)
+                    logging.warning(ex.resp_headers)
+                    logging.warning(ex.status_code)
 
             self.__connected_at = datetime.now()
             self.__last_ping_at = None
@@ -757,9 +760,9 @@ class F1Client:
                     )
 
                 except WebSocketBadStatusException as ex:
-                    print(ex.args)
-                    print(ex.resp_headers)
-                    print(ex.status_code)
+                    logging.warning(ex.args)
+                    logging.warning(ex.resp_headers)
+                    logging.warning(ex.status_code)
 
             self.__connected_at = datetime.now()
             self.__ws.send(
@@ -804,7 +807,11 @@ class F1Client:
                     self.__driver_data.update({
                         drv_num: DriverData(
                             drv_num,
-                            broadcast_name=drv_data["BroadcastName"],
+                            broadcast_name=(
+                                drv_data["BroadcastName"]
+                                if "BroadcastName" in drv_data
+                                else None
+                            ),
                             full_name=drv_data["FullName"],
                             tla=drv_data["Tla"],
                             team_name=drv_data["TeamName"],
@@ -861,7 +868,7 @@ class F1Client:
             return res.json()["Response"]
 
         except (ConnectionError, HTTPError):
-            print("Connection error while pinging!")
+            logging.warning("Connection error while pinging!")
 
     def __recv(self):
         assert self.__ws.connected
@@ -904,8 +911,11 @@ class F1Client:
                             if "Line" in drv_data and len(drv_data) == 1:
                                 continue
 
+                            elif "_deleted" in drv_data and len(drv_data) == 1:
+                                continue
+
                             else:
-                                print(drv_data)
+                                logging.info(drv_data)
                                 self.__driver_data.update({
                                     drv_num: DriverData(
                                         drv_num,
