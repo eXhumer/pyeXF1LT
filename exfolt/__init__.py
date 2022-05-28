@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from ._client import F1Client, WeatherTracker  # noqa: F401
+from ._oldclient import F1Client, WeatherTracker  # noqa: F401
 from ._type import FlagStatus, TimingDataStatus, TrackStatus  # noqa: F401
 from ._model import (  # noqa: F401
     DriverData,
