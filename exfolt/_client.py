@@ -25,7 +25,6 @@ import logging
 from requests import ConnectionError, HTTPError, Session
 from websocket import (
     WebSocket,
-    WebSocketBadStatusException,
     WebSocketConnectionClosedException,
     WebSocketTimeoutException,
 )
@@ -608,6 +607,7 @@ class F1Client:
         self.__rest_session = Session()
         self.__ws = WebSocket(skip_utf8_validation=True)
         self.__connection_token: str | None = None
+        self.__gclb: str | None = None
         self.__message_id: str | None = None
         self.__groups_token: str | None = None
         self.__connected_at: datetime | None = None
@@ -730,12 +730,8 @@ class F1Client:
                             },
                             quote_via=quote,
                         ),
+                        cookie=f"GCLB={self.__gclb}",
                     )
-
-                except WebSocketBadStatusException as ex:
-                    logging.warning(ex.args)
-                    logging.warning(ex.resp_headers)
-                    logging.warning(ex.status_code)
 
                 except WebSocketTimeoutException:
                     continue
@@ -760,12 +756,8 @@ class F1Client:
                             },
                             quote_via=quote,
                         ),
+                        cookie=f"GCLB={self.__gclb}",
                     )
-
-                except WebSocketBadStatusException as ex:
-                    logging.warning(ex.args)
-                    logging.warning(ex.resp_headers)
-                    logging.warning(ex.status_code)
 
                 except WebSocketTimeoutException:
                     continue
@@ -853,6 +845,8 @@ class F1Client:
             ),
         )
         res.raise_for_status()
+        gclb: str = res.cookies["GCLB"]
+        self.__gclb = gclb
         res_json = res.json()
         self.__connection_token: str = res_json["ConnectionToken"]
         self.__ws.settimeout(2)
