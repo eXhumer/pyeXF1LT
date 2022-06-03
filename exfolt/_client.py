@@ -24,6 +24,7 @@ from ._model import (
     SessionInfoData,
     TeamRadioData,
     TrackStatusData,
+    WeatherData,
 )
 from ._type import TimingType
 
@@ -380,6 +381,7 @@ class TimingClient:
                     TeamRadioData,
                     TimingType.SessionStatus,
                     TrackStatusData,
+                    WeatherData,
                     str,
                 ],
                 datetime,
@@ -390,6 +392,7 @@ class TimingClient:
         self.__session_status: TimingType.SessionStatus | None = None
         self.__team_radios: List[TeamRadioData] = []
         self.__track_status: TrackStatusData | None = None
+        self.__weather_data: WeatherData | None = None
 
     def __iter__(self):
         return self
@@ -398,7 +401,7 @@ class TimingClient:
         if self.__message_queue.qsize() > 0:
             return self.__message_queue.get()
 
-        return
+        raise StopIteration
 
     @staticmethod
     def __decompress_zlib_data(data: str):
@@ -408,8 +411,17 @@ class TimingClient:
     def audio_streams(self):
         return self.__audio_streams
 
-    def driver_data(self, racing_number: str):
-        return self.__drivers.get(racing_number, None)
+    @property
+    def drivers(self):
+        return self.__drivers
+
+    @property
+    def extrapolated_clock(self):
+        return self.__extrapolated_clock
+
+    @property
+    def lap_count(self):
+        return self.__lap_count_data
 
     def process_data(
         self,
@@ -417,17 +429,18 @@ class TimingClient:
         data: Dict[str, Any] | str,
         timestamp: datetime,
     ):
-        TimingClient.__logger.info(f"Topic: {topic}")
+        TimingClient.__logger.debug(f"Topic: {topic}")
+        TimingClient.__logger.debug(f"Data: {data}")
+        TimingClient.__logger.debug(f"Timestamp: {timestamp}")
 
         if topic in (
             TimingType.Topic.CAR_DATA_Z,
             TimingType.Topic.POSITION_Z,
         ):
             assert isinstance(data, str)
-            TimingClient.__logger.info(f"Compressed Data: {data}")
             decompressed_data = TimingClient.__decompress_zlib_data(data)
-            TimingClient.__logger.info("Decompressed Data: " +
-                                       decompressed_data)
+            TimingClient.__logger.debug("Decompressed Data: " +
+                                        decompressed_data)
             self.__message_queue.put((
                 topic,
                 decompressed_data,
@@ -452,10 +465,6 @@ class TimingClient:
 
             elif topic == TimingType.Topic.DRIVER_LIST:
                 for key, value in data.items():
-                    TimingClient.__logger.info(
-                        f"Driver List Item: {key}={value}",
-                    )
-
                     if key.startswith("_"):
                         continue
 
@@ -529,9 +538,6 @@ class TimingClient:
                 ))
 
             elif topic == TimingType.Topic.RACE_CONTROL_MESSAGES:
-                TimingClient.__logger.info(
-                    f"Race Control Message Data: {data}",
-                )
                 rcm_msg = data["Messages"]
 
                 if isinstance(rcm_msg, list):
@@ -661,9 +667,221 @@ class TimingClient:
                 ))
 
             elif topic == TimingType.Topic.WEATHER_DATA:
-                # TODO: Process data correctly
-                pass
+                if self.__weather_data is None:
+                    self.__weather_data = WeatherData(
+                        data["AirTemp"],
+                        data["Humidity"],
+                        data["Pressure"],
+                        data["Rainfall"],
+                        data["TrackTemp"],
+                        data["WindDirection"],
+                        data["WindSpeed"],
+                    )
+
+                else:
+                    self.__weather_data.air_temp = data["AirTemp"]
+                    self.__weather_data.humidity = data["Humidity"]
+                    self.__weather_data.pressure = data["Pressure"]
+                    self.__weather_data.rainfall = data["Rainfall"]
+                    self.__weather_data.track_temp = data["TrackTemp"]
+                    self.__weather_data.wind_direction = data["WindDirection"]
+                    self.__weather_data.wind_speed = data["WindSpeed"]
+
+                self.__message_queue.put((
+                    topic,
+                    self.__weather_data,
+                    timestamp,
+                ))
+
+    def process_old_data(
+        self,
+        old_data: Dict[TimingType.Topic, Any],
+    ):
+        for d_key, d_val in old_data.items():
+            if d_key == TimingType.Topic.AUDIO_STREAMS:
+                if len(d_val) == 0:
+                    continue
+
+                for stream in d_val["Streams"]:
+                    stream_data = AudioStreamData(
+                        stream["Name"],
+                        stream["Language"],
+                        stream["Uri"],
+                        stream["Path"],
+                    )
+                    self.__audio_streams.append(stream_data)
+
+            elif d_key == TimingType.Topic.DRIVER_LIST:
+                if len(d_val) == 0:
+                    continue
+
+                for drv_num, drv_data in d_val.items():
+                    if drv_num == "_kf":
+                        continue
+
+                    self.__drivers[drv_num] = DriverData(
+                        drv_data["RacingNumber"],
+                        broadcast_name=drv_data["BroadcastName"],
+                        full_name=drv_data["FullName"],
+                        tla=drv_data["Tla"],
+                        team_name=drv_data["TeamName"],
+                        team_color=drv_data["TeamColour"],
+                        first_name=drv_data["FirstName"],
+                        last_name=drv_data["LastName"],
+                        reference=drv_data["Reference"],
+                        headshot_url=(
+                            drv_data["HeadshotUrl"]
+                            if "HeadshotUrl" in drv_data
+                            else None
+                        ),
+                        country_code=drv_data["CountryCode"],
+                    )
+
+            elif d_key == TimingType.Topic.EXTRAPOLATED_CLOCK:
+                if len(d_val) == 0:
+                    continue
+
+                self.__extrapolated_clock = ExtrapolatedClockData(
+                    d_val["Remaining"],
+                    d_val["Extrapolating"],
+                    d_val["Utc"],
+                )
+
+            elif d_key == TimingType.Topic.LAP_COUNT:
+                if len(d_val) == 0:
+                    continue
+
+                self.__lap_count_data = LapCountData(
+                    d_val["CurrentLap"],
+                    d_val["TotalLaps"],
+                )
+
+            elif d_key == TimingType.Topic.RACE_CONTROL_MESSAGES:
+                if len(d_val) == 0:
+                    continue
+
+                for rcm_msg in d_val["Messages"]:
+                    self.__rcm_msgs.append(
+                        RaceControlMessageData(
+                            rcm_msg["Category"],
+                            rcm_msg["Message"],
+                            flag=(
+                                rcm_msg["Flag"]
+                                if "Flag" in rcm_msg
+                                else None
+                            ),
+                            scope=(
+                                rcm_msg["Scope"]
+                                if "Scope" in rcm_msg
+                                else None
+                            ),
+                            racing_number=(
+                                rcm_msg["RacingNumber"]
+                                if "RacingNumber" in rcm_msg
+                                else None
+                            ),
+                            sector=(
+                                rcm_msg["Sector"]
+                                if "Sector" in rcm_msg
+                                else None
+                            ),
+                            lap=(
+                                rcm_msg["Lap"]
+                                if "Lap" in rcm_msg
+                                else None
+                            ),
+                            drs_status=(
+                                rcm_msg["Status"]
+                                if "Status" in rcm_msg
+                                else None
+                            ),
+                        ),
+                    )
+
+            elif d_key == TimingType.Topic.SESSION_INFO:
+                if len(d_val) == 0:
+                    continue
+
+                self.__session_info = SessionInfoData(
+                    d_val["Meeting"],
+                    d_val["ArchiveStatus"],
+                    d_val["Key"],
+                    d_val["Type"],
+                    d_val["Name"],
+                    d_val["StartDate"],
+                    d_val["EndDate"],
+                    d_val["GmtOffset"],
+                    d_val["Path"],
+                    number=(
+                        d_val["Number"]
+                        if "Number" in d_val
+                        else None
+                    ),
+                )
+
+            elif d_key == TimingType.Topic.SESSION_STATUS:
+                if len(d_val) == 0:
+                    continue
+
+                status: TimingType.SessionStatus = d_val["Status"]
+                self.__session_status = status
+
+            elif d_key == TimingType.Topic.TEAM_RADIO:
+                if len(d_val) == 0:
+                    continue
+
+                for capture in d_val["Captures"]:
+                    self.__team_radios.append(
+                        TeamRadioData(
+                            capture["RacingNumber"],
+                            capture["Path"],
+                            capture["Utc"],
+                        ),
+                    )
+
+            elif d_key == TimingType.Topic.TRACK_STATUS:
+                if len(d_val) == 0:
+                    continue
+
+                self.__track_status = TrackStatusData(
+                    d_val["Status"],
+                    d_val["Message"],
+                )
+
+            elif d_key == TimingType.Topic.WEATHER_DATA:
+                if len(d_val) == 0:
+                    continue
+
+                self.__weather_data = WeatherData(
+                    d_val["AirTemp"],
+                    d_val["Humidity"],
+                    d_val["Pressure"],
+                    d_val["Rainfall"],
+                    d_val["TrackTemp"],
+                    d_val["WindDirection"],
+                    d_val["WindSpeed"],
+                )
+
+    @property
+    def race_control_messages(self):
+        return self.__rcm_msgs
+
+    @property
+    def session_info(self):
+        return self.__session_info
+
+    @property
+    def session_status(self):
+        return self.__session_status
 
     @property
     def team_radios(self):
         return self.__team_radios
+
+    @property
+    def track_status(self):
+        return self.__track_status
+
+    @property
+    def weather_data(self):
+        return self.__weather_data

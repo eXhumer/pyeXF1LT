@@ -650,6 +650,95 @@ class TrackStatusData:
         self.__message = message
 
 
+class WeatherData:
+    def __init__(
+        self,
+        air_temp: str,
+        humidity: str,
+        pressure: str,
+        rainfall: str,
+        track_temp: str,
+        wind_direction: str,
+        wind_speed: str,
+    ) -> None:
+        self.__air_temp = air_temp
+        self.__humidity = humidity
+        self.__pressure = pressure
+        self.__rainfall = rainfall
+        self.__track_temp = track_temp
+        self.__wind_direction = wind_direction
+        self.__wind_speed = wind_speed
+
+    def __repr__(self) -> str:
+        data = ", ".join((
+            f"air_temp={self.__air_temp}",
+            f"humidity={self.__humidity}",
+            f"pressure={self.__pressure}",
+            f"rainfall={self.__rainfall}",
+            f"track_temp={self.__track_temp}",
+            f"wind_direction={self.__wind_direction}",
+            f"wind_speed={self.__wind_speed}",
+        ))
+
+        return f"WeatherData({data})"
+
+    @property
+    def air_temp(self):
+        return self.__air_temp
+
+    @air_temp.setter
+    def set_air_temp(self, new_air_temp: str):
+        self.__air_temp = new_air_temp
+
+    @property
+    def humidity(self):
+        return self.__humidity
+
+    @humidity.setter
+    def set_humidity(self, new_humidity: str):
+        self.__humidity = new_humidity
+
+    @property
+    def pressure(self):
+        return self.__pressure
+
+    @pressure.setter
+    def set_pressure(self, new_pressure: str):
+        self.__pressure = new_pressure
+
+    @property
+    def rainfall(self):
+        return self.__rainfall
+
+    @humidity.setter
+    def set_rainfall(self, new_rainfall: str):
+        self.__rainfall = new_rainfall
+
+    @property
+    def track_temp(self):
+        return self.__track_temp
+
+    @track_temp.setter
+    def set_track_temp(self, new_track_temp: str):
+        self.__track_temp = new_track_temp
+
+    @property
+    def wind_direction(self):
+        return self.__wind_direction
+
+    @wind_direction.setter
+    def set_wind_direction(self, new_wind_direction: str):
+        self.__wind_direction = new_wind_direction
+
+    @property
+    def wind_speed(self):
+        return self.__wind_speed
+
+    @wind_speed.setter
+    def set_wind_speed(self, new_wind_speed: str):
+        self.__wind_speed = new_wind_speed
+
+
 class WeatherDataChange:
     def __init__(
         self,
