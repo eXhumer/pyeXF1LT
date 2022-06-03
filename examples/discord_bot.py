@@ -32,7 +32,7 @@ from exfolt import (
     FlagStatus,
     RateLimiter,
     TimingDataStatus,
-    TrackStatus,
+    TimingType,
     WeatherDataChange,
     WeatherTracker,
     datetime_string_parser,
@@ -429,39 +429,40 @@ if __name__ == "__main__":
                                 description=(
                                     "<:green:964569379205414932>"
                                     if track_status.status in [
-                                        TrackStatus.ALL_CLEAR,
-                                        TrackStatus.GREEN,
-                                        TrackStatus.VSC_ENDING,
+                                        TimingType.TrackStatus.ALL_CLEAR,
+                                        TimingType.TrackStatus.GREEN,
+                                        TimingType.TrackStatus.VSC_ENDING,
                                     ]
                                     else "<:yellow:964569379037671484>"
                                     if track_status.status ==
-                                    TrackStatus.YELLOW
+                                    TimingType.TrackStatus.YELLOW
                                     else "<:sc:964569379163496538>"
                                     if track_status.status ==
-                                    TrackStatus.SC_DEPLOYED
+                                    TimingType.TrackStatus.SC_DEPLOYED
                                     else "<:vsc:964569379352244284>"
                                     if track_status.status ==
-                                    TrackStatus.VSC_DEPLOYED
+                                    TimingType.TrackStatus.VSC_DEPLOYED
                                     else "<:red:964569379234779136>"
                                     if track_status.status ==
-                                    TrackStatus.RED
+                                    TimingType.TrackStatus.RED
                                     else None
                                 ),
                                 color=(
                                     0x00FF00
                                     if track_status.status in [
-                                        TrackStatus.ALL_CLEAR,
-                                        TrackStatus.GREEN,
-                                        TrackStatus.VSC_ENDING,
+                                        TimingType.TrackStatus.ALL_CLEAR,
+                                        TimingType.TrackStatus.GREEN,
+                                        TimingType.TrackStatus.VSC_ENDING,
                                     ]
                                     else 0xFFFF00
                                     if track_status.status in [
-                                        TrackStatus.YELLOW,
-                                        TrackStatus.SC_DEPLOYED,
-                                        TrackStatus.VSC_DEPLOYED,
+                                        TimingType.TrackStatus.YELLOW,
+                                        TimingType.TrackStatus.SC_DEPLOYED,
+                                        TimingType.TrackStatus.VSC_DEPLOYED,
                                     ]
                                     else 0xFF0000
-                                    if track_status.status == TrackStatus.RED
+                                    if track_status.status ==
+                                    TimingType.TrackStatus.RED
                                     else None
                                 ),
                                 timestamp=datetime_string_parser(msg_data[2]),

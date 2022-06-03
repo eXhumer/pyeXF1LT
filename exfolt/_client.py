@@ -19,6 +19,7 @@ from ._model import (
     AudioStreamData,
     DriverData,
     ExtrapolatedClockData,
+    LapCountData,
     RaceControlMessageData,
     SessionInfoData,
     TeamRadioData,
@@ -367,6 +368,7 @@ class TimingClient:
         self.__audio_streams: List[AudioStreamData] = []
         self.__drivers: Dict[str, DriverData] = {}
         self.__extrapolated_clock: ExtrapolatedClockData | None = None
+        self.__lap_count_data: LapCountData | None = None
         self.__message_queue: Queue[
             Tuple[
                 TimingType.Topic,
@@ -376,6 +378,7 @@ class TimingClient:
                     RaceControlMessageData,
                     SessionInfoData,
                     TeamRadioData,
+                    TimingType.SessionStatus,
                     TrackStatusData,
                     str,
                 ],
@@ -384,6 +387,7 @@ class TimingClient:
         ] = Queue()
         self.__rcm_msgs: List[RaceControlMessageData] = []
         self.__session_info: SessionInfoData | None = None
+        self.__session_status: TimingType.SessionStatus | None = None
         self.__team_radios: List[TeamRadioData] = []
         self.__track_status: TrackStatusData | None = None
 
@@ -504,6 +508,26 @@ class TimingClient:
                     timestamp,
                 ))
 
+            elif topic == TimingType.Topic.LAP_COUNT:
+                if self.__lap_count_data is None:
+                    self.__lap_count_data = LapCountData(
+                        data["CurrentLap"],
+                        data["TotalLaps"],
+                    )
+
+                else:
+                    if "CurrentLap" in data:
+                        self.__lap_count_data.current_lap = data["CurrentLap"]
+
+                    if "TotalLaps" in data:
+                        self.__lap_count_data.total_laps = data["TotalLaps"]
+
+                self.__message_queue.put((
+                    topic,
+                    self.__lap_count_data,
+                    timestamp,
+                ))
+
             elif topic == TimingType.Topic.RACE_CONTROL_MESSAGES:
                 TimingClient.__logger.info(
                     f"Race Control Message Data: {data}",
@@ -578,6 +602,15 @@ class TimingClient:
                     timestamp,
                 ))
 
+            elif topic == TimingType.Topic.SESSION_STATUS:
+                status: TimingType.SessionStatus = data["Status"]
+                self.__session_status = status
+                self.__message_queue.put((
+                    topic,
+                    self.__session_status,
+                    timestamp,
+                ))
+
             elif topic == TimingType.Topic.TEAM_RADIO:
                 team_radio_captures = data["Captures"]
 
@@ -598,6 +631,18 @@ class TimingClient:
                     self.__team_radios.append(tr_data)
                     self.__message_queue.put((topic, tr_data, timestamp))
 
+            elif topic == TimingType.Topic.TIMING_APP_DATA:
+                # TODO: Process data correctly
+                pass
+
+            elif topic == TimingType.Topic.TIMING_DATA:
+                # TODO: Process data correctly
+                pass
+
+            elif topic == TimingType.Topic.TIMING_STATS:
+                # TODO: Process data correctly
+                pass
+
             elif topic == TimingType.Topic.TRACK_STATUS:
                 if not self.__track_status:
                     self.__track_status = TrackStatusData(
@@ -614,6 +659,10 @@ class TimingClient:
                     self.__track_status,
                     timestamp,
                 ))
+
+            elif topic == TimingType.Topic.WEATHER_DATA:
+                # TODO: Process data correctly
+                pass
 
     @property
     def team_radios(self):

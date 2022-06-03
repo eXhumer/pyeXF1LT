@@ -39,16 +39,6 @@ class TimingDataStatus(IntEnum):
     PIT_ISSUE = 2068
 
 
-class TrackStatus(str, Enum):
-    ALL_CLEAR = "1"
-    YELLOW = "2"
-    GREEN = "3"
-    SC_DEPLOYED = "4"
-    RED = "5"
-    VSC_DEPLOYED = "6"
-    VSC_ENDING = "7"
-
-
 class TimingType:
     """
     F1 live timing related types
@@ -60,6 +50,14 @@ class TimingType:
         """
 
         STREAMING = "streaming"
+
+    class SessionStatus(str, Enum):
+        INACTIVE = "Inactive"
+        STARTED = "Started"
+        ABORTED = "Aborted"
+        FINISHED = "Finished"
+        FINALISED = "Finalised"
+        ENDS = "Ends"
 
     class Topic(str, Enum):
         """
@@ -88,3 +86,12 @@ class TimingType:
         TOP_THREE = "TopThree"
         TRACK_STATUS = "TrackStatus"
         WEATHER_DATA = "WeatherData"
+
+    class TrackStatus(str, Enum):
+        ALL_CLEAR = "1"
+        YELLOW = "2"
+        GREEN = "3"
+        SC_DEPLOYED = "4"
+        RED = "5"
+        VSC_DEPLOYED = "6"
+        VSC_ENDING = "7"

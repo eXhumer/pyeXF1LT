@@ -16,7 +16,7 @@
 
 from typing import Dict, Literal
 
-from ._type import TimingDataStatus, TrackStatus
+from ._type import TimingDataStatus, TimingType
 
 
 class AudioStreamData:
@@ -250,6 +250,39 @@ class InitialWeatherData:
     @property
     def windspeed(self):
         return self.__windspeed
+
+
+class LapCountData:
+    def __init__(
+        self,
+        current_lap: int,
+        total_laps: int,
+    ) -> None:
+        self.__current_lap = current_lap
+        self.__total_laps = total_laps
+
+    def __repr__(self):
+        data = ", ".join((
+            f"current_lap={self.__current_lap}",
+            f"total_laps={self.__total_laps}",
+        ))
+        return f"LapCountData({data})"
+
+    @property
+    def current_lap(self):
+        return self.__current_lap
+
+    @property
+    def total_laps(self):
+        return self.__total_laps
+
+    @current_lap.setter
+    def set_current_lap(self, new_current_lap: int):
+        self.__current_lap = new_current_lap
+
+    @total_laps.setter
+    def set_total_laps(self, new_total_laps: int):
+        self.__total_laps = new_total_laps
 
 
 class RaceControlMessageData:
@@ -560,7 +593,7 @@ class TimingData:
 
 
 class TrackStatusData:
-    def __init__(self, status: TrackStatus, message: str) -> None:
+    def __init__(self, status: TimingType.TrackStatus, message: str) -> None:
         self.__status = status
         self.__message = message
 
@@ -580,25 +613,25 @@ class TrackStatusData:
 
     @property
     def status_string(self):
-        if self.__status == TrackStatus.ALL_CLEAR:
+        if self.__status == TimingType.TrackStatus.ALL_CLEAR:
             return "All Clear"
 
-        elif self.__status == TrackStatus.YELLOW:
+        elif self.__status == TimingType.TrackStatus.YELLOW:
             return "Yellow"
 
-        elif self.__status == TrackStatus.GREEN:
+        elif self.__status == TimingType.TrackStatus.GREEN:
             return "Green"
 
-        elif self.__status == TrackStatus.SC_DEPLOYED:
+        elif self.__status == TimingType.TrackStatus.SC_DEPLOYED:
             return "Safety Car Deployed"
 
-        elif self.__status == TrackStatus.RED:
+        elif self.__status == TimingType.TrackStatus.RED:
             return "Red"
 
-        elif self.__status == TrackStatus.VSC_DEPLOYED:
+        elif self.__status == TimingType.TrackStatus.VSC_DEPLOYED:
             return "Virtual Safety Car Deployed"
 
-        elif self.__status == TrackStatus.VSC_ENDING:
+        elif self.__status == TimingType.TrackStatus.VSC_ENDING:
             return "Virtual Safety Car Ending"
 
         else:
@@ -609,7 +642,7 @@ class TrackStatusData:
         return self.__message
 
     @status.setter
-    def set_status(self, status: TrackStatus):
+    def set_status(self, status: TimingType.TrackStatus):
         self.__status = status
 
     @message.setter
