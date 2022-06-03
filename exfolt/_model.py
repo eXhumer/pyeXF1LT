@@ -14,7 +14,35 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from typing import Dict, Literal
+
 from ._type import TimingDataStatus, TrackStatus
+
+
+class AudioStreamData:
+    def __init__(
+        self,
+        name: str,
+        language: str,
+        uri: str,
+        path: str,
+    ) -> None:
+        self.__name = name
+        self.__language = language
+        self.__uri = uri
+        self.__path = path
+
+    def __repr__(self) -> str:
+        return (
+            "AudioStreamData(" +
+            ", ".join((
+                f"name={self.__name}",
+                f"language={self.__language}",
+                f"uri={self.__uri}",
+                f"path={self.__path}",
+            )) +
+            ")"
+        )
 
 
 class DriverData:
@@ -114,21 +142,24 @@ class DriverData:
         return self.racing_number
 
 
-class ExtrapolatedData:
+class ExtrapolatedClockData:
     def __init__(
         self,
         remanining: str,
-        extrapolating: bool | None = None,
+        extrapolating: bool,
+        utc: str,
     ) -> None:
         self.__remaining = remanining
         self.__extrapolating = extrapolating
+        self.__utc = utc
 
     def __repr__(self) -> str:
         return (
-            "ExtrapolatedData(" +
+            "ExtrapolatedClockData(" +
             ", ".join((
                 f"remanining={self.__remaining}",
                 f"extrapolating={self.__extrapolating}",
+                f"utc={self.__utc}",
             )) +
             ")"
         )
@@ -140,6 +171,22 @@ class ExtrapolatedData:
     @property
     def extrapolating(self):
         return self.__extrapolating
+
+    @property
+    def utc(self):
+        return self.__utc
+
+    @remaining.setter
+    def set_remaining(self, remaining: str):
+        self.__remaining = remaining
+
+    @extrapolating.setter
+    def set_extrapolating(self, extrapolating: bool):
+        self.__extrapolating = extrapolating
+
+    @utc.setter
+    def set_utc(self, utc: str):
+        self.__utc = utc
 
 
 class InitialWeatherData:
@@ -318,68 +365,101 @@ class SessionData:
 
 
 class SessionInfoData:
+    ArchiveStatusData = Dict[
+        Literal["Status"],
+        Literal["Complete", "Generating"],
+    ]
+
+    CircuitData = Dict[
+        Literal[
+            "Key",
+            "ShortName",
+        ],
+        int | str,
+    ]
+
+    CountryData = Dict[
+        Literal[
+            "Key",
+            "Code",
+            "Name",
+        ],
+        int | str,
+    ]
+
+    MeetingData = Dict[
+        Literal[
+            "Key",
+            "Name",
+            "OfficialName",
+            "Location",
+            "Country",
+            "Circuit",
+        ],
+        int | str | CountryData | CircuitData,
+    ]
+
     def __init__(
         self,
-        official_name: str,
-        name: str,
-        location: str,
-        country: str,
-        circuit: str,
+        meeting: MeetingData,
+        archive_status: ArchiveStatusData,
+        key: int,
         type: str,
+        name: str,
         start_date: str,
         end_date: str,
         gmt_offset: str,
+        path: str,
+        number: int | None = None,
     ) -> None:
-        self.__official_name = official_name
-        self.__name = name
-        self.__location = location
-        self.__country = country
-        self.__circuit = circuit
+        self.__meeting = meeting
+        self.__archive_status = archive_status
+        self.__key = key
         self.__type = type
+        self.__name = name
         self.__start_date = start_date
         self.__end_date = end_date
         self.__gmt_offset = gmt_offset
+        self.__path = path
+        self.__number = number
 
     def __repr__(self) -> str:
         return (
             "SessionInfoData(" +
             ", ".join((
-                f"official_name={self.__official_name}",
-                f"name={self.__name}",
-                f"location={self.__location}",
-                f"country={self.__country}",
-                f"circuit={self.__circuit}",
+                f"meeting={self.__meeting}",
+                f"archive_status={self.__archive_status}",
+                f"key={self.__key}",
                 f"type={self.__type}",
+                f"name={self.__name}",
                 f"start_date={self.__start_date}",
                 f"end_date={self.__end_date}",
                 f"gmt_offset={self.__gmt_offset}",
+                f"path={self.__path}",
+                f"number={self.__number}",
             )) +
             ")"
         )
 
     @property
-    def official_name(self):
-        return self.__official_name
+    def meeting(self):
+        return self.__meeting
 
     @property
-    def name(self):
-        return self.__name
+    def archive_status(self):
+        return self.__archive_status
 
     @property
-    def location(self):
-        return self.__location
-
-    @property
-    def country(self):
-        return self.__country
-
-    @property
-    def circuit(self):
-        return self.__circuit
+    def key(self):
+        return self.__key
 
     @property
     def type(self):
         return self.__type
+
+    @property
+    def name(self):
+        return self.__name
 
     @property
     def start_date(self):
@@ -392,6 +472,49 @@ class SessionInfoData:
     @property
     def gmt_offset(self):
         return self.__gmt_offset
+
+    @property
+    def path(self):
+        return self.__path
+
+    @property
+    def number(self):
+        return self.__number
+
+
+class TeamRadioData:
+    def __init__(
+        self,
+        racing_number: str,
+        path: str,
+        timestamp: str,
+    ) -> None:
+        self.__racing_number = racing_number
+        self.__path = path
+        self.__timestamp = timestamp
+
+    def __repr__(self) -> str:
+        return (
+            "TeamRadioData(" +
+            ", ".join((
+                f"racing_number={self.__racing_number}",
+                f"path={self.__path}",
+                f"timestamp={self.__timestamp}",
+            )) +
+            ")"
+        )
+
+    @property
+    def racing_number(self):
+        return self.__racing_number
+
+    @property
+    def path(self):
+        return self.__path
+
+    @property
+    def timestamp(self):
+        return self.__timestamp
 
 
 class TimingData:
@@ -484,6 +607,14 @@ class TrackStatusData:
     @property
     def message(self):
         return self.__message
+
+    @status.setter
+    def set_status(self, status: TrackStatus):
+        self.__status = status
+
+    @message.setter
+    def set_message(self, message: str):
+        self.__message = message
 
 
 class WeatherDataChange:

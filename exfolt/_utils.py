@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Literal, Union
 
 from ._model import (
-    ExtrapolatedData,
+    ExtrapolatedClockData,
     RaceControlMessageData,
     SessionData,
     SessionInfoData,
@@ -188,7 +188,7 @@ def session_data_parser(msg_data: SessionDataDict):
 
 
 def extrapolated_clock_parser(msg_data: Dict[str, str | bool]):
-    return ExtrapolatedData(
+    return ExtrapolatedClockData(
         msg_data["Remaining"],
         extrapolating=(
             msg_data["Extrapolating"]

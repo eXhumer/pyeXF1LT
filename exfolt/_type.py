@@ -47,3 +47,44 @@ class TrackStatus(str, Enum):
     RED = "5"
     VSC_DEPLOYED = "6"
     VSC_ENDING = "7"
+
+
+class TimingType:
+    """
+    F1 live timing related types
+    """
+
+    class Hub(str, Enum):
+        """
+        F1 live timing SignalR hubs
+        """
+
+        STREAMING = "streaming"
+
+    class Topic(str, Enum):
+        """
+        F1 live timing SignalR topics
+        """
+
+        ARCHIVE_STATUS = "ArchiveStatus"
+        AUDIO_STREAMS = "AudioStreams"
+        CAR_DATA_Z = "CarData.z"
+        CHAMPIONSHIP_PREDICTION = "ChampionshipPrediction"
+        CONTENT_STREAMS = "ContentStreams"
+        CURRENT_TYRES = "CurrentTyres"
+        DRIVER_LIST = "DriverList"
+        EXTRAPOLATED_CLOCK = "ExtrapolatedClock"
+        HEARTBEAT = "Heartbeat"
+        LAP_COUNT = "LapCount"
+        POSITION_Z = "Position.z"
+        RACE_CONTROL_MESSAGES = "RaceControlMessages"
+        SESSION_DATA = "SessionData"
+        SESSION_INFO = "SessionInfo"
+        SESSION_STATUS = "SessionStatus"
+        TEAM_RADIO = "TeamRadio"
+        TIMING_APP_DATA = "TimingAppData"
+        TIMING_DATA = "TimingData"
+        TIMING_STATS = "TimingStats"
+        TOP_THREE = "TopThree"
+        TRACK_STATUS = "TrackStatus"
+        WEATHER_DATA = "WeatherData"

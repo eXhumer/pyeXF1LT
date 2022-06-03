@@ -18,7 +18,7 @@ from ._oldclient import F1Client, WeatherTracker  # noqa: F401
 from ._type import FlagStatus, TimingDataStatus, TrackStatus  # noqa: F401
 from ._model import (  # noqa: F401
     DriverData,
-    ExtrapolatedData,
+    ExtrapolatedClockData,
     InitialWeatherData,
     RaceControlMessageData,
     SessionData,
