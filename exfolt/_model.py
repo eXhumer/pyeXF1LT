@@ -177,15 +177,15 @@ class ExtrapolatedClockData:
         return self.__utc
 
     @remaining.setter
-    def set_remaining(self, remaining: str):
+    def remaining(self, remaining: str):
         self.__remaining = remaining
 
     @extrapolating.setter
-    def set_extrapolating(self, extrapolating: bool):
+    def extrapolating(self, extrapolating: bool):
         self.__extrapolating = extrapolating
 
     @utc.setter
-    def set_utc(self, utc: str):
+    def utc(self, utc: str):
         self.__utc = utc
 
 
@@ -214,11 +214,11 @@ class LapCountData:
         return self.__total_laps
 
     @current_lap.setter
-    def set_current_lap(self, new_current_lap: int):
+    def current_lap(self, new_current_lap: int):
         self.__current_lap = new_current_lap
 
     @total_laps.setter
-    def set_total_laps(self, new_total_laps: int):
+    def total_laps(self, new_total_laps: int):
         self.__total_laps = new_total_laps
 
 
@@ -492,7 +492,7 @@ class TimingAppData:
         def __init__(
             self,
             lap_flags: int,
-            compound: TimingType.TypeCompound,
+            compound: TimingType.TyreCompound,
             new: bool,
             tyre_not_changed: bool,
             total_laps: int,
@@ -528,7 +528,7 @@ class TimingAppData:
             return self.__lap_flags
 
         @lap_flags.setter
-        def set_lap_flags(self, new_lap_flags: int):
+        def lap_flags(self, new_lap_flags: int):
             self.__lap_flags = new_lap_flags
 
         @property
@@ -536,7 +536,7 @@ class TimingAppData:
             return self.__compound
 
         @compound.setter
-        def set_compound(self, new_compound: TimingType.TypeCompound):
+        def compound(self, new_compound: TimingType.TyreCompound):
             self.__compound = new_compound
 
         @property
@@ -544,7 +544,7 @@ class TimingAppData:
             return self.__new
 
         @new.setter
-        def set_new(self, new_value: bool):
+        def new(self, new_value: bool):
             self.__new = new_value
 
         @property
@@ -552,7 +552,7 @@ class TimingAppData:
             return self.__tyre_not_changed
 
         @tyre_not_changed.setter
-        def set_tyre_not_changed(self, new_tyre_not_changed: bool):
+        def tyre_not_changed(self, new_tyre_not_changed: bool):
             self.__tyre_not_changed = new_tyre_not_changed
 
         @property
@@ -560,7 +560,7 @@ class TimingAppData:
             return self.__total_laps
 
         @total_laps.setter
-        def set_total_laps(self, new_total_laps: int):
+        def total_laps(self, new_total_laps: int):
             self.__total_laps = new_total_laps
 
         @property
@@ -568,7 +568,7 @@ class TimingAppData:
             return self.__start_laps
 
         @start_laps.setter
-        def set_start_laps(self, new_start_laps: int):
+        def start_laps(self, new_start_laps: int):
             self.__start_laps = new_start_laps
 
         @property
@@ -576,7 +576,7 @@ class TimingAppData:
             return self.__lap_time
 
         @lap_time.setter
-        def set_lap_time(self, new_lap_time: str):
+        def lap_time(self, new_lap_time: str):
             self.__lap_time = new_lap_time
 
         @property
@@ -584,7 +584,7 @@ class TimingAppData:
             return self.__lap_number
 
         @lap_number.setter
-        def set_lap_number(self, new_lap_number: int):
+        def lap_number(self, new_lap_number: int):
             self.__lap_number = new_lap_number
 
     def __init__(
@@ -614,7 +614,7 @@ class TimingAppData:
         return self.__grid_position
 
     @grid_position.setter
-    def set_grid_position(self, new_position: str):
+    def grid_position(self, new_position: str):
         self.__grid_position = new_position
 
     @property
@@ -672,11 +672,11 @@ class TrackStatusData:
         return self.__message
 
     @status.setter
-    def set_status(self, status: TimingType.TrackStatus):
+    def status(self, status: TimingType.TrackStatus):
         self.__status = status
 
     @message.setter
-    def set_message(self, message: str):
+    def message(self, message: str):
         self.__message = message
 
 
@@ -717,7 +717,7 @@ class WeatherData:
         return self.__air_temp
 
     @air_temp.setter
-    def set_air_temp(self, new_air_temp: str):
+    def air_temp(self, new_air_temp: str):
         self.__air_temp = new_air_temp
 
     @property
@@ -725,7 +725,7 @@ class WeatherData:
         return self.__humidity
 
     @humidity.setter
-    def set_humidity(self, new_humidity: str):
+    def humidity(self, new_humidity: str):
         self.__humidity = new_humidity
 
     @property
@@ -733,15 +733,15 @@ class WeatherData:
         return self.__pressure
 
     @pressure.setter
-    def set_pressure(self, new_pressure: str):
+    def pressure(self, new_pressure: str):
         self.__pressure = new_pressure
 
     @property
     def rainfall(self):
         return self.__rainfall
 
-    @humidity.setter
-    def set_rainfall(self, new_rainfall: str):
+    @rainfall.setter
+    def rainfall(self, new_rainfall: str):
         self.__rainfall = new_rainfall
 
     @property
@@ -749,7 +749,7 @@ class WeatherData:
         return self.__track_temp
 
     @track_temp.setter
-    def set_track_temp(self, new_track_temp: str):
+    def track_temp(self, new_track_temp: str):
         self.__track_temp = new_track_temp
 
     @property
@@ -757,7 +757,7 @@ class WeatherData:
         return self.__wind_direction
 
     @wind_direction.setter
-    def set_wind_direction(self, new_wind_direction: str):
+    def wind_direction(self, new_wind_direction: str):
         self.__wind_direction = new_wind_direction
 
     @property
@@ -765,5 +765,5 @@ class WeatherData:
         return self.__wind_speed
 
     @wind_speed.setter
-    def set_wind_speed(self, new_wind_speed: str):
+    def wind_speed(self, new_wind_speed: str):
         self.__wind_speed = new_wind_speed
