@@ -23,6 +23,7 @@ from ._model import (
     RaceControlMessageData,
     SessionInfoData,
     TeamRadioData,
+    TimingAppData,
     TrackStatusData,
     WeatherData,
 )
@@ -368,6 +369,7 @@ class TimingClient:
     def __init__(self) -> None:
         self.__audio_streams: List[AudioStreamData] = []
         self.__drivers: Dict[str, DriverData] = {}
+        self.__timing_app_data: Dict[str, TimingAppData] = {}
         self.__extrapolated_clock: ExtrapolatedClockData | None = None
         self.__lap_count_data: LapCountData | None = None
         self.__message_queue: Queue[
@@ -379,6 +381,7 @@ class TimingClient:
                     RaceControlMessageData,
                     SessionInfoData,
                     TeamRadioData,
+                    TimingAppData,
                     TimingType.SessionStatus,
                     TrackStatusData,
                     WeatherData,
@@ -638,8 +641,127 @@ class TimingClient:
                     self.__message_queue.put((topic, tr_data, timestamp))
 
             elif topic == TimingType.Topic.TIMING_APP_DATA:
-                # TODO: Process data correctly
-                pass
+                for drv_num, timing_app_data in data["Lines"].items():
+                    if drv_num.startswith("_"):
+                        continue
+
+                    if (
+                        "RacingNumber" in timing_app_data and
+                        "Line" in timing_app_data and
+                        "GridPos" in timing_app_data
+                    ):
+                        self.__timing_app_data[drv_num] = TimingAppData(
+                            timing_app_data["RacingNumber"],
+                            timing_app_data["GridPos"],
+                        )
+
+                    else:
+                        tad = self.__timing_app_data[drv_num]
+
+                        if "Stints" in timing_app_data:
+                            timing_stints = timing_app_data["Stints"]
+
+                            if isinstance(timing_stints, list):
+                                tad.stints.clear()
+
+                                if len(timing_stints) > 0:
+                                    for idx, stint_data in enumerate(
+                                        timing_stints
+                                    ):
+                                        tad.stints.append(
+                                            TimingAppData.Stint(
+                                                stint_data["LapFlags"],
+                                                stint_data["Compound"],
+                                                stint_data["New"] == "true",
+                                                stint_data["TyresNotChanged"]
+                                                == "1",
+                                                stint_data["TotalLaps"],
+                                                stint_data["StartLaps"],
+                                            )
+                                        )
+
+                            else:
+                                for idx, stint_data in timing_stints.items():
+                                    if (
+                                        "LapFlags" in stint_data and
+                                        "Compound" in stint_data and
+                                        "New" in stint_data and
+                                        "TyresNotChanged" in stint_data
+                                    ):
+                                        tad.stints.append(
+                                            TimingAppData.Stint(
+                                                stint_data["LapFlags"],
+                                                stint_data["Compound"],
+                                                stint_data["New"] == "true",
+                                                stint_data["TyresNotChanged"]
+                                                == "1",
+                                                stint_data["TotalLaps"],
+                                                stint_data["StartLaps"],
+                                                lap_time=(
+                                                    stint_data["LapTime"]
+                                                    if "LapTime" in stint_data
+                                                    else None
+                                                ),
+                                                lap_number=(
+                                                    stint_data["LapNumber"]
+                                                    if "LapNumber"
+                                                    in stint_data
+                                                    else None
+                                                ),
+                                            )
+                                        )
+
+                                    else:
+                                        stint = tad.stints[int(idx)]
+
+                                        if "Compound" in stint_data:
+                                            compound: TimingType.TypeCompound \
+                                                = stint_data["Compound"]
+                                            stint.compound = compound
+
+                                        if "New" in stint_data:
+                                            new: bool = \
+                                                stint_data["New"] == "true"
+                                            stint.new = new
+
+                                        if "TyresNotChanged" in stint_data:
+                                            tyres_not_changed: bool = (
+                                                stint_data["TyresNotChanged"]
+                                                == "1"
+                                            )
+                                            stint.tyre_not_changed = \
+                                                tyres_not_changed
+
+                                        if "TotalLaps" in stint_data:
+                                            total_laps: int = \
+                                                stint_data["TotalLaps"]
+                                            stint.total_laps = total_laps
+
+                                        if "LapTime" in stint_data:
+                                            lap_time: str = \
+                                                stint_data["LapTime"]
+                                            stint.lap_time = lap_time
+
+                                        if "LapNumber" in stint_data:
+                                            lap_number: int = \
+                                                stint_data["LapNumber"]
+                                            stint.lap_number = lap_number
+
+                                        if "LapFlags" in stint_data:
+                                            lap_flags: int = \
+                                                stint_data["LapFlags"]
+                                            stint.lap_flags = lap_flags
+
+                        if "GridPos" in timing_app_data:
+                            grid_position: str = timing_app_data["GridPos"]
+                            self.__timing_app_data[drv_num].grid_position = \
+                                grid_position
+
+                    self.__message_queue.put((
+                        topic,
+                        self.__timing_app_data[drv_num],
+                        timestamp,
+                    ))
 
             elif topic == TimingType.Topic.TIMING_DATA:
                 # TODO: Process data correctly
@@ -839,6 +961,44 @@ class TimingClient:
                         ),
                     )
 
+            elif d_key == TimingType.Topic.TIMING_APP_DATA:
+                if len(d_val) == 0:
+                    continue
+
+                for drv_num, timing_data in d_val["Lines"].items():
+                    data = TimingAppData(
+                        timing_data["RacingNumber"],
+                        timing_data["GridPos"],
+                    )
+
+                    if (
+                        "Stints" in timing_data and
+                        len(timing_data["Stints"]) > 0
+                    ):
+                        for stint in timing_data["Stints"]:
+                            data.stints.append(
+                                TimingAppData.Stint(
+                                    stint["LapFlags"],
+                                    stint["Compound"],
+                                    stint["New"] == "true",
+                                    stint["TyresNotChanged"] == "1",
+                                    stint["TotalLaps"],
+                                    stint["StartLaps"],
+                                    lap_time=(
+                                        stint["LapTime"]
+                                        if "LapTime" in stint
+                                        else None
+                                    ),
+                                    lap_number=(
+                                        stint["LapNumber"]
+                                        if "LapNumber" in stint
+                                        else None
+                                    ),
+                                ),
+                            )
+
+                    self.__timing_app_data.update({drv_num: data})
+
             elif d_key == TimingType.Topic.TRACK_STATUS:
                 if len(d_val) == 0:
                     continue
@@ -877,6 +1037,10 @@ class TimingClient:
     @property
     def team_radios(self):
         return self.__team_radios
+
+    @property
+    def timing_app_data(self):
+        return self.__timing_app_data
 
     @property
     def track_status(self):

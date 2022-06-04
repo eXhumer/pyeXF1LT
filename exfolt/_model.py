@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from typing import Dict, Literal
+from typing import Dict, List, Literal
 
 from ._type import TimingDataStatus, TimingType
 
@@ -187,69 +187,6 @@ class ExtrapolatedClockData:
     @utc.setter
     def set_utc(self, utc: str):
         self.__utc = utc
-
-
-class InitialWeatherData:
-    def __init__(
-        self,
-        airtemp: float,
-        tracktemp: float,
-        humidity: float,
-        pressure: float,
-        rainfall: bool,
-        winddirection: int,
-        windspeed: float,
-    ) -> None:
-        self.__airtemp = airtemp
-        self.__tracktemp = tracktemp
-        self.__humidity = humidity
-        self.__pressure = pressure
-        self.__rainfall = rainfall
-        self.__winddirection = winddirection
-        self.__windspeed = windspeed
-
-    def __repr__(self) -> str:
-        return (
-            "InitialWeatherData(" +
-            ", ".join((
-                f"airtemp={self.__airtemp}",
-                f"tracktemp={self.__tracktemp}",
-                f"humidity={self.__humidity}",
-                f"pressure={self.__pressure}",
-                f"rainfall={self.__rainfall}",
-                f"winddirection={self.__winddirection}",
-                f"windspeed={self.__windspeed}",
-            )) +
-            ")"
-        )
-
-    @property
-    def airtemp(self):
-        return self.__airtemp
-
-    @property
-    def tracktemp(self):
-        return self.__tracktemp
-
-    @property
-    def humidity(self):
-        return self.__humidity
-
-    @property
-    def pressure(self):
-        return self.__pressure
-
-    @property
-    def rainfall(self):
-        return self.__rainfall
-
-    @property
-    def winddirection(self):
-        return self.__winddirection
-
-    @property
-    def windspeed(self):
-        return self.__windspeed
 
 
 class LapCountData:
@@ -550,6 +487,141 @@ class TeamRadioData:
         return self.__timestamp
 
 
+class TimingAppData:
+    class Stint:
+        def __init__(
+            self,
+            lap_flags: int,
+            compound: TimingType.TypeCompound,
+            new: bool,
+            tyre_not_changed: bool,
+            total_laps: int,
+            start_laps: int,
+            lap_time: str | None = None,
+            lap_number: int | None = None,
+        ) -> None:
+            self.__lap_flags = lap_flags
+            self.__compound = compound
+            self.__new = new
+            self.__tyre_not_changed = tyre_not_changed
+            self.__total_laps = total_laps
+            self.__start_laps = start_laps
+            self.__lap_time = lap_time
+            self.__lap_number = lap_number
+
+        def __repr__(self):
+            data = ", ".join((
+                f"lap_flags={self.__lap_flags}",
+                f"compound={self.__compound}",
+                f"new={self.__new}",
+                f"tyre_not_changed={self.__tyre_not_changed}",
+                f"total_laps={self.__total_laps}",
+                f"start_laps={self.__start_laps}",
+                f"lap_time={self.__lap_time}",
+                f"lap_number={self.__lap_number}",
+            ))
+
+            return f"Stint({data})"
+
+        @property
+        def lap_flags(self):
+            return self.__lap_flags
+
+        @lap_flags.setter
+        def set_lap_flags(self, new_lap_flags: int):
+            self.__lap_flags = new_lap_flags
+
+        @property
+        def compound(self):
+            return self.__compound
+
+        @compound.setter
+        def set_compound(self, new_compound: TimingType.TypeCompound):
+            self.__compound = new_compound
+
+        @property
+        def new(self):
+            return self.__new
+
+        @new.setter
+        def set_new(self, new_value: bool):
+            self.__new = new_value
+
+        @property
+        def tyre_not_changed(self):
+            return self.__tyre_not_changed
+
+        @tyre_not_changed.setter
+        def set_tyre_not_changed(self, new_tyre_not_changed: bool):
+            self.__tyre_not_changed = new_tyre_not_changed
+
+        @property
+        def total_laps(self):
+            return self.__total_laps
+
+        @total_laps.setter
+        def set_total_laps(self, new_total_laps: int):
+            self.__total_laps = new_total_laps
+
+        @property
+        def start_laps(self):
+            return self.__start_laps
+
+        @start_laps.setter
+        def set_start_laps(self, new_start_laps: int):
+            self.__start_laps = new_start_laps
+
+        @property
+        def lap_time(self):
+            return self.__lap_time
+
+        @lap_time.setter
+        def set_lap_time(self, new_lap_time: str):
+            self.__lap_time = new_lap_time
+
+        @property
+        def lap_number(self):
+            return self.__lap_number
+
+        @lap_number.setter
+        def set_lap_number(self, new_lap_number: int):
+            self.__lap_number = new_lap_number
+
+    def __init__(
+        self,
+        racing_number: str,
+        grid_position: str,
+    ) -> None:
+        self.__racing_number = racing_number
+        self.__grid_position = grid_position
+        self.__stints: List[TimingAppData.Stint] = []
+
+    def __repr__(self):
+        data = ", ".join((
+            f"racing_number={self.__racing_number}",
+            f"grid_position={self.__grid_position}",
+            f"stints={self.__stints}",
+        ))
+
+        return f"TimingAppData({data})"
+
+    @property
+    def racing_number(self):
+        return self.__racing_number
+
+    @property
+    def grid_position(self):
+        return self.__grid_position
+
+    @grid_position.setter
+    def set_grid_position(self, new_position: str):
+        self.__grid_position = new_position
+
+    @property
+    def stints(self):
+        return self.__stints
+
+
 class TimingData:
     def __init__(
         self,
@@ -737,45 +809,3 @@ class WeatherData:
     @wind_speed.setter
     def set_wind_speed(self, new_wind_speed: str):
         self.__wind_speed = new_wind_speed
-
-
-class WeatherDataChange:
-    def __init__(
-        self,
-        title: str,
-        change: str | None = None,
-        previous: str | None = None,
-        new: str | None = None,
-    ) -> None:
-        self.__title = title
-        self.__change = change
-        self.__previous = previous
-        self.__new = new
-
-    def __repr__(self) -> str:
-        return (
-            "WeatherDataChange(" +
-            ", ".join((
-                f"title={self.__title}",
-                f"change={self.__change}",
-                f"previous={self.__previous}",
-                f"new={self.__new}",
-            )) +
-            ")"
-        )
-
-    @property
-    def title(self):
-        return self.__title
-
-    @property
-    def change(self):
-        return self.__change
-
-    @property
-    def previous(self):
-        return self.__previous
-
-    @property
-    def new(self):
-        return self.__new
