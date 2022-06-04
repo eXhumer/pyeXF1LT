@@ -95,3 +95,11 @@ class TimingType:
         RED = "5"
         VSC_DEPLOYED = "6"
         VSC_ENDING = "7"
+
+    class TypeCompound(str, Enum):
+        SOFT = "SOFT"
+        MEDIUM = "MEDIUM"
+        HARD = "HARD"
+        INTERMEDIATE = "INTERMEDIATE"
+        WET = "WET"
+        UNKNOWN = "UNKNOWN"
