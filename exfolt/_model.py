@@ -16,7 +16,7 @@
 
 from typing import Dict, List, Literal
 
-from ._type import TimingDataStatus, TimingType
+from ._type import TimingType
 
 
 class AudioStreamData:
@@ -620,48 +620,6 @@ class TimingAppData:
     @property
     def stints(self):
         return self.__stints
-
-
-class TimingData:
-    def __init__(
-        self,
-        racing_number: str,
-        sector_number: int,
-        segment_number: int,
-        segment_status: TimingDataStatus,
-    ) -> None:
-        self.__racing_number = racing_number
-        self.__sector_number = sector_number
-        self.__segment_number = segment_number
-        self.__segment_status = segment_status
-
-    def __repr__(self) -> str:
-        return (
-            "TimingData(" +
-            ", ".join((
-                f"racing_number={self.__racing_number}",
-                f"sector_number={self.__sector_number}",
-                f"segment_number={self.__segment_number}",
-                f"segment_status={self.__segment_status}",
-            )) +
-            ")"
-        )
-
-    @property
-    def racing_number(self):
-        return self.__racing_number
-
-    @property
-    def sector_number(self):
-        return self.__sector_number
-
-    @property
-    def segment_number(self):
-        return self.__segment_number
-
-    @property
-    def segment_status(self):
-        return self.__segment_status
 
 
 class TrackStatusData:
