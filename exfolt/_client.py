@@ -613,7 +613,7 @@ class TimingClient:
 
             elif topic == TimingType.Topic.SESSION_STATUS:
                 self.__session_status = TimingType.SessionStatus[
-                    data["Status"]
+                    data["Status"].upper()
                 ]
                 self.__message_queue.put((
                     topic,
@@ -953,7 +953,7 @@ class TimingClient:
                     continue
 
                 self.__session_status = TimingType.SessionStatus[
-                    d_val["Status"]
+                    d_val["Status"].upper()
                 ]
 
             elif d_key == TimingType.Topic.TEAM_RADIO:
