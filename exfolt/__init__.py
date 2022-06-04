@@ -14,12 +14,18 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from ._type import FlagStatus, TimingDataStatus, TimingType  # noqa: F401
+from ._client import SRLiveClient, TimingClient  # noqa: F401
+from ._type import TimingType  # noqa: F401
 from ._model import (  # noqa: F401
+    AudioStreamData,
     DriverData,
     ExtrapolatedClockData,
+    LapCountData,
     RaceControlMessageData,
     SessionData,
     SessionInfoData,
+    TeamRadioData,
+    TimingAppData,
     TrackStatusData,
+    WeatherData,
 )
