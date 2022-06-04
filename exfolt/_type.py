@@ -96,7 +96,7 @@ class TimingType:
         VSC_DEPLOYED = "6"
         VSC_ENDING = "7"
 
-    class TypeCompound(str, Enum):
+    class TyreCompound(str, Enum):
         SOFT = "SOFT"
         MEDIUM = "MEDIUM"
         HARD = "HARD"

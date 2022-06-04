@@ -612,8 +612,9 @@ class TimingClient:
                 ))
 
             elif topic == TimingType.Topic.SESSION_STATUS:
-                status: TimingType.SessionStatus = data["Status"]
-                self.__session_status = status
+                self.__session_status = TimingType.SessionStatus[
+                    data["Status"]
+                ]
                 self.__message_queue.put((
                     topic,
                     self.__session_status,
@@ -671,7 +672,9 @@ class TimingClient:
                                         tad.stints.append(
                                             TimingAppData.Stint(
                                                 stint_data["LapFlags"],
-                                                stint_data["Compound"],
+                                                TimingType.TyreCompound[
+                                                    stint_data["Compound"]
+                                                ],
                                                 stint_data["New"] == "true",
                                                 stint_data["TyresNotChanged"]
                                                 == "1",
@@ -691,7 +694,9 @@ class TimingClient:
                                         tad.stints.append(
                                             TimingAppData.Stint(
                                                 stint_data["LapFlags"],
-                                                stint_data["Compound"],
+                                                TimingType.TyreCompound[
+                                                    stint_data["Compound"]
+                                                ],
                                                 stint_data["New"] == "true",
                                                 stint_data["TyresNotChanged"]
                                                 == "1",
@@ -715,8 +720,10 @@ class TimingClient:
                                         stint = tad.stints[int(idx)]
 
                                         if "Compound" in stint_data:
-                                            compound: TimingType.TypeCompound \
-                                                = stint_data["Compound"]
+                                            compound: TimingType.TyreCompound \
+                                                = TimingType.TyreCompound[
+                                                    stint_data["Compound"]
+                                                ]
                                             stint.compound = compound
 
                                         if "New" in stint_data:
@@ -945,8 +952,9 @@ class TimingClient:
                 if len(d_val) == 0:
                     continue
 
-                status: TimingType.SessionStatus = d_val["Status"]
-                self.__session_status = status
+                self.__session_status = TimingType.SessionStatus[
+                    d_val["Status"]
+                ]
 
             elif d_key == TimingType.Topic.TEAM_RADIO:
                 if len(d_val) == 0:
@@ -979,7 +987,9 @@ class TimingClient:
                             data.stints.append(
                                 TimingAppData.Stint(
                                     stint["LapFlags"],
-                                    stint["Compound"],
+                                    TimingType.TyreCompound[
+                                        stint["Compound"]
+                                    ],
                                     stint["New"] == "true",
                                     stint["TyresNotChanged"] == "1",
                                     stint["TotalLaps"],
@@ -1004,7 +1014,7 @@ class TimingClient:
                     continue
 
                 self.__track_status = TrackStatusData(
-                    d_val["Status"],
+                    TimingType.TrackStatus[d_val["Status"]],
                     d_val["Message"],
                 )
 
