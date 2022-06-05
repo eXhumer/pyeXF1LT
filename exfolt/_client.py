@@ -176,25 +176,6 @@ class SRLiveClient:
             self.__last_ping_at = None
 
         else:
-            print(
-                "/".join((
-                    self.__url.replace("https://", "wss://"),
-                    "connect",
-                )) + "?" + urlencode(
-                    {
-                        "transport": "webSockets",
-                        "clientProtocol":
-                            SRLiveClient.__client_protocol,
-                        "connectionToken": self.__token,
-                        "connectionData": json.dumps(
-                            [{"name": self.__hub}],
-                            separators=(',', ':'),
-                        ),
-                        "tid": randint(0, 11),
-                    },
-                    quote_via=quote,
-                )
-            )
             self.__ws.connect(
                 "/".join((
                     self.__url.replace("https://", "wss://"),
