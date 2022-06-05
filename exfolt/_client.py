@@ -30,7 +30,7 @@ from ._model import (
 from ._type import TimingType
 
 
-class SRLiveClient:
+class _SRLiveClient:
     """SignalR client to communicate with SignalR server
     """
     __client_protocol = "1.5"
@@ -126,7 +126,7 @@ class SRLiveClient:
                 params={
                     "transport": "webSockets",
                     "connectionToken": self.__token,
-                    "clientProtocol": SRLiveClient.__client_protocol,
+                    "clientProtocol": _SRLiveClient.__client_protocol,
                     "connectionData": json.dumps(
                         [{"name": self.__hub}],
                         separators=(',', ':'),
@@ -160,7 +160,7 @@ class SRLiveClient:
                         "groupsToken": self.__groups_token,
                         "messageId": self.__message_id,
                         "clientProtocol":
-                            SRLiveClient.__client_protocol,
+                            _SRLiveClient.__client_protocol,
                         "connectionToken": self.__token,
                         "connectionData": json.dumps(
                             [{"name": self.__hub}],
@@ -184,7 +184,7 @@ class SRLiveClient:
                     {
                         "transport": "webSockets",
                         "clientProtocol":
-                            SRLiveClient.__client_protocol,
+                            _SRLiveClient.__client_protocol,
                         "connectionToken": self.__token,
                         "connectionData": json.dumps(
                             [{"name": self.__hub}],
@@ -208,7 +208,7 @@ class SRLiveClient:
             f"{self.__url}/negotiate",
             params={
                 "_": str(self.__negotiated_at),
-                "clientProtocol": SRLiveClient.__client_protocol,
+                "clientProtocol": _SRLiveClient.__client_protocol,
                 "connectionData": json.dumps(
                     [{"name": self.__hub}],
                     separators=(',', ':'),
@@ -252,7 +252,7 @@ class SRLiveClient:
                     if (
                         datetime.now() >=
                         self.__last_ping_at +
-                        SRLiveClient.__ping_interval
+                        _SRLiveClient.__ping_interval
                     ):
                         self.__last_ping_at = datetime.now()
                         self.__ping()
@@ -261,7 +261,7 @@ class SRLiveClient:
                     if (
                         datetime.now() >=
                         self.__connected_at +
-                        SRLiveClient.__ping_interval
+                        _SRLiveClient.__ping_interval
                     ):
                         self.__last_ping_at = datetime.now()
                         self.__ping()
@@ -295,7 +295,7 @@ class SRLiveClient:
             f"{self.__url}/start",
             params={
                 "transport": "webSockets",
-                "clientProtocol": SRLiveClient.__client_protocol,
+                "clientProtocol": _SRLiveClient.__client_protocol,
                 "connectionToken": self.__token,
                 "connectionData": json.dumps(
                     [{"name": self.__hub}],
@@ -339,6 +339,39 @@ class SRLiveClient:
     @property
     def connected(self):
         return self.__ws.connected
+
+
+class F1LiveClient(_SRLiveClient):
+    __LIVE_URL = "https://livetiming.formula1.com/signalr"
+
+    def __init__(self) -> None:
+        super().__init__(
+            F1LiveClient.__LIVE_URL,
+            TimingType.Hub.STREAMING,
+            TimingType.Topic.ARCHIVE_STATUS,
+            TimingType.Topic.AUDIO_STREAMS,
+            TimingType.Topic.CAR_DATA_Z,
+            TimingType.Topic.CHAMPIONSHIP_PREDICTION,
+            TimingType.Topic.CONTENT_STREAMS,
+            TimingType.Topic.CURRENT_TYRES,
+            TimingType.Topic.DRIVER_LIST,
+            TimingType.Topic.EXTRAPOLATED_CLOCK,
+            TimingType.Topic.HEARTBEAT,
+            TimingType.Topic.LAP_COUNT,
+            TimingType.Topic.POSITION_Z,
+            TimingType.Topic.RACE_CONTROL_MESSAGES,
+            TimingType.Topic.SESSION_DATA,
+            TimingType.Topic.SESSION_INFO,
+            TimingType.Topic.SESSION_STATUS,
+            TimingType.Topic.TEAM_RADIO,
+            TimingType.Topic.TIMING_APP_DATA,
+            TimingType.Topic.TIMING_DATA,
+            TimingType.Topic.TIMING_STATS,
+            TimingType.Topic.TOP_THREE,
+            TimingType.Topic.TRACK_STATUS,
+            TimingType.Topic.WEATHER_DATA,
+            reconnect=True,
+        )
 
 
 class TimingClient:

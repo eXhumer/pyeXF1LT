@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from ._client import SRLiveClient, TimingClient  # noqa: F401
+from ._client import F1LiveClient, TimingClient  # noqa: F401
 from ._type import TimingType  # noqa: F401
 from ._model import (  # noqa: F401
     AudioStreamData,
