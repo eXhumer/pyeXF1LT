@@ -64,22 +64,22 @@ class _SRLiveClient:
 
     def __enter__(self):
         if not self.__token:
-            _SRLiveClient.__logger.info("Connection token not available! " +
-                                        "Negotiating for new token!")
+            _SRLiveClient.__logger.debug("Connection token not available! " +
+                                         "Negotiating for new token!")
             self.__negotiate()
 
         if not self.connected:
-            _SRLiveClient.__logger.info("Websocket not connected! Attempt to" +
-                                        " connect!")
+            _SRLiveClient.__logger.debug("Websocket not connected! Attempt " +
+                                         "to connect!")
             self.__connect()
 
         if not self.__groups_token:
-            _SRLiveClient.__logger.info("Groups token not available! " +
-                                        "Subscribing to indicated hub & " +
-                                        "topics!")
+            _SRLiveClient.__logger.debug("Groups token not available! " +
+                                         "Subscribing to indicated hub & " +
+                                         "topics!")
             self.__subscribe()
 
-        _SRLiveClient.__logger.info("Indicate client is ready to start!")
+        _SRLiveClient.__logger.debug("Indicate client is ready to start!")
         self.__start()
 
         return self
@@ -89,10 +89,10 @@ class _SRLiveClient:
             if self.__groups_token:
                 self.__unsubscribe()
 
-            _SRLiveClient.__logger.info("Closing websocket connection!")
+            _SRLiveClient.__logger.debug("Closing websocket connection!")
             self.__close()
 
-        _SRLiveClient.__logger.info("Aborting SignalR session!")
+        _SRLiveClient.__logger.debug("Aborting SignalR session!")
         self.__abort()
 
     def __iter__(self):
@@ -101,8 +101,8 @@ class _SRLiveClient:
     def __next__(self):
         while True:
             if not self.connected and self.__reconnect:
-                _SRLiveClient.__logger.info("Client disconnected! Attempting" +
-                                            " to reconnect!")
+                _SRLiveClient.__logger.debug("Client disconnected! " +
+                                             "Attempting to reconnect!")
                 self.__connect()
 
             if self.connected:

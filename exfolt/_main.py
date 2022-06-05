@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 from datetime import datetime, timezone
 from json import dumps
 from logging import (
+    DEBUG,
     FileHandler,
     Formatter,
     getLogger,
@@ -30,6 +31,7 @@ def console_main():
 
     message_logger_parser = subparsers.add_parser("message-logger")
     message_logger_parser.add_argument("log_file", type=Path)
+    message_logger_parser.add_argument("--compact-output", action="store_true")
 
     if exdc_available:
         discord_bot_parser = subparsers.add_parser("discord-bot")
@@ -45,17 +47,25 @@ def console_main():
                                         action="store_true")
 
     args = parser.parse_args()
-    logger = getLogger(args.action)
+
+    if args.action == "message-logger":
+        logger = getLogger("exfolt.message_logger")
+
+    elif args.action == "discord-bot":
+        logger = getLogger("exfolt.discord_bot")
+
+    else:
+        assert False
+
+    logger.setLevel(DEBUG)
     live_logger = getLogger("exfolt.SRLiveClient")
     timing_logger = getLogger("exfolt.TimingClient")
-    logger.setLevel(INFO)
     out_format = Formatter(
         "[%(asctime)s][%(name)s][%(levelname)s]\t%(message)s",
-        # "%d-%m-%Y %H:%M:%S",
     )
 
     out_stream = StreamHandler(stdout)
-    out_stream.setLevel(INFO)
+    out_stream.setLevel(DEBUG)
     out_stream.setFormatter(out_format)
 
     timing_logger.addHandler(out_stream)
@@ -66,23 +76,29 @@ def console_main():
         log_path: Path = args.log_file
         file_stream = FileHandler(log_path.resolve(), mode="a")
         file_stream.setLevel(INFO)
-        file_stream.setFormatter(out_format)
-
-        timing_logger.addHandler(file_stream)
-        live_logger.addHandler(file_stream)
+        file_stream.setFormatter(Formatter("%(message)s"))
         logger.addHandler(file_stream)
 
         try:
             with F1LiveClient() as exfolt_live_client:
                 for live_msg in exfolt_live_client:
                     if len(live_msg[1]) == 0:
-                        logger.info("keepalive packet received!")
+                        logger.debug("keepalive packet received at " +
+                                     f"{datetime.now()}!")
                         continue
 
                     if "M" in live_msg[1] and len(live_msg[1]["M"]) > 0:
-                        logger.info(f"Message received at {datetime.now()}!")
+                        logger.debug(f"Message received at {datetime.now()}!")
                         live_msg_data = live_msg[1]["M"][0]["A"]
-                        logger.info(dumps(live_msg_data, indent=4))
+                        dump_opts = {}
+
+                        if args.compact_output:
+                            dump_opts.update(separators=(',', ':'))
+
+                        else:
+                            dump_opts.update(indent=4, sort_keys=True)
+
+                        logger.info(dumps(live_msg_data, **dump_opts))
 
         except KeyboardInterrupt:
             pass
@@ -147,7 +163,7 @@ def console_main():
                 with F1LiveClient() as exfolt_live_client:
                     for live_msg in exfolt_live_client:
                         if len(live_msg[1]) == 0:
-                            logger.info("keepalive packet received!")
+                            logger.debug("keepalive packet received!")
                             continue
 
                         if "R" in live_msg[1]:
@@ -156,8 +172,8 @@ def console_main():
                             )
 
                         if "M" in live_msg[1] and len(live_msg[1]["M"]) > 0:
-                            logger.info("Message received at " +
-                                        f"{datetime.now()}!")
+                            logger.debug("Message received at " +
+                                         f"{datetime.now()}!")
                             live_msg_data = live_msg[1]["M"][0]["A"]
                             exfolt_timing_client.process_data(*live_msg_data)
 
