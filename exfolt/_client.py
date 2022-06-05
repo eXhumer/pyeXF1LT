@@ -2,7 +2,7 @@ import json
 import zlib
 from base64 import b64decode
 from datetime import datetime, timedelta
-from logging import getLogger
+from logging import DEBUG, getLogger
 from queue import Queue
 from random import randint
 from typing import Any, Dict, List, Tuple, Union
@@ -35,6 +35,7 @@ class _SRLiveClient:
     """
     __client_protocol = "1.5"
     __ping_interval = timedelta(minutes=5)
+    __logger = getLogger("exfolt.SRLiveClient")
 
     def __init__(
         self,
@@ -43,6 +44,9 @@ class _SRLiveClient:
         *topics: str,
         reconnect: bool = True,
     ) -> None:
+        if _SRLiveClient.__logger.level != DEBUG:
+            _SRLiveClient.__logger.setLevel(DEBUG)
+
         self.__connected_at: datetime | None = None
         self.__gclb: str | None = None
         self.__groups_token: str | None = None
@@ -60,14 +64,22 @@ class _SRLiveClient:
 
     def __enter__(self):
         if not self.__token:
+            _SRLiveClient.__logger.info("Connection token not available! " +
+                                        "Negotiating for new token!")
             self.__negotiate()
 
         if not self.connected:
+            _SRLiveClient.__logger.info("Websocket not connected! Attempt to" +
+                                        " connect!")
             self.__connect()
 
         if not self.__groups_token:
+            _SRLiveClient.__logger.info("Groups token not available! " +
+                                        "Subscribing to indicated hub & " +
+                                        "topics!")
             self.__subscribe()
 
+        _SRLiveClient.__logger.info("Indicate client is ready to start!")
         self.__start()
 
         return self
@@ -77,8 +89,10 @@ class _SRLiveClient:
             if self.__groups_token:
                 self.__unsubscribe()
 
+            _SRLiveClient.__logger.info("Closing websocket connection!")
             self.__close()
 
+        _SRLiveClient.__logger.info("Aborting SignalR session!")
         self.__abort()
 
     def __iter__(self):
@@ -87,6 +101,8 @@ class _SRLiveClient:
     def __next__(self):
         while True:
             if not self.connected and self.__reconnect:
+                _SRLiveClient.__logger.info("Client disconnected! Attempting" +
+                                            " to reconnect!")
                 self.__connect()
 
             if self.connected:
@@ -138,6 +154,8 @@ class _SRLiveClient:
             return True
 
         except (ConnectionError, HTTPError):
+            _SRLiveClient.__logger.error("Error while aborting connection!",
+                                         exc_info=True)
             return False
 
     def __close(self):
@@ -241,6 +259,7 @@ class _SRLiveClient:
             return response == "pong"
 
         except (ConnectionError, HTTPError):
+            _SRLiveClient.__logger.error("Error while pinging!", exc_info=True)
             return False
 
     def __recv(self):
@@ -381,6 +400,9 @@ class TimingClient:
     __logger = getLogger("exfolt.TimingClient")
 
     def __init__(self) -> None:
+        if TimingClient.__logger.level != DEBUG:
+            TimingClient.__logger.setLevel(DEBUG)
+
         self.__audio_streams: List[AudioStreamData] = []
         self.__drivers: Dict[str, DriverData] = {}
         self.__timing_app_data: Dict[str, TimingAppData] = {}

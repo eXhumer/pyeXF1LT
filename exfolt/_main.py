@@ -1,8 +1,16 @@
 from argparse import ArgumentParser
 from datetime import datetime, timezone
 from json import dumps
+from logging import (
+    FileHandler,
+    Formatter,
+    getLogger,
+    INFO,
+    StreamHandler,
+)
 from os import environ
 from pathlib import Path
+from sys import stdout
 
 from ._client import F1LiveClient, SessionInfoData, TimingClient, TimingType
 from ._utils import datetime_string_parser
@@ -37,23 +45,47 @@ def console_main():
                                         action="store_true")
 
     args = parser.parse_args()
+    logger = getLogger(args.action)
+    live_logger = getLogger("exfolt.SRLiveClient")
+    timing_logger = getLogger("exfolt.TimingClient")
+    logger.setLevel(INFO)
+    out_format = Formatter(
+        "[%(asctime)s][%(name)s][%(levelname)s]\t%(message)s",
+        # "%d-%m-%Y %H:%M:%S",
+    )
+
+    out_stream = StreamHandler(stdout)
+    out_stream.setLevel(INFO)
+    out_stream.setFormatter(out_format)
+
+    timing_logger.addHandler(out_stream)
+    live_logger.addHandler(out_stream)
+    logger.addHandler(out_stream)
 
     if args.action == "message-logger":
         log_path: Path = args.log_file
+        file_stream = FileHandler(log_path.resolve(), mode="a")
+        file_stream.setLevel(INFO)
+        file_stream.setFormatter(out_format)
 
-        with log_path.open(mode="a") as log_stream:
-            try:
-                with F1LiveClient() as exfolt_live_client:
-                    for live_msg in exfolt_live_client:
-                        print(f"Message Received at {datetime.now()}!")
+        timing_logger.addHandler(file_stream)
+        live_logger.addHandler(file_stream)
+        logger.addHandler(file_stream)
 
-                        if "C" in live_msg:
-                            live_msg_data = live_msg["M"][0]["A"]
-                            log_stream.write((dumps(live_msg_data, indent=4) +
-                                             "\n"))
+        try:
+            with F1LiveClient() as exfolt_live_client:
+                for live_msg in exfolt_live_client:
+                    if len(live_msg[1]) == 0:
+                        logger.info("keepalive packet received!")
+                        continue
 
-            except KeyboardInterrupt:
-                pass
+                    if "M" in live_msg[1] and len(live_msg[1]["M"]) > 0:
+                        logger.info(f"Message received at {datetime.now()}!")
+                        live_msg_data = live_msg[1]["M"][0]["A"]
+                        logger.info(dumps(live_msg_data, indent=4))
+
+        except KeyboardInterrupt:
+            pass
 
     elif exdc_available and args.action == "discord-bot":
         bot_token = args.bot_token
@@ -114,15 +146,19 @@ def console_main():
             try:
                 with F1LiveClient() as exfolt_live_client:
                     for live_msg in exfolt_live_client:
-                        print(f"Message Received at {datetime.now()}!")
+                        if len(live_msg[1]) == 0:
+                            logger.info("keepalive packet received!")
+                            continue
 
-                        if "R" in live_msg:
+                        if "R" in live_msg[1]:
                             exfolt_timing_client.process_old_data(
-                                live_msg["R"],
+                                live_msg[1]["R"],
                             )
 
-                        if "M" in live_msg:
-                            live_msg_data = live_msg["M"][0]["A"]
+                        if "M" in live_msg[1] and len(live_msg[1]["M"]) > 0:
+                            logger.info("Message received at " +
+                                        f"{datetime.now()}!")
+                            live_msg_data = live_msg[1]["M"][0]["A"]
                             exfolt_timing_client.process_data(*live_msg_data)
 
                         for (
