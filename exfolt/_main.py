@@ -4,7 +4,7 @@ from json import dumps
 from os import environ
 from pathlib import Path
 
-from ._client import F1LiveClient, SessionInfoData, TimingClient
+from ._client import F1LiveClient, SessionInfoData, TimingClient, TimingType
 from ._utils import datetime_string_parser
 
 
@@ -19,6 +19,7 @@ except ImportError:
 def console_main():
     parser = ArgumentParser()
     subparsers = parser.add_subparsers(dest="action")
+
     message_logger_parser = subparsers.add_parser("message-logger")
     message_logger_parser.add_argument("log_file", type=Path)
 
@@ -129,7 +130,10 @@ def console_main():
                             timing_item,
                             timestamp,
                         ) in exfolt_timing_client:
-                            if isinstance(timing_item, SessionInfoData):
+                            if (
+                                topic == TimingType.Topic.SESSION_INFO and
+                                isinstance(timing_item, SessionInfoData)
+                            ):
                                 discord_message(
                                     embeds=[
                                         DiscordModel.Embed(
@@ -144,7 +148,7 @@ def console_main():
                                                 DiscordModel.Embed.Field(
                                                     "Name",
                                                     timing_item.meeting[
-                                                        "OfficialName"
+                                                        "Name"
                                                     ],
                                                 ),
                                                 DiscordModel.Embed.Field(
