@@ -1050,7 +1050,7 @@ class TimingClient:
                     continue
 
                 self.__track_status = TrackStatusData(
-                    TimingType.TrackStatus[d_val["Status"]],
+                    TimingType.TrackStatus(d_val["Status"]),
                     d_val["Message"],
                 )
 
