@@ -44,6 +44,22 @@ class AudioStreamData:
             ")"
         )
 
+    @property
+    def name(self):
+        return self.__name
+
+    @property
+    def language(self):
+        return self.__language
+
+    @property
+    def uri(self):
+        return self.__uri
+
+    @property
+    def path(self):
+        return self.__path
+
 
 class DriverData:
     def __init__(
@@ -269,7 +285,10 @@ class RaceControlMessageData:
 
     @property
     def flag(self):
-        return self.__flag
+        if not self.__flag:
+            return
+
+        return TimingType.FlagStatus[self.__flag.replace(" ", "_")]
 
     @property
     def scope(self):
