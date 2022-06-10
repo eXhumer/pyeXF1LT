@@ -17,19 +17,6 @@
 from enum import Enum, IntEnum
 
 
-class FlagStatus(str, Enum):
-    BLACK = "BLACK"
-    BLACK_AND_ORANGE = "BLACK AND ORANGE"
-    BLACK_AND_WHITE = "BLACK AND WHITE"
-    BLUE = "BLUE"
-    CHEQUERED = "CHEQUERED"
-    CLEAR = "CLEAR"
-    GREEN = "GREEN"
-    YELLOW = "YELLOW"
-    DOUBLE_YELLOW = "DOUBLE YELLOW"
-    RED = "RED"
-
-
 class TimingDataStatus(IntEnum):
     YELLOW = 2048
     GREEN = 2049
@@ -43,6 +30,18 @@ class TimingType:
     """
     F1 live timing related types
     """
+
+    class FlagStatus(str, Enum):
+        BLACK = "BLACK"
+        BLACK_AND_ORANGE = "BLACK AND ORANGE"
+        BLACK_AND_WHITE = "BLACK AND WHITE"
+        BLUE = "BLUE"
+        CHEQUERED = "CHEQUERED"
+        CLEAR = "CLEAR"
+        GREEN = "GREEN"
+        YELLOW = "YELLOW"
+        DOUBLE_YELLOW = "DOUBLE YELLOW"
+        RED = "RED"
 
     class Hub(str, Enum):
         """
