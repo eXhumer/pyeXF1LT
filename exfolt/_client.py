@@ -2,7 +2,6 @@ import json
 import zlib
 from base64 import b64decode
 from datetime import datetime, timedelta
-from logging import DEBUG, getLogger
 from queue import Queue
 from random import randint
 from typing import Any, Dict, List, Tuple, Union
@@ -30,12 +29,12 @@ from ._model import (
 from ._type import TimingType
 
 
-class _SRLiveClient:
-    """SignalR client to communicate with SignalR server
+class SignalRClient:
+    """
+    SignalR client to communicate with SignalR server
     """
     __client_protocol = "1.5"
     __ping_interval = timedelta(minutes=5)
-    __logger = getLogger("exfolt.SRLiveClient")
 
     def __init__(
         self,
@@ -44,10 +43,6 @@ class _SRLiveClient:
         *topics: str,
         reconnect: bool = True,
     ) -> None:
-        if _SRLiveClient.__logger.level != DEBUG:
-            _SRLiveClient.__logger.setLevel(DEBUG)
-
-        self.__connected_at: datetime | None = None
         self.__gclb: str | None = None
         self.__groups_token: str | None = None
         self.__hub = hub
@@ -63,37 +58,10 @@ class _SRLiveClient:
         self.__ws = WebSocket(skip_utf8_validation=True)
 
     def __enter__(self):
-        if not self.__token:
-            _SRLiveClient.__logger.debug("Connection token not available! " +
-                                         "Negotiating for new token!")
-            self.__negotiate()
-
-        if not self.connected:
-            _SRLiveClient.__logger.debug("Websocket not connected! Attempt " +
-                                         "to connect!")
-            self.__connect()
-
-        if not self.__groups_token:
-            _SRLiveClient.__logger.debug("Groups token not available! " +
-                                         "Subscribing to indicated hub & " +
-                                         "topics!")
-            self.__subscribe()
-
-        _SRLiveClient.__logger.debug("Indicate client is ready to start!")
-        self.__start()
-
-        return self
+        return self.open()
 
     def __exit__(self, *args):
-        if self.connected:
-            if self.__groups_token:
-                self.__unsubscribe()
-
-            _SRLiveClient.__logger.debug("Closing websocket connection!")
-            self.__close()
-
-        _SRLiveClient.__logger.debug("Aborting SignalR session!")
-        self.__abort()
+        self.close()
 
     def __iter__(self):
         return self
@@ -101,8 +69,6 @@ class _SRLiveClient:
     def __next__(self):
         while True:
             if not self.connected and self.__reconnect:
-                _SRLiveClient.__logger.debug("Client disconnected! " +
-                                             "Attempting to reconnect!")
                 self.__connect()
 
             if self.connected:
@@ -142,7 +108,7 @@ class _SRLiveClient:
                 params={
                     "transport": "webSockets",
                     "connectionToken": self.__token,
-                    "clientProtocol": _SRLiveClient.__client_protocol,
+                    "clientProtocol": SignalRClient.__client_protocol,
                     "connectionData": json.dumps(
                         [{"name": self.__hub}],
                         separators=(',', ':'),
@@ -154,8 +120,6 @@ class _SRLiveClient:
             return True
 
         except (ConnectionError, HTTPError):
-            _SRLiveClient.__logger.error("Error while aborting connection!",
-                                         exc_info=True)
             return False
 
     def __close(self):
@@ -178,7 +142,7 @@ class _SRLiveClient:
                         "groupsToken": self.__groups_token,
                         "messageId": self.__message_id,
                         "clientProtocol":
-                            _SRLiveClient.__client_protocol,
+                            SignalRClient.__client_protocol,
                         "connectionToken": self.__token,
                         "connectionData": json.dumps(
                             [{"name": self.__hub}],
@@ -190,8 +154,7 @@ class _SRLiveClient:
                 ),
                 cookie=f"GCLB={self.__gclb}" if self.__gclb else None,
             )
-            self.__connected_at = datetime.now()
-            self.__last_ping_at = None
+            self.__last_ping_at = datetime.now()
 
         else:
             self.__ws.connect(
@@ -202,7 +165,7 @@ class _SRLiveClient:
                     {
                         "transport": "webSockets",
                         "clientProtocol":
-                            _SRLiveClient.__client_protocol,
+                            SignalRClient.__client_protocol,
                         "connectionToken": self.__token,
                         "connectionData": json.dumps(
                             [{"name": self.__hub}],
@@ -214,7 +177,7 @@ class _SRLiveClient:
                 ),
                 cookie=f"GCLB={self.__gclb}" if self.__gclb else None,
             )
-            self.__connected_at = datetime.now()
+            self.__last_ping_at = datetime.now()
 
     def __negotiate(self):
         if self.__token:
@@ -226,7 +189,7 @@ class _SRLiveClient:
             f"{self.__url}/negotiate",
             params={
                 "_": str(self.__negotiated_at),
-                "clientProtocol": _SRLiveClient.__client_protocol,
+                "clientProtocol": SignalRClient.__client_protocol,
                 "connectionData": json.dumps(
                     [{"name": self.__hub}],
                     separators=(',', ':'),
@@ -259,31 +222,20 @@ class _SRLiveClient:
             return response == "pong"
 
         except (ConnectionError, HTTPError):
-            _SRLiveClient.__logger.error("Error while pinging!", exc_info=True)
             return False
 
     def __recv(self):
-        assert self.connected
+        assert self.connected and self.__last_ping_at
 
         while True:
             try:
-                if self.__last_ping_at:
-                    if (
-                        datetime.now() >=
-                        self.__last_ping_at +
-                        _SRLiveClient.__ping_interval
-                    ):
-                        self.__last_ping_at = datetime.now()
-                        self.__ping()
-
-                elif self.__connected_at:
-                    if (
-                        datetime.now() >=
-                        self.__connected_at +
-                        _SRLiveClient.__ping_interval
-                    ):
-                        self.__last_ping_at = datetime.now()
-                        self.__ping()
+                if (
+                    datetime.now() >=
+                    self.__last_ping_at +
+                    SignalRClient.__ping_interval
+                ):
+                    self.__last_ping_at = datetime.now()
+                    self.__ping()
 
                 opcode, raw_data = self.__ws.recv_data()
                 opcode: int
@@ -314,7 +266,7 @@ class _SRLiveClient:
             f"{self.__url}/start",
             params={
                 "transport": "webSockets",
-                "clientProtocol": _SRLiveClient.__client_protocol,
+                "clientProtocol": SignalRClient.__client_protocol,
                 "connectionToken": self.__token,
                 "connectionData": json.dumps(
                     [{"name": self.__hub}],
@@ -355,60 +307,58 @@ class _SRLiveClient:
         )
         self.__idx += 1
 
+    def close(self):
+        if self.connected:
+            if self.__groups_token:
+                self.__unsubscribe()
+
+            self.__close()
+
+        self.__abort()
+
     @property
     def connected(self):
         return self.__ws.connected
 
+    def open(self):
+        if not self.__token:
+            self.__negotiate()
 
-class F1LiveClient(_SRLiveClient):
+        if not self.connected:
+            self.__connect()
+
+        if not self.__groups_token:
+            self.__subscribe()
+
+        self.__start()
+
+        return self
+
+
+class F1LiveClient(SignalRClient):
+    """
+    F1 live timing client to receive messages from a live session
+    """
+
     __LIVE_URL = "https://livetiming.formula1.com/signalr"
 
-    def __init__(self) -> None:
-        super().__init__(
-            F1LiveClient.__LIVE_URL,
-            TimingType.Hub.STREAMING,
-            TimingType.Topic.ARCHIVE_STATUS,
-            TimingType.Topic.AUDIO_STREAMS,
-            TimingType.Topic.CAR_DATA_Z,
-            TimingType.Topic.CHAMPIONSHIP_PREDICTION,
-            TimingType.Topic.CONTENT_STREAMS,
-            TimingType.Topic.CURRENT_TYRES,
-            TimingType.Topic.DRIVER_LIST,
-            TimingType.Topic.EXTRAPOLATED_CLOCK,
-            TimingType.Topic.HEARTBEAT,
-            TimingType.Topic.LAP_COUNT,
-            TimingType.Topic.POSITION_Z,
-            TimingType.Topic.RACE_CONTROL_MESSAGES,
-            TimingType.Topic.SESSION_DATA,
-            TimingType.Topic.SESSION_INFO,
-            TimingType.Topic.SESSION_STATUS,
-            TimingType.Topic.TEAM_RADIO,
-            TimingType.Topic.TIMING_APP_DATA,
-            TimingType.Topic.TIMING_DATA,
-            TimingType.Topic.TIMING_STATS,
-            TimingType.Topic.TOP_THREE,
-            TimingType.Topic.TRACK_STATUS,
-            TimingType.Topic.WEATHER_DATA,
-            reconnect=True,
-        )
+    def __init__(self, *topics: TimingType.Topic) -> None:
+        super().__init__(F1LiveClient.__LIVE_URL, TimingType.Hub.STREAMING, *topics,
+                         reconnect=True)
 
 
 class TimingClient:
     """
     Timing client to handle streamed session data from F1 sessions.
     """
-    __logger = getLogger("exfolt.TimingClient")
 
     def __init__(self) -> None:
-        if TimingClient.__logger.level != DEBUG:
-            TimingClient.__logger.setLevel(DEBUG)
-
         self.__audio_streams: List[AudioStreamData] = []
         self.__drivers: Dict[str, DriverData] = {}
         self.__timing_app_data: Dict[str, TimingAppData] = {}
         self.__extrapolated_clock: ExtrapolatedClockData | None = None
         self.__lap_count_data: LapCountData | None = None
-        self.__message_queue: Queue[
+        self.__msg_q: Queue[
             Tuple[
                 TimingType.Topic,
                 Union[
@@ -421,8 +371,9 @@ class TimingClient:
                     TimingType.SessionStatus,
                     TrackStatusData,
                     WeatherData,
-                    str,
+                    Dict[str, Any],
                 ],
+                Dict[str, Any] | str,
                 datetime,
             ]
         ] = Queue()
@@ -437,14 +388,14 @@ class TimingClient:
         return self
 
     def __next__(self):
-        if self.__message_queue.qsize() > 0:
-            return self.__message_queue.get()
+        if self.__msg_q.qsize() > 0:
+            return self.__msg_q.get()
 
         raise StopIteration
 
     @staticmethod
     def __decompress_zlib_data(data: str):
-        return zlib.decompress(b64decode(data.encode("ascii"))).decode("utf8")
+        return zlib.decompress(b64decode(data.encode("ascii")), -15).decode("utf8")
 
     @property
     def audio_streams(self):
@@ -468,21 +419,16 @@ class TimingClient:
         data: Dict[str, Any] | str,
         timestamp: datetime,
     ):
-        TimingClient.__logger.debug(f"Topic: {topic}")
-        TimingClient.__logger.debug(f"Data: {data}")
-        TimingClient.__logger.debug(f"Timestamp: {timestamp}")
-
         if topic in (
             TimingType.Topic.CAR_DATA_Z,
             TimingType.Topic.POSITION_Z,
         ):
             assert isinstance(data, str)
             decompressed_data = TimingClient.__decompress_zlib_data(data)
-            TimingClient.__logger.debug("Decompressed Data: " +
-                                        decompressed_data)
-            self.__message_queue.put((
+            self.__msg_q.put((
                 topic,
-                decompressed_data,
+                json.loads(decompressed_data),
+                data,
                 timestamp,
             ))
 
@@ -500,7 +446,7 @@ class TimingClient:
                         stream["Path"],
                     )
                     self.__audio_streams.append(stream_data)
-                    self.__message_queue.put((topic, stream_data, timestamp))
+                    self.__msg_q.put((topic, stream_data, data, timestamp))
 
             elif topic == TimingType.Topic.DRIVER_LIST:
                 for key, value in data.items():
@@ -512,24 +458,84 @@ class TimingClient:
                     if len(value) == 1 and "Line" in value:
                         continue
 
-                    else:
+                    elif (
+                        "RacingNumber" in value and
+                        "BroadcastName" in value and
+                        "FullName" in value and
+                        "Tla" in value
+                    ):
                         self.__drivers[key] = DriverData(
                             value["RacingNumber"],
                             broadcast_name=value["BroadcastName"],
                             full_name=value["FullName"],
                             tla=value["Tla"],
-                            team_name=value["TeamName"],
-                            team_color=value["TeamColour"],
-                            first_name=value["FirstName"],
-                            last_name=value["LastName"],
-                            reference=value["Reference"],
+                            team_name=(
+                                value["TeamName"]
+                                if "TeamName" in value
+                                else None
+                            ),
+                            team_color=(
+                                value["TeamColour"]
+                                if "TeamColour" in value
+                                else None
+                            ),
+                            first_name=(
+                                value["FirstName"]
+                                if "FirstName" in value
+                                else None
+                            ),
+                            last_name=(
+                                value["LastName"]
+                                if "LastName" in value
+                                else None
+                            ),
+                            reference=(
+                                value["Reference"]
+                                if "Reference" in value
+                                else None
+                            ),
                             headshot_url=(
                                 value["HeadshotUrl"]
                                 if "HeadshotUrl" in value
                                 else None
                             ),
-                            country_code=value["CountryCode"],
+                            country_code=(
+                                value["CountryCode"]
+                                if "CountryCode" in value
+                                else None
+                            ),
                         )
+
+                    else:
+                        drv_obj = self.__drivers[key]
+
+                        if "TeamName" in value:
+                            data: str = value["TeamName"]
+                            drv_obj.team_name = data
+
+                        if "TeamColour" in value:
+                            data: str = value["TeamColour"]
+                            drv_obj.team_color = data
+
+                        if "FirstName" in value:
+                            data: str = value["FirstName"]
+                            drv_obj.first_name = data
+
+                        if "LastName" in value:
+                            data: str = value["LastName"]
+                            drv_obj.last_name = data
+
+                        if "Reference" in value:
+                            data: str = value["Reference"]
+                            drv_obj.reference = data
+
+                        if "HeadshotUrl" in value:
+                            data: str = value["HeadshotUrl"]
+                            drv_obj.headshot_url = data
+
+                        if "CountryCode" in value:
+                            data: str = value["CountryCode"]
+                            drv_obj.country_code = data
 
             elif topic == TimingType.Topic.EXTRAPOLATED_CLOCK:
                 if self.__extrapolated_clock is None:
@@ -548,11 +554,12 @@ class TimingClient:
                             data["Extrapolating"]
 
                     if "Utc" in data:
-                        self.__extrapolated_clock.remaining = data["Utc"]
+                        self.__extrapolated_clock.utc = data["Utc"]
 
-                self.__message_queue.put((
+                self.__msg_q.put((
                     topic,
                     self.__extrapolated_clock,
+                    data,
                     timestamp,
                 ))
 
@@ -570,9 +577,10 @@ class TimingClient:
                     if "TotalLaps" in data:
                         self.__lap_count_data.total_laps = data["TotalLaps"]
 
-                self.__message_queue.put((
+                self.__msg_q.put((
                     topic,
                     self.__lap_count_data,
+                    data,
                     timestamp,
                 ))
 
@@ -614,7 +622,7 @@ class TimingClient:
                         if "Lap" in rcm_msg
                         else None
                     ),
-                    drs_status=(
+                    status=(
                         rcm_msg["Status"]
                         if "Status" in rcm_msg
                         else None
@@ -622,28 +630,34 @@ class TimingClient:
                 )
 
                 self.__rcm_msgs.append(rcm_data)
-                self.__message_queue.put((topic, rcm_data, timestamp))
+                self.__msg_q.put((topic, rcm_data, data, timestamp))
 
             elif topic == TimingType.Topic.SESSION_INFO:
-                self.__session_info = SessionInfoData(
-                    data["ArchiveStatus"],
-                    data["Meeting"],
-                    data["Key"],
-                    data["Type"],
-                    data["Name"],
-                    data["StartDate"],
-                    data["EndDate"],
-                    data["GmtOffset"],
-                    data["Path"],
-                    number=(
-                        data["Number"]
-                        if "Number" in data
-                        else None
-                    ),
-                )
-                self.__message_queue.put((
+                if "ArchiveStatus" in data and len(data) == 1:
+                    self.__session_info.archive_status["Status"] = data["ArchiveStatus"]["Status"]
+
+                else:
+                    self.__session_info = SessionInfoData(
+                        data["Meeting"],
+                        data["ArchiveStatus"],
+                        data["Key"],
+                        data["Type"],
+                        data["Name"],
+                        data["StartDate"],
+                        data["EndDate"],
+                        data["GmtOffset"],
+                        data["Path"],
+                        number=(
+                            data["Number"]
+                            if "Number" in data
+                            else None
+                        ),
+                    )
+
+                self.__msg_q.put((
                     topic,
                     self.__session_info,
+                    data,
                     timestamp,
                 ))
 
@@ -651,9 +665,10 @@ class TimingClient:
                 self.__session_status = TimingType.SessionStatus[
                     data["Status"].upper()
                 ]
-                self.__message_queue.put((
+                self.__msg_q.put((
                     topic,
                     self.__session_status,
+                    data,
                     timestamp,
                 ))
 
@@ -675,21 +690,24 @@ class TimingClient:
                     )
 
                     self.__team_radios.append(tr_data)
-                    self.__message_queue.put((topic, tr_data, timestamp))
+                    self.__msg_q.put((topic, tr_data, data, timestamp))
 
             elif topic == TimingType.Topic.TIMING_APP_DATA:
                 for drv_num, timing_app_data in data["Lines"].items():
-                    if drv_num.startswith("_"):
+                    if drv_num == "_kf":
                         continue
 
                     if (
                         "RacingNumber" in timing_app_data and
-                        "Line" in timing_app_data and
-                        "GridPos" in timing_app_data
+                        "Line" in timing_app_data
                     ):
                         self.__timing_app_data[drv_num] = TimingAppData(
                             timing_app_data["RacingNumber"],
-                            timing_app_data["GridPos"],
+                            grid_position=(
+                                timing_app_data["GridPos"]
+                                if "GridPos" in timing_app_data
+                                else None
+                            ),
                         )
 
                     else:
@@ -730,12 +748,9 @@ class TimingClient:
                                         tad.stints.append(
                                             TimingAppData.Stint(
                                                 stint_data["LapFlags"],
-                                                TimingType.TyreCompound[
-                                                    stint_data["Compound"]
-                                                ],
+                                                TimingType.TyreCompound[stint_data["Compound"]],
                                                 stint_data["New"] == "true",
-                                                stint_data["TyresNotChanged"]
-                                                == "1",
+                                                stint_data["TyresNotChanged"] == "1",
                                                 stint_data["TotalLaps"],
                                                 stint_data["StartLaps"],
                                                 lap_time=(
@@ -753,66 +768,60 @@ class TimingClient:
                                         )
 
                                     else:
-                                        stint = tad.stints[int(idx)]
+                                        if int(idx) < len(tad.stints):
+                                            stint = tad.stints[int(idx)]
 
-                                        if "Compound" in stint_data:
-                                            compound: TimingType.TyreCompound \
-                                                = TimingType.TyreCompound[
-                                                    stint_data["Compound"]
-                                                ]
-                                            stint.compound = compound
+                                            if "Compound" in stint_data:
+                                                compound: TimingType.TyreCompound \
+                                                    = TimingType.TyreCompound[
+                                                        stint_data["Compound"]
+                                                    ]
+                                                stint.compound = compound
 
-                                        if "New" in stint_data:
-                                            new: bool = \
-                                                stint_data["New"] == "true"
-                                            stint.new = new
+                                            if "New" in stint_data:
+                                                new: bool = \
+                                                    stint_data["New"] == "true"
+                                                stint.new = new
 
-                                        if "TyresNotChanged" in stint_data:
-                                            tyres_not_changed: bool = (
-                                                stint_data["TyresNotChanged"]
-                                                == "1"
-                                            )
-                                            stint.tyre_not_changed = \
-                                                tyres_not_changed
+                                            if "TyresNotChanged" in stint_data:
+                                                tyres_not_changed: bool = (
+                                                    stint_data["TyresNotChanged"]
+                                                    == "1"
+                                                )
+                                                stint.tyre_not_changed = \
+                                                    tyres_not_changed
 
-                                        if "TotalLaps" in stint_data:
-                                            total_laps: int = \
-                                                stint_data["TotalLaps"]
-                                            stint.total_laps = total_laps
+                                            if "TotalLaps" in stint_data:
+                                                total_laps: int = \
+                                                    stint_data["TotalLaps"]
+                                                stint.total_laps = total_laps
 
-                                        if "LapTime" in stint_data:
-                                            lap_time: str = \
-                                                stint_data["LapTime"]
-                                            stint.lap_time = lap_time
+                                            if "LapTime" in stint_data:
+                                                lap_time: str = \
+                                                    stint_data["LapTime"]
+                                                stint.lap_time = lap_time
 
-                                        if "LapNumber" in stint_data:
-                                            lap_number: int = \
-                                                stint_data["LapNumber"]
-                                            stint.lap_number = lap_number
+                                            if "LapNumber" in stint_data:
+                                                lap_number: int = \
+                                                    stint_data["LapNumber"]
+                                                stint.lap_number = lap_number
 
-                                        if "LapFlags" in stint_data:
-                                            lap_flags: int = \
-                                                stint_data["LapFlags"]
-                                            stint.lap_flags = lap_flags
+                                            if "LapFlags" in stint_data:
+                                                lap_flags: int = \
+                                                    stint_data["LapFlags"]
+                                                stint.lap_flags = lap_flags
 
                         if "GridPos" in timing_app_data:
                             grid_position: str = timing_app_data["GridPos"]
                             self.__timing_app_data[drv_num].grid_position = \
                                 grid_position
 
-                    self.__message_queue.put((
+                    self.__msg_q.put((
                         topic,
                         self.__timing_app_data[drv_num],
+                        data["Lines"][drv_num],
                         timestamp,
                     ))
-
-            elif topic == TimingType.Topic.TIMING_DATA:
-                # TODO: Process data correctly
-                pass
-
-            elif topic == TimingType.Topic.TIMING_STATS:
-                # TODO: Process data correctly
-                pass
 
             elif topic == TimingType.Topic.TRACK_STATUS:
                 if not self.__track_status:
@@ -825,9 +834,10 @@ class TimingClient:
                     self.__track_status.message = data["Message"]
                     self.__track_status.status = data["Status"]
 
-                self.__message_queue.put((
+                self.__msg_q.put((
                     topic,
                     self.__track_status,
+                    data,
                     timestamp,
                 ))
 
@@ -852,9 +862,10 @@ class TimingClient:
                     self.__weather_data.wind_direction = data["WindDirection"]
                     self.__weather_data.wind_speed = data["WindSpeed"]
 
-                self.__message_queue.put((
+                self.__msg_q.put((
                     topic,
                     self.__weather_data,
+                    data,
                     timestamp,
                 ))
 
@@ -889,17 +900,41 @@ class TimingClient:
                         broadcast_name=drv_data["BroadcastName"],
                         full_name=drv_data["FullName"],
                         tla=drv_data["Tla"],
-                        team_name=drv_data["TeamName"],
-                        team_color=drv_data["TeamColour"],
-                        first_name=drv_data["FirstName"],
-                        last_name=drv_data["LastName"],
-                        reference=drv_data["Reference"],
+                        team_name=(
+                            drv_data["TeamName"]
+                            if "TeamName" in drv_data
+                            else None
+                        ),
+                        team_color=(
+                            drv_data["TeamColour"]
+                            if "TeamColour" in drv_data
+                            else None
+                        ),
+                        first_name=(
+                            drv_data["FirstName"]
+                            if "FirstName" in drv_data
+                            else None
+                        ),
+                        last_name=(
+                            drv_data["LastName"]
+                            if "LastName" in drv_data
+                            else None
+                        ),
+                        reference=(
+                            drv_data["Reference"]
+                            if "Reference" in drv_data
+                            else None
+                        ),
                         headshot_url=(
                             drv_data["HeadshotUrl"]
                             if "HeadshotUrl" in drv_data
                             else None
                         ),
-                        country_code=drv_data["CountryCode"],
+                        country_code=(
+                            drv_data["CountryCode"]
+                            if "" in drv_data
+                            else None
+                        ),
                     )
 
             elif d_key == TimingType.Topic.EXTRAPOLATED_CLOCK:
@@ -955,7 +990,7 @@ class TimingClient:
                                 if "Lap" in rcm_msg
                                 else None
                             ),
-                            drs_status=(
+                            status=(
                                 rcm_msg["Status"]
                                 if "Status" in rcm_msg
                                 else None
@@ -1012,7 +1047,7 @@ class TimingClient:
                 for drv_num, timing_data in d_val["Lines"].items():
                     data = TimingAppData(
                         timing_data["RacingNumber"],
-                        timing_data["GridPos"],
+                        timing_data["GridPos"] if "GridPos" in timing_data else None,
                     )
 
                     if (

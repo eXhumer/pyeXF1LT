@@ -1,4 +1,4 @@
-# pyeXF1LT - Unofficial F1 live timing client
+# eXF1LT - Unofficial F1 live timing client
 # Copyright (C) 2022  eXhumer
 
 # This program is free software: you can redistribute it and/or modify
@@ -13,6 +13,12 @@
 
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+"""
+Unofficial F1 live timing client package
+"""
+
+from pkg_resources import require
 
 from ._client import F1LiveClient, TimingClient  # noqa: F401
 from ._type import TimingType  # noqa: F401
@@ -29,3 +35,5 @@ from ._model import (  # noqa: F401
     TrackStatusData,
     WeatherData,
 )
+
+__version__ = require(__package__)[0].version

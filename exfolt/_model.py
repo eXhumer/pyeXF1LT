@@ -127,29 +127,57 @@ class DriverData:
     def team_name(self):
         return self.__team_name
 
+    @team_name.setter
+    def team_name(self, team_name: str):
+        self.__team_name = team_name
+
     @property
     def team_color(self):
         return self.__team_color
+
+    @team_color.setter
+    def team_color(self, team_color: str):
+        self.__team_color = team_color
 
     @property
     def first_name(self):
         return self.__first_name
 
+    @first_name.setter
+    def first_name(self, first_name: str):
+        self.__first_name = first_name
+
     @property
     def last_name(self):
         return self.__last_name
+
+    @last_name.setter
+    def last_name(self, last_name: str):
+        self.__last_name = last_name
 
     @property
     def reference(self):
         return self.__reference
 
+    @reference.setter
+    def reference(self, reference: str):
+        self.__reference = reference
+
     @property
     def headshot_url(self):
         return self.__headshot_url
 
+    @headshot_url.setter
+    def headshot_url(self, headshot_url: str):
+        self.__headshot_url = headshot_url
+
     @property
     def country_code(self):
         return self.__country_code
+
+    @country_code.setter
+    def country_code(self, country_code: str):
+        self.__country_code = country_code
 
     def __str__(self) -> str:
         if self.first_name and self.last_name:
@@ -248,7 +276,7 @@ class RaceControlMessageData:
         racing_number: str | None = None,
         sector: int | None = None,
         lap: int | None = None,
-        drs_status: str | None = None,
+        status: str | None = None,
     ) -> None:
         self.__category = category
         self.__message = message
@@ -257,7 +285,7 @@ class RaceControlMessageData:
         self.__racing_number = racing_number
         self.__sector = sector
         self.__lap = lap
-        self.__drs_status = drs_status
+        self.__status = status
 
     def __repr__(self) -> str:
         return (
@@ -270,7 +298,7 @@ class RaceControlMessageData:
                 f"racing_number={self.__racing_number}",
                 f"sector={self.__sector}",
                 f"lap={self.__lap}",
-                f"drs_status={self.__drs_status}",
+                f"status={self.__status}",
             )) +
             ")"
         )
@@ -307,8 +335,8 @@ class RaceControlMessageData:
         return self.__lap
 
     @property
-    def drs_status(self):
-        return self.__drs_status
+    def status(self):
+        return self.__status
 
 
 class SessionData:
@@ -609,7 +637,7 @@ class TimingAppData:
     def __init__(
         self,
         racing_number: str,
-        grid_position: str,
+        grid_position: str | None = None,
     ) -> None:
         self.__racing_number = racing_number
         self.__grid_position = grid_position
