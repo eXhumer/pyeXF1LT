@@ -464,7 +464,7 @@ def __program_args():
         discord_bot_parser.add_argument("--replay-session-info-message", action="store_true",
                                         help="replay SessionInfo data")
 
-    return parser.parse_args()
+    return parser.parse_args(), parser.prog
 
 
 def __program_license(program_name: str):
@@ -552,13 +552,13 @@ def __setup_live_client(args: Namespace):
 
 
 def __program_main():
-    args = __program_args()
+    args, prog = __program_args()
     logger = __program_logger(args)
 
     if args.license:
-        print(__program_license("eXF1LT"))
+        print(__program_license(prog))
 
-    elif args.action == "message-logger":
+    if args.action == "message-logger":
         message_logger = __message_logger(args)
 
         try:
@@ -582,7 +582,7 @@ def __program_main():
         except KeyboardInterrupt:
             pass
 
-    elif exdc_available and args.action == "discord-bot":
+    if exdc_available and args.action == "discord-bot":
         (
             audio_stream_embed,
             bot_start_message,
