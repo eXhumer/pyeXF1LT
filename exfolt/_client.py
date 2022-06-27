@@ -697,124 +697,94 @@ class TimingClient:
                     if drv_num == "_kf":
                         continue
 
-                    if (
-                        "RacingNumber" in timing_app_data and
-                        "Line" in timing_app_data
-                    ):
-                        self.__timing_app_data[drv_num] = TimingAppData(
+                    if "RacingNumber" in timing_app_data:
+                        tad = self.__timing_app_data[drv_num] = TimingAppData(
                             timing_app_data["RacingNumber"],
-                            grid_position=(
-                                timing_app_data["GridPos"]
-                                if "GridPos" in timing_app_data
-                                else None
-                            ),
                         )
 
                     else:
                         tad = self.__timing_app_data[drv_num]
 
-                        if "Stints" in timing_app_data:
-                            timing_stints = timing_app_data["Stints"]
+                    if "Stints" in timing_app_data:
+                        timing_stints = timing_app_data["Stints"]
 
-                            if isinstance(timing_stints, list):
-                                tad.stints.clear()
+                        if isinstance(timing_stints, list):
+                            tad.stints.clear()
 
-                                if len(timing_stints) > 0:
-                                    for idx, stint_data in enumerate(
-                                        timing_stints
-                                    ):
-                                        tad.stints.append(
-                                            TimingAppData.Stint(
-                                                stint_data["LapFlags"],
-                                                TimingType.TyreCompound[
-                                                    stint_data["Compound"]
-                                                ],
-                                                stint_data["New"] == "true",
-                                                stint_data["TyresNotChanged"]
-                                                == "1",
-                                                stint_data["TotalLaps"],
-                                                stint_data["StartLaps"],
-                                            )
+                            for stint_data in timing_stints:
+                                tad.stints.append(
+                                    TimingAppData.Stint(
+                                        stint_data["LapFlags"],
+                                        TimingType.TyreCompound[stint_data["Compound"]],
+                                        stint_data["New"] == "true",
+                                        stint_data["TyresNotChanged"] == "1",
+                                        stint_data["TotalLaps"],
+                                        stint_data["StartLaps"],
+                                    )
+                                )
+
+                        else:
+                            for idx, stint_data in timing_stints.items():
+                                if int(idx) == len(tad.stints):
+                                    assert "LapFlags" in stint_data
+                                    assert "Compound" in stint_data
+                                    assert "New" in stint_data
+                                    assert "TyresNotChanged" in stint_data
+                                    assert "TotalLaps" in stint_data
+                                    assert "StartLaps" in stint_data
+
+                                    tad.stints.append(
+                                        TimingAppData.Stint(
+                                            stint_data["LapFlags"],
+                                            TimingType.TyreCompound[stint_data["Compound"]],
+                                            stint_data["New"] == "true",
+                                            stint_data["TyresNotChanged"] == "1",
+                                            stint_data["TotalLaps"],
+                                            stint_data["StartLaps"],
                                         )
+                                    )
 
-                            else:
-                                for idx, stint_data in timing_stints.items():
-                                    if (
-                                        "LapFlags" in stint_data and
-                                        "Compound" in stint_data and
-                                        "New" in stint_data and
-                                        "TyresNotChanged" in stint_data
-                                    ):
-                                        tad.stints.append(
-                                            TimingAppData.Stint(
-                                                stint_data["LapFlags"],
-                                                TimingType.TyreCompound[stint_data["Compound"]],
-                                                stint_data["New"] == "true",
-                                                stint_data["TyresNotChanged"] == "1",
-                                                stint_data["TotalLaps"],
-                                                stint_data["StartLaps"],
-                                                lap_time=(
-                                                    stint_data["LapTime"]
-                                                    if "LapTime" in stint_data
-                                                    else None
-                                                ),
-                                                lap_number=(
-                                                    stint_data["LapNumber"]
-                                                    if "LapNumber"
-                                                    in stint_data
-                                                    else None
-                                                ),
-                                            )
-                                        )
+                                elif int(idx) > len(tad.stints):
+                                    assert False
 
-                                    else:
-                                        if int(idx) < len(tad.stints):
-                                            stint = tad.stints[int(idx)]
+                                else:
+                                    stint = tad.stints[int(idx)]
 
-                                            if "Compound" in stint_data:
-                                                compound: TimingType.TyreCompound \
-                                                    = TimingType.TyreCompound[
-                                                        stint_data["Compound"]
-                                                    ]
-                                                stint.compound = compound
+                                    if "Compound" in stint_data:
+                                        stint.compound = \
+                                            TimingType.TyreCompound[stint_data["Compound"]]
 
-                                            if "New" in stint_data:
-                                                new: bool = \
-                                                    stint_data["New"] == "true"
-                                                stint.new = new
+                                    if "New" in stint_data:
+                                        new: str = stint_data["New"]
+                                        stint.new = new == "true"
 
-                                            if "TyresNotChanged" in stint_data:
-                                                tyres_not_changed: bool = (
-                                                    stint_data["TyresNotChanged"]
-                                                    == "1"
-                                                )
-                                                stint.tyre_not_changed = \
-                                                    tyres_not_changed
+                                    if "TyresNotChanged" in stint_data:
+                                        tyres_not_changed: str = stint_data["TyresNotChanged"]
+                                        stint.tyre_not_changed = tyres_not_changed == "1"
 
-                                            if "TotalLaps" in stint_data:
-                                                total_laps: int = \
-                                                    stint_data["TotalLaps"]
-                                                stint.total_laps = total_laps
+                                    if "TotalLaps" in stint_data:
+                                        total_laps: int = stint_data["TotalLaps"]
+                                        stint.total_laps = total_laps
 
-                                            if "LapTime" in stint_data:
-                                                lap_time: str = \
-                                                    stint_data["LapTime"]
-                                                stint.lap_time = lap_time
+                                    if "StartLaps" in stint_data:
+                                        start_laps: int = stint_data["StartLaps"]
+                                        stint.start_laps = start_laps
 
-                                            if "LapNumber" in stint_data:
-                                                lap_number: int = \
-                                                    stint_data["LapNumber"]
-                                                stint.lap_number = lap_number
+                                    if "LapNumber" in stint_data:
+                                        lap_number: int = stint_data["LapNumber"]
+                                        stint.lap_number = lap_number
 
-                                            if "LapFlags" in stint_data:
-                                                lap_flags: int = \
-                                                    stint_data["LapFlags"]
-                                                stint.lap_flags = lap_flags
+                                    if "LapFlags" in stint_data:
+                                        lap_flags: int = stint_data["LapFlags"]
+                                        stint.lap_flags = lap_flags
 
-                        if "GridPos" in timing_app_data:
-                            grid_position: str = timing_app_data["GridPos"]
-                            self.__timing_app_data[drv_num].grid_position = \
-                                grid_position
+                                    if "LapTime" in stint_data:
+                                        lap_time: str = stint_data["LapTime"]
+                                        stint.lap_time = lap_time
+
+                    if "GridPos" in timing_app_data:
+                        grid_position: str = timing_app_data["GridPos"]
+                        self.__timing_app_data[drv_num].grid_position = grid_position
 
                     self.__msg_q.put((
                         topic,
