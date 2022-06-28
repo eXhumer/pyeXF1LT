@@ -36,7 +36,6 @@ from dotenv import dotenv_values
 
 from ._client import (
     AudioStreamData,
-    DriverData,
     ExtrapolatedClockData,
     F1LiveClient,
     RaceControlMessageData,
@@ -44,6 +43,7 @@ from ._client import (
     TeamRadioData,
     TimingAppData,
     TimingClient,
+    TimingStatsData,
     TimingType,
     TrackStatusData,
 )
@@ -158,10 +158,20 @@ try:
             timing_client: TimingClient,
             timestamp: datetime,
         ):
+            fields = [
+                DiscordModel.Embed.Field("Message", rcm_msg.message),
+                DiscordModel.Embed.Field("Category", rcm_msg.category),
+            ]
+
             if rcm_msg.racing_number is not None:
-                driver_data = timing_client.drivers[rcm_msg.racing_number]
-                author = DiscordModel.Embed.Author(str(driver_data),
-                                                   icon_url=driver_data.headshot_url)
+                if rcm_msg.racing_number in timing_client.drivers:
+                    driver_data = timing_client.drivers[rcm_msg.racing_number]
+                    author = DiscordModel.Embed.Author(str(driver_data),
+                                                       icon_url=driver_data.headshot_url)
+
+                else:
+                    author = None
+                    fields.append(DiscordModel.Embed.Field("Racing Number", rcm_msg.racing_number))
 
             else:
                 author = None
@@ -210,11 +220,6 @@ try:
             else:
                 color = 0XA6EF1F
                 description = None
-
-            fields = [
-                DiscordModel.Embed.Field("Message", rcm_msg.message),
-                DiscordModel.Embed.Field("Category", rcm_msg.category),
-            ]
 
             if rcm_msg.status is not None:
                 if rcm_msg.category == "Drs":
@@ -270,13 +275,22 @@ try:
             timing_client: TimingClient,
             timestamp: datetime,
         ):
-            driver_data = timing_client.drivers[team_radio.racing_number]
+            driver_data = timing_client.drivers.get(team_radio.racing_number, None)
             session_info = timing_client.session_info
+
+            if driver_data:
+                author = DiscordModel.Embed.Author(str(driver_data),
+                                                   icon_url=driver_data.headshot_url)
+                fields = None
+
+            else:
+                author = None
+                fields = [DiscordModel.Embed.Field("Racing Number", team_radio.racing_number)]
 
             return DiscordModel.Embed(
                 title="Team Radio",
-                author=DiscordModel.Embed.Author(str(driver_data),
-                                                 icon_url=driver_data.headshot_url),
+                author=author,
+                fields=fields,
                 url=(
                     "https://livetiming.formula1.com/static/" + session_info.path +
                     team_radio.path
@@ -286,8 +300,9 @@ try:
 
         def __timing_app_data_stint_embed(
             stint: TimingAppData.Stint,
-            driver_data: DriverData,
             timestamp: datetime,
+            racing_number: str | None = None,
+            timing_client: TimingClient | None = None,
         ):
             compound = (
                 WET_TYRE_EMOJI if stint.compound == TimingType.TyreCompound.WET
@@ -298,18 +313,32 @@ try:
                 else UNKNOWN_TYRE_EMOJI
             )
 
+            fields = [
+                DiscordModel.Embed.Field("Compound", compound, inline=True,),
+                DiscordModel.Embed.Field("New", str(stint.new), inline=True),
+                DiscordModel.Embed.Field("Tyre Changed", str(not stint.tyre_not_changed),
+                                         inline=True),
+                DiscordModel.Embed.Field("Start Laps", str(stint.start_laps), inline=True),
+                DiscordModel.Embed.Field("Total Laps", str(stint.total_laps), inline=True),
+            ]
+
+            if racing_number:
+                if timing_client:
+                    driver_data = timing_client.drivers[racing_number]
+                    author = DiscordModel.Embed.Author(str(driver_data),
+                                                       icon_url=driver_data.headshot_url)
+
+                else:
+                    fields.append(DiscordModel.Embed.Field("Racing Number", racing_number))
+                    author = None
+
+            else:
+                author = None
+
             return DiscordModel.Embed(
                 title="Pit Stop Information",
-                author=DiscordModel.Embed.Author(str(driver_data),
-                                                 icon_url=driver_data.headshot_url),
-                fields=[
-                    DiscordModel.Embed.Field("Compound", compound, inline=True,),
-                    DiscordModel.Embed.Field("New", str(stint.new), inline=True),
-                    DiscordModel.Embed.Field("Tyre Changed", str(not stint.tyre_not_changed),
-                                             inline=True),
-                    DiscordModel.Embed.Field("Start Laps", str(stint.start_laps), inline=True),
-                    DiscordModel.Embed.Field("Total Laps", str(stint.total_laps), inline=True),
-                ],
+                author=author,
+                fields=[],
                 timestamp=timestamp,
             )
 
@@ -435,6 +464,8 @@ def __program_args():
     topics_parser.add_argument("--team-radio", action="store_true", help="TeamRadio support")
     topics_parser.add_argument("--timing-app-data", action="store_true",
                                help="TimingAppData support")
+    topics_parser.add_argument("--timing-stats", action="store_true",
+                               help="TimingStats support")
     topics_parser.add_argument("--track-status", action="store_true", help="TrackStatus support")
     topics_parser.add_argument("--weather-data", action="store_true", help="WeatherData support")
     action_subparser = parser.add_subparsers(dest="action", title="actions",
@@ -539,8 +570,8 @@ def __setup_live_client(args: Namespace):
     if args.timing_app_data:
         topics.append(TimingType.Topic.TIMING_APP_DATA)
 
-    if args.timing_app_data:
-        topics.append(TimingType.Topic.TIMING_APP_DATA)
+    if args.timing_stats:
+        topics.append(TimingType.Topic.TIMING_STATS)
 
     if args.track_status:
         topics.append(TimingType.Topic.TRACK_STATUS)
@@ -722,10 +753,9 @@ def __program_main():
                                         embed_queue.put(
                                             timing_app_data_stint_embed(
                                                 timing_item.stints[-1],
-                                                timing_client.drivers[
-                                                    timing_item.racing_number
-                                                ],
                                                 datetime_string_parser(timestamp),
+                                                racing_number=timing_item.racing_number,
+                                                timing_client=timing_client,
                                             ),
                                         )
 
@@ -734,12 +764,223 @@ def __program_main():
                                         embed_queue.put(
                                             timing_app_data_stint_embed(
                                                 timing_item.stints[-1],
-                                                timing_client.drivers[
-                                                    timing_item.racing_number
-                                                ],
                                                 datetime_string_parser(timestamp),
+                                                racing_number=timing_item.racing_number,
+                                                timing_client=timing_client,
                                             ),
                                         )
+
+                        elif (
+                            topic == TimingType.Topic.TIMING_STATS and
+                            isinstance(timing_item, TimingStatsData)
+                        ):
+                            for racing_number, lines_data in data["Lines"].items():
+                                driver_data = timing_client.drivers.get(racing_number, None)
+
+                                if driver_data:
+                                    author = DiscordModel.Embed.Author(
+                                        str(driver_data),
+                                        icon_url=driver_data.headshot_url,
+                                    )
+
+                                else:
+                                    author = None
+
+                                if (
+                                    "PersonalBestLapTime" in lines_data and
+                                    "Position" in lines_data["PersonalBestLapTime"] and
+                                    lines_data["PersonalBestLapTime"]["Position"] == 1
+                                ):
+                                    new_fl_time = timing_item.best_lap_time
+                                    assert new_fl_time
+                                    minutes = new_fl_time.seconds // 60
+                                    seconds = new_fl_time.total_seconds() - (minutes * 60)
+
+                                    embed_queue.put(
+                                        DiscordModel.Embed(
+                                            title="Fastest Lap Time",
+                                            author=author,
+                                            color=0xA020F0,
+                                            fields=[
+                                                DiscordModel.Embed.Field(
+                                                    "Lap Time",
+                                                    f"{minutes}:{seconds}",
+                                                ),
+                                            ],
+                                            timestamp=datetime_string_parser(timestamp),
+                                        )
+                                    )
+
+                                if (
+                                    "BestSpeeds" in lines_data and
+                                    "I1" in lines_data["BestSpeeds"] and
+                                    "Position" in lines_data["BestSpeeds"]["I1"] and
+                                    lines_data["BestSpeeds"]["I1"]["Position"] == 1
+                                ):
+                                    new_i2_speed = timing_item.best_intermediate_1_speed
+                                    assert new_i2_speed
+
+                                    embed_queue.put(
+                                        DiscordModel.Embed(
+                                            title="Fastest Intermediate 1 Speed",
+                                            author=author,
+                                            color=0xA020F0,
+                                            fields=[
+                                                DiscordModel.Embed.Field(
+                                                    "Speed",
+                                                    f"{new_i2_speed}",
+                                                ),
+                                            ],
+                                            timestamp=datetime_string_parser(timestamp),
+                                        )
+                                    )
+
+                                if (
+                                    "BestSpeeds" in lines_data and
+                                    "I2" in lines_data["BestSpeeds"] and
+                                    "Position" in lines_data["BestSpeeds"]["I2"] and
+                                    lines_data["BestSpeeds"]["I2"]["Position"] == 1
+                                ):
+                                    new_i2_speed = timing_item.best_intermediate_2_speed
+                                    assert new_i2_speed
+
+                                    embed_queue.put(
+                                        DiscordModel.Embed(
+                                            title="Fastest Intermediate 2 Speed",
+                                            author=author,
+                                            color=0xA020F0,
+                                            fields=[
+                                                DiscordModel.Embed.Field(
+                                                    "Speed",
+                                                    f"{new_i2_speed}",
+                                                ),
+                                            ],
+                                            timestamp=datetime_string_parser(timestamp),
+                                        )
+                                    )
+
+                                if (
+                                    "BestSpeeds" in lines_data and
+                                    "FL" in lines_data["BestSpeeds"] and
+                                    "Position" in lines_data["BestSpeeds"]["FL"] and
+                                    lines_data["BestSpeeds"]["FL"]["Position"] == 1
+                                ):
+                                    new_fl_speed = timing_item.best_finish_line_speed
+                                    assert new_fl_speed
+
+                                    embed_queue.put(
+                                        DiscordModel.Embed(
+                                            title="Fastest Finish Line Speed",
+                                            author=author,
+                                            color=0xA020F0,
+                                            fields=[
+                                                DiscordModel.Embed.Field(
+                                                    "Speed",
+                                                    f"{new_fl_speed}",
+                                                ),
+                                            ],
+                                            timestamp=datetime_string_parser(timestamp),
+                                        )
+                                    )
+
+                                if (
+                                    "BestSpeeds" in lines_data and
+                                    "ST" in lines_data["BestSpeeds"] and
+                                    "Position" in lines_data["BestSpeeds"]["ST"] and
+                                    lines_data["BestSpeeds"]["ST"]["Position"] == 1
+                                ):
+                                    new_st_speed = timing_item.best_speed_trap_speed
+                                    assert new_st_speed
+
+                                    embed_queue.put(
+                                        DiscordModel.Embed(
+                                            title="Fastest Speed Trap Speed",
+                                            author=author,
+                                            color=0xA020F0,
+                                            fields=[
+                                                DiscordModel.Embed.Field(
+                                                    "Speed",
+                                                    f"{new_st_speed}",
+                                                ),
+                                            ],
+                                            timestamp=datetime_string_parser(timestamp),
+                                        )
+                                    )
+
+                                if (
+                                    "BestSectors" in lines_data and
+                                    isinstance(lines_data["BestSectors"], dict) and
+                                    "0" in lines_data["BestSectors"] and
+                                    "Position" in lines_data["BestSectors"]["0"] and
+                                    lines_data["BestSectors"]["0"]["Position"] == 1
+                                ):
+                                    new_s1_time = timing_item.best_sector_1
+                                    assert new_s1_time
+
+                                    embed_queue.put(
+                                        DiscordModel.Embed(
+                                            title="Fastest Sector 1",
+                                            author=author,
+                                            color=0xA020F0,
+                                            fields=[
+                                                DiscordModel.Embed.Field(
+                                                    "Time",
+                                                    f"{new_s1_time}",
+                                                ),
+                                            ],
+                                            timestamp=datetime_string_parser(timestamp),
+                                        )
+                                    )
+
+                                if (
+                                    "BestSectors" in lines_data and
+                                    isinstance(lines_data["BestSectors"], dict) and
+                                    "1" in lines_data["BestSectors"] and
+                                    "Position" in lines_data["BestSectors"]["1"] and
+                                    lines_data["BestSectors"]["1"]["Position"] == 1
+                                ):
+                                    new_s2_time = timing_item.best_sector_2
+                                    assert new_s2_time
+
+                                    embed_queue.put(
+                                        DiscordModel.Embed(
+                                            title="Fastest Sector 2",
+                                            author=author,
+                                            color=0xA020F0,
+                                            fields=[
+                                                DiscordModel.Embed.Field(
+                                                    "Time",
+                                                    f"{new_s2_time}",
+                                                ),
+                                            ],
+                                            timestamp=datetime_string_parser(timestamp),
+                                        )
+                                    )
+
+                                if (
+                                    "BestSectors" in lines_data and
+                                    isinstance(lines_data["BestSectors"], dict) and
+                                    "2" in lines_data["BestSectors"] and
+                                    "Position" in lines_data["BestSectors"]["2"] and
+                                    lines_data["BestSectors"]["2"]["Position"] == 1
+                                ):
+                                    new_s3_time = timing_item.best_sector_3
+                                    assert new_s3_time
+
+                                    embed_queue.put(
+                                        DiscordModel.Embed(
+                                            title="Fastest Sector 3",
+                                            author=author,
+                                            color=0xA020F0,
+                                            fields=[
+                                                DiscordModel.Embed.Field(
+                                                    "Time",
+                                                    f"{new_s3_time}",
+                                                ),
+                                            ],
+                                            timestamp=datetime_string_parser(timestamp),
+                                        )
+                                    )
 
                         elif (
                             topic == TimingType.Topic.TRACK_STATUS and

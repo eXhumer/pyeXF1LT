@@ -32,6 +32,7 @@ from ._model import (  # noqa: F401
     SessionInfoData,
     TeamRadioData,
     TimingAppData,
+    TimingStatsData,
     TrackStatusData,
     WeatherData,
 )

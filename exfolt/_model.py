@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from datetime import timedelta
 from typing import Dict, List, Literal
 
 from ._type import TimingType
@@ -667,6 +668,299 @@ class TimingAppData:
     @property
     def stints(self):
         return self.__stints
+
+
+class TimingStatsData:
+    def __init__(
+        self,
+        racing_number: str,
+        best_lap_time: str | None = None,
+        best_time_lap_number: int | None = None,
+        best_time_position: int | None = None,
+        best_sector_1_time: str | None = None,
+        sector_1_position: int | None = None,
+        best_sector_2_time: str | None = None,
+        sector_2_position: int | None = None,
+        best_sector_3_time: str | None = None,
+        sector_3_position: int | None = None,
+        best_intermediate_1_speed: str | None = None,
+        intermediate_1_position: int | None = None,
+        best_intermediate_2_speed: str | None = None,
+        intermediate_2_position: int | None = None,
+        best_finish_line_speed: str | None = None,
+        finish_line_position: int | None = None,
+        best_speed_trap_speed: str | None = None,
+        speed_trap_position: int | None = None,
+    ) -> None:
+        self.__racing_number = racing_number
+
+        if best_lap_time:
+            [lap_min, lap_sec] = best_lap_time.split(":")
+            self.__best_lap_time = timedelta(minutes=int(lap_min), seconds=float(lap_sec))
+
+        else:
+            self.__best_lap_time = None
+
+        if best_time_lap_number:
+            self.__best_time_lap_number = best_time_lap_number
+
+        else:
+            self.__best_time_lap_number = None
+
+        if best_time_position:
+            self.__best_time_position = best_time_position
+
+        else:
+            self.__best_time_position = None
+
+        if best_sector_1_time:
+            self.__best_sector_1 = float(best_sector_1_time)
+
+        else:
+            self.__best_sector_1 = None
+
+        if sector_1_position:
+            self.__sector_1_position = sector_1_position
+
+        else:
+            self.__sector_1_position = None
+
+        if best_sector_2_time:
+            self.__best_sector_2 = float(best_sector_2_time)
+
+        else:
+            self.__best_sector_2 = None
+
+        if sector_2_position:
+            self.__sector_2_position = sector_2_position
+
+        else:
+            self.__sector_2_position = None
+
+        if best_sector_3_time:
+            self.__best_sector_3 = float(best_sector_3_time)
+
+        else:
+            self.__best_sector_3 = None
+
+        if sector_3_position:
+            self.__sector_3_position = sector_3_position
+
+        else:
+            self.__sector_3_position = None
+
+        if best_intermediate_1_speed:
+            self.__best_intermediate_1_speed = int(best_intermediate_1_speed)
+
+        else:
+            self.__best_intermediate_1_speed = None
+
+        if intermediate_1_position:
+            self.__intermediate_1_position = intermediate_1_position
+
+        else:
+            self.__intermediate_1_position = None
+
+        if best_intermediate_2_speed:
+            self.__best_intermediate_2_speed = int(best_intermediate_2_speed)
+
+        else:
+            self.__best_intermediate_2_speed = None
+
+        if intermediate_2_position:
+            self.__intermediate_2_position = intermediate_2_position
+
+        else:
+            self.__intermediate_2_position = None
+
+        if best_finish_line_speed:
+            self.__best_finish_line_speed = int(best_finish_line_speed)
+
+        else:
+            self.__best_finish_line_speed = None
+
+        if finish_line_position:
+            self.__finish_line_position = finish_line_position
+
+        else:
+            self.__finish_line_position = None
+
+        if best_speed_trap_speed:
+            self.__best_speed_trap_speed = int(best_speed_trap_speed)
+
+        else:
+            self.__best_speed_trap_speed = None
+
+        if speed_trap_position:
+            self.__speed_trap_position = speed_trap_position
+
+        else:
+            self.__speed_trap_position = None
+
+    @property
+    def racing_number(self):
+        return self.__racing_number
+
+    @property
+    def best_lap_time(self):
+        return self.__best_lap_time
+
+    @best_lap_time.setter
+    def best_lap_time(self, new_lap_time: str):
+        [lap_min, lap_sec] = new_lap_time.split(":")
+        self.__best_lap_time = timedelta(minutes=int(lap_min), seconds=float(lap_sec))
+
+    @property
+    def best_time_lap_number(self):
+        return self.__best_time_lap_number
+
+    @best_time_lap_number.setter
+    def best_time_lap_number(self, new_lap_number: int):
+        self.__best_time_lap_number = new_lap_number
+
+    @property
+    def best_time_position(self):
+        return self.__best_time_position
+
+    @best_time_position.setter
+    def best_time_position(self, new_position: int):
+        self.__best_time_position = new_position
+
+    @property
+    def best_sector_1(self):
+        return self.__best_sector_1
+
+    @best_sector_1.setter
+    def best_sector_1(self, new_sector_time: str):
+        self.__best_sector_1 = float(new_sector_time)
+
+    @property
+    def sector_1_position(self):
+        return self.__sector_1_position
+
+    @sector_1_position.setter
+    def sector_1_position(self, sector_position: int):
+        self.__sector_1_position = sector_position
+
+    @property
+    def best_sector_2(self):
+        return self.__best_sector_2
+
+    @best_sector_2.setter
+    def best_sector_2(self, new_sector_time: str):
+        self.__best_sector_2 = float(new_sector_time)
+
+    @property
+    def sector_2_position(self):
+        return self.__sector_2_position
+
+    @sector_2_position.setter
+    def sector_2_position(self, sector_position: int):
+        self.__sector_2_position = sector_position
+
+    @property
+    def best_sector_3(self):
+        return self.__best_sector_3
+
+    @best_sector_3.setter
+    def best_sector_3(self, new_sector_time: str):
+        self.__best_sector_3 = float(new_sector_time)
+
+    @property
+    def sector_3_position(self):
+        return self.__sector_3_position
+
+    @sector_3_position.setter
+    def sector_3_position(self, sector_position: int):
+        self.__sector_3_position = sector_position
+
+    @property
+    def best_intermediate_1_speed(self):
+        return self.__best_intermediate_1_speed
+
+    @best_intermediate_1_speed.setter
+    def best_intermediate_1_speed(self, new_speed: str):
+        self.__best_intermediate_1_speed = int(new_speed)
+
+    @property
+    def intermediate_1_position(self):
+        return self.__intermediate_1_position
+
+    @intermediate_1_position.setter
+    def intermediate_1_position(self, new_position: int):
+        self.__intermediate_1_position = int(new_position)
+
+    @property
+    def best_intermediate_2_speed(self):
+        return self.__best_intermediate_2_speed
+
+    @best_intermediate_2_speed.setter
+    def best_intermediate_2_speed(self, new_speed: str):
+        self.__best_intermediate_2_speed = int(new_speed)
+
+    @property
+    def intermediate_2_position(self):
+        return self.__intermediate_2_position
+
+    @intermediate_2_position.setter
+    def intermediate_2_position(self, new_position: int):
+        self.__intermediate_2_position = int(new_position)
+
+    @property
+    def best_finish_line_speed(self):
+        return self.__best_finish_line_speed
+
+    @best_finish_line_speed.setter
+    def best_finish_line_speed(self, new_speed: str):
+        self.__best_finish_line_speed = int(new_speed)
+
+    @property
+    def finish_line_position(self):
+        return self.__finish_line_position
+
+    @finish_line_position.setter
+    def finish_line_position(self, new_position: int):
+        self.__finish_line_position = int(new_position)
+
+    @property
+    def best_speed_trap_speed(self):
+        return self.__best_speed_trap_speed
+
+    @best_speed_trap_speed.setter
+    def best_speed_trap_speed(self, new_speed: str):
+        self.__best_speed_trap_speed = int(new_speed)
+
+    @property
+    def speed_trap_position(self):
+        return self.__speed_trap_position
+
+    @speed_trap_position.setter
+    def speed_trap_position(self, new_position: int):
+        self.__speed_trap_position = int(new_position)
+
+    def __repr__(self) -> str:
+        return (
+            "TimingStatsData(" + ", ".join((
+                f"racing_number={self.__racing_number}",
+                f"best_lap_time={self.__best_lap_time}",
+                f"best_time_lap_number={self.__best_time_lap_number}",
+                f"best_time_position={self.__best_time_position}",
+                f"best_sector_1={self.__best_sector_1}",
+                f"sector_1_position={self.__sector_1_position}",
+                f"best_sector_2={self.__best_sector_2}",
+                f"sector_2_position={self.__sector_2_position}",
+                f"best_sector_3={self.__best_sector_3}",
+                f"sector_3_position={self.__sector_3_position}",
+                f"best_intermediate_1_speed={self.__best_intermediate_1_speed}",
+                f"intermediate_1_position={self.__intermediate_1_position}",
+                f"best_intermediate_2_speed={self.__best_intermediate_2_speed}",
+                f"intermediate_2_position={self.__intermediate_2_position}",
+                f"best_finish_line_speed={self.__best_finish_line_speed}",
+                f"finish_line_position={self.__finish_line_position}",
+                f"best_speed_trap_speed={self.__best_speed_trap_speed}",
+                f"speed_trap_position={self.__speed_trap_position}",
+            )) + ")"
+        )
 
 
 class TrackStatusData:

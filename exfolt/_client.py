@@ -23,6 +23,7 @@ from ._model import (
     SessionInfoData,
     TeamRadioData,
     TimingAppData,
+    TimingStatsData,
     TrackStatusData,
     WeatherData,
 )
@@ -356,6 +357,7 @@ class TimingClient:
         self.__audio_streams: List[AudioStreamData] = []
         self.__drivers: Dict[str, DriverData] = {}
         self.__timing_app_data: Dict[str, TimingAppData] = {}
+        self.__timing_stats: Dict[str, TimingStatsData] = {}
         self.__extrapolated_clock: ExtrapolatedClockData | None = None
         self.__lap_count_data: LapCountData | None = None
         self.__msg_q: Queue[
@@ -368,6 +370,7 @@ class TimingClient:
                     SessionInfoData,
                     TeamRadioData,
                     TimingAppData,
+                    TimingStatsData,
                     TimingType.SessionStatus,
                     TrackStatusData,
                     WeatherData,
@@ -396,6 +399,123 @@ class TimingClient:
     @staticmethod
     def __decompress_zlib_data(data: str):
         return zlib.decompress(b64decode(data.encode("ascii")), -15).decode("utf8")
+
+    def __update_driver_timing_stats(self, timing_stats_data):
+        for racing_number, driver_timing_stats in timing_stats_data["Lines"].items():
+            if "RacingNumber" in driver_timing_stats:
+                self.__timing_stats.update({
+                    racing_number: TimingStatsData(driver_timing_stats["RacingNumber"]),
+                })
+
+            if "PersonalBestLapTime" in driver_timing_stats:
+                if "Value" in driver_timing_stats["PersonalBestLapTime"]:
+                    if len(driver_timing_stats["PersonalBestLapTime"]["Value"]) > 0:
+                        lap_time: str = driver_timing_stats["PersonalBestLapTime"]["Value"]
+                        self.__timing_stats[racing_number].best_lap_time = lap_time
+
+                if "Lap" in driver_timing_stats["PersonalBestLapTime"]:
+                    lap: int = driver_timing_stats["PersonalBestLapTime"]["Lap"]
+                    self.__timing_stats[racing_number].best_time_lap_number = lap
+
+                if "Position" in driver_timing_stats["PersonalBestLapTime"]:
+                    pos: int = driver_timing_stats["PersonalBestLapTime"]["Position"]
+                    self.__timing_stats[racing_number].best_time_position = pos
+
+            if "BestSectors" in driver_timing_stats:
+                if isinstance(driver_timing_stats["BestSectors"], list):
+                    if len(driver_timing_stats["BestSectors"][0]["Value"]) > 0:
+                        sector_time: str = driver_timing_stats["BestSectors"][0]["Value"]
+                        self.__timing_stats[racing_number].best_sector_1 = sector_time
+
+                    if "Position" in driver_timing_stats["BestSectors"][0]:
+                        position: int = driver_timing_stats["BestSectors"][0]["Position"]
+                        self.__timing_stats[racing_number].sector_1_position = position
+
+                    if len(driver_timing_stats["BestSectors"][1]["Value"]) > 0:
+                        sector_time: str = driver_timing_stats["BestSectors"][1]["Value"]
+                        self.__timing_stats[racing_number].best_sector_2 = sector_time
+
+                    if "Position" in driver_timing_stats["BestSectors"][1]:
+                        position: int = driver_timing_stats["BestSectors"][1]["Position"]
+                        self.__timing_stats[racing_number].sector_2_position = position
+
+                    if len(driver_timing_stats["BestSectors"][2]["Value"]) > 0:
+                        sector_time: str = driver_timing_stats["BestSectors"][2]["Value"]
+                        self.__timing_stats[racing_number].best_sector_3 = sector_time
+
+                    if "Position" in driver_timing_stats["BestSectors"][2]:
+                        position: int = driver_timing_stats["BestSectors"][2]["Position"]
+                        self.__timing_stats[racing_number].sector_3_position = position
+
+                else:
+                    for idx, sector_data in driver_timing_stats["BestSectors"].items():
+                        assert idx in ["0", "1", "2"]
+
+                        if "Value" in sector_data:
+                            if len(sector_data["Value"]) > 0:
+                                sector_time: str = sector_data["Value"]
+
+                                if idx == "0":
+                                    self.__timing_stats[racing_number].best_sector_1 = sector_time
+
+                                elif idx == "1":
+                                    self.__timing_stats[racing_number].best_sector_2 = sector_time
+
+                                elif idx == "2":
+                                    self.__timing_stats[racing_number].best_sector_3 = sector_time
+
+                        if "Position" in sector_data:
+                            position: int = sector_data["Position"]
+
+                            if idx == "0":
+                                self.__timing_stats[racing_number].sector_1_position = position
+
+                            elif idx == "1":
+                                self.__timing_stats[racing_number].sector_2_position = position
+
+                            elif idx == "2":
+                                self.__timing_stats[racing_number].sector_3_position = position
+
+            if "BestSpeeds" in driver_timing_stats:
+                if "I1" in driver_timing_stats["BestSpeeds"]:
+                    if "Value" in driver_timing_stats["BestSpeeds"]["I1"]:
+                        if len(driver_timing_stats["BestSpeeds"]["I1"]["Value"]) > 0:
+                            speed: str = driver_timing_stats["BestSpeeds"]["I1"]["Value"]
+                            self.__timing_stats[racing_number].best_intermediate_1_speed = speed
+
+                    if "Position" in driver_timing_stats["BestSpeeds"]["I1"]:
+                        position: int = driver_timing_stats["BestSpeeds"]["I1"]["Position"]
+                        self.__timing_stats[racing_number].intermediate_1_position = position
+
+                if "I2" in driver_timing_stats["BestSpeeds"]:
+                    if "Value" in driver_timing_stats["BestSpeeds"]["I2"]:
+                        if len(driver_timing_stats["BestSpeeds"]["I2"]["Value"]) > 0:
+                            speed: str = driver_timing_stats["BestSpeeds"]["I2"]["Value"]
+                            self.__timing_stats[racing_number].best_intermediate_2_speed = speed
+
+                    if "Position" in driver_timing_stats["BestSpeeds"]["I2"]:
+                        position: int = driver_timing_stats["BestSpeeds"]["I2"]["Position"]
+                        self.__timing_stats[racing_number].intermediate_2_position = position
+
+                if "FL" in driver_timing_stats["BestSpeeds"]:
+                    if "Value" in driver_timing_stats["BestSpeeds"]["FL"]:
+                        if len(driver_timing_stats["BestSpeeds"]["FL"]["Value"]) > 0:
+                            speed: str = driver_timing_stats["BestSpeeds"]["FL"]["Value"]
+                            self.__timing_stats[racing_number].best_finish_line_speed = speed
+
+                    if "Position" in driver_timing_stats["BestSpeeds"]["FL"]:
+                        position: int = driver_timing_stats["BestSpeeds"]["FL"]["Position"]
+                        self.__timing_stats[racing_number].finish_line_position = position
+
+                if "ST" in driver_timing_stats["BestSpeeds"]:
+                    if "Value" in driver_timing_stats["BestSpeeds"]["ST"]:
+                        if len(driver_timing_stats["BestSpeeds"]["ST"]["Value"]) > 0:
+                            speed: str = driver_timing_stats["BestSpeeds"]["ST"]["Value"]
+                            self.__timing_stats[racing_number].best_speed_trap_speed = speed
+
+                    if "Position" in driver_timing_stats["BestSpeeds"]["ST"]:
+                        position: int = driver_timing_stats["BestSpeeds"]["ST"]["Position"]
+                        self.__timing_stats[racing_number].speed_trap_position = position
 
     @property
     def audio_streams(self):
@@ -793,6 +913,16 @@ class TimingClient:
                         timestamp,
                     ))
 
+            elif topic == TimingType.Topic.TIMING_STATS:
+                self.__update_driver_timing_stats(data)
+
+                self.__msg_q.put((
+                    topic,
+                    self.__timing_stats,
+                    data,
+                    timestamp,
+                ))
+
             elif topic == TimingType.Topic.TRACK_STATUS:
                 if not self.__track_status:
                     self.__track_status = TrackStatusData(
@@ -1050,6 +1180,12 @@ class TimingClient:
 
                     self.__timing_app_data.update({drv_num: data})
 
+            elif d_key == TimingType.Topic.TIMING_STATS:
+                if len(d_val) == 0:
+                    continue
+
+                self.__update_driver_timing_stats(d_val)
+
             elif d_key == TimingType.Topic.TRACK_STATUS:
                 if len(d_val) == 0:
                     continue
@@ -1092,6 +1228,10 @@ class TimingClient:
     @property
     def timing_app_data(self):
         return self.__timing_app_data
+
+    @property
+    def timing_stats(self):
+        return self.__timing_stats
 
     @property
     def track_status(self):
