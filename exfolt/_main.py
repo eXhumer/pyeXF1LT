@@ -30,7 +30,7 @@ from pathlib import Path
 from pkg_resources import require
 from queue import Queue
 from sys import stdout
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from dotenv import dotenv_values
 
@@ -301,8 +301,8 @@ try:
         def __timing_app_data_stint_embed(
             stint: TimingAppData.Stint,
             timestamp: datetime,
-            racing_number: str | None = None,
-            timing_client: TimingClient | None = None,
+            racing_number: Optional[str] = None,
+            timing_client: Optional[TimingClient] = None,
         ):
             compound = (
                 WET_TYRE_EMOJI if stint.compound == TimingType.TyreCompound.WET

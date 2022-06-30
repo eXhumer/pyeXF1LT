@@ -4,7 +4,7 @@ from base64 import b64decode
 from datetime import datetime, timedelta
 from queue import Queue
 from random import randint
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import quote, urlencode
 
 from requests import ConnectionError, HTTPError, Session
@@ -44,16 +44,16 @@ class SignalRClient:
         *topics: str,
         reconnect: bool = True,
     ) -> None:
-        self.__gclb: str | None = None
-        self.__groups_token: str | None = None
+        self.__gclb: Optional[str] = None
+        self.__groups_token: Optional[str] = None
         self.__hub = hub
         self.__idx = 0
-        self.__last_ping_at: datetime | None = None
-        self.__message_id: str | None = None
-        self.__negotiated_at: int | None = None
+        self.__last_ping_at: Optional[datetime] = None
+        self.__message_id: Optional[str] = None
+        self.__negotiated_at: Optional[int] = None
         self.__reconnect = reconnect
         self.__rs = Session()
-        self.__token: str | None = None
+        self.__token: Optional[str] = None
         self.__topics = topics
         self.__url = url
         self.__ws = WebSocket(skip_utf8_validation=True)
@@ -358,8 +358,8 @@ class TimingClient:
         self.__drivers: Dict[str, DriverData] = {}
         self.__timing_app_data: Dict[str, TimingAppData] = {}
         self.__timing_stats: Dict[str, TimingStatsData] = {}
-        self.__extrapolated_clock: ExtrapolatedClockData | None = None
-        self.__lap_count_data: LapCountData | None = None
+        self.__extrapolated_clock: Optional[ExtrapolatedClockData] = None
+        self.__lap_count_data: Optional[LapCountData] = None
         self.__msg_q: Queue[
             Tuple[
                 TimingType.Topic,
@@ -376,16 +376,16 @@ class TimingClient:
                     WeatherData,
                     Dict[str, Any],
                 ],
-                Dict[str, Any] | str,
+                Union[Dict[str, Any], str],
                 datetime,
             ]
         ] = Queue()
         self.__rcm_msgs: List[RaceControlMessageData] = []
-        self.__session_info: SessionInfoData | None = None
-        self.__session_status: TimingType.SessionStatus | None = None
+        self.__session_info: Optional[SessionInfoData] = None
+        self.__session_status: Optional[TimingType.SessionStatus] = None
         self.__team_radios: List[TeamRadioData] = []
-        self.__track_status: TrackStatusData | None = None
-        self.__weather_data: WeatherData | None = None
+        self.__track_status: Optional[TrackStatusData] = None
+        self.__weather_data: Optional[WeatherData] = None
 
     def __iter__(self):
         return self
@@ -536,7 +536,7 @@ class TimingClient:
     def process_data(
         self,
         topic: TimingType.Topic,
-        data: Dict[str, Any] | str,
+        data: Union[Dict[str, Any], str],
         timestamp: datetime,
     ):
         if topic in (

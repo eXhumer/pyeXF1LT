@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from datetime import timedelta
-from typing import Dict, List, Literal
+from typing import Dict, List, Literal, Optional, Union
 
 from ._type import TimingType
 
@@ -66,16 +66,16 @@ class DriverData:
     def __init__(
         self,
         racing_number: str,
-        broadcast_name: str | None = None,
-        full_name: str | None = None,
-        tla: str | None = None,
-        team_name: str | None = None,
-        team_color: str | None = None,
-        first_name: str | None = None,
-        last_name: str | None = None,
-        reference: str | None = None,
-        headshot_url: str | None = None,
-        country_code: str | None = None,
+        broadcast_name: Optional[str] = None,
+        full_name: Optional[str] = None,
+        tla: Optional[str] = None,
+        team_name: Optional[str] = None,
+        team_color: Optional[str] = None,
+        first_name: Optional[str] = None,
+        last_name: Optional[str] = None,
+        reference: Optional[str] = None,
+        headshot_url: Optional[str] = None,
+        country_code: Optional[str] = None,
     ) -> None:
         self.__racing_number = racing_number
         self.__broadcast_name = broadcast_name
@@ -272,12 +272,12 @@ class RaceControlMessageData:
         self,
         category: str,
         message: str,
-        flag: str | None = None,
-        scope: str | None = None,
-        racing_number: str | None = None,
-        sector: int | None = None,
-        lap: int | None = None,
-        status: str | None = None,
+        flag: Optional[str] = None,
+        scope: Optional[str] = None,
+        racing_number: Optional[str] = None,
+        sector: Optional[int] = None,
+        lap: Optional[int] = None,
+        status: Optional[str] = None,
     ) -> None:
         self.__category = category
         self.__message = message
@@ -343,10 +343,10 @@ class RaceControlMessageData:
 class SessionData:
     def __init__(
         self,
-        lap: int | None = None,
-        qualifying_part: int | None = None,
-        track_status: str | None = None,
-        session_status: str | None = None,
+        lap: Optional[int] = None,
+        qualifying_part: Optional[int] = None,
+        track_status: Optional[str] = None,
+        session_status: Optional[str] = None,
     ) -> None:
         self.__lap = lap
         self.__qualifying_part = qualifying_part
@@ -393,7 +393,7 @@ class SessionInfoData:
             "Key",
             "ShortName",
         ],
-        int | str,
+        Union[int, str],
     ]
 
     CountryData = Dict[
@@ -402,7 +402,7 @@ class SessionInfoData:
             "Code",
             "Name",
         ],
-        int | str,
+        Union[int, str],
     ]
 
     MeetingData = Dict[
@@ -414,7 +414,7 @@ class SessionInfoData:
             "Country",
             "Circuit",
         ],
-        int | str | CountryData | CircuitData,
+        Union[int, str, CountryData, CircuitData],
     ]
 
     def __init__(
@@ -428,7 +428,7 @@ class SessionInfoData:
         end_date: str,
         gmt_offset: str,
         path: str,
-        number: int | None = None,
+        number: Optional[int] = None,
     ) -> None:
         self.__meeting = meeting
         self.__archive_status = archive_status
@@ -545,8 +545,8 @@ class TimingAppData:
             tyre_not_changed: bool,
             total_laps: int,
             start_laps: int,
-            lap_time: str | None = None,
-            lap_number: int | None = None,
+            lap_time: Optional[str] = None,
+            lap_number: Optional[int] = None,
         ) -> None:
             self.__lap_flags = lap_flags
             self.__compound = compound
@@ -638,7 +638,7 @@ class TimingAppData:
     def __init__(
         self,
         racing_number: str,
-        grid_position: str | None = None,
+        grid_position: Optional[str] = None,
     ) -> None:
         self.__racing_number = racing_number
         self.__grid_position = grid_position
@@ -674,23 +674,23 @@ class TimingStatsData:
     def __init__(
         self,
         racing_number: str,
-        best_lap_time: str | None = None,
-        best_time_lap_number: int | None = None,
-        best_time_position: int | None = None,
-        best_sector_1_time: str | None = None,
-        sector_1_position: int | None = None,
-        best_sector_2_time: str | None = None,
-        sector_2_position: int | None = None,
-        best_sector_3_time: str | None = None,
-        sector_3_position: int | None = None,
-        best_intermediate_1_speed: str | None = None,
-        intermediate_1_position: int | None = None,
-        best_intermediate_2_speed: str | None = None,
-        intermediate_2_position: int | None = None,
-        best_finish_line_speed: str | None = None,
-        finish_line_position: int | None = None,
-        best_speed_trap_speed: str | None = None,
-        speed_trap_position: int | None = None,
+        best_lap_time: Optional[str] = None,
+        best_time_lap_number: Optional[int] = None,
+        best_time_position: Optional[int] = None,
+        best_sector_1_time: Optional[str] = None,
+        sector_1_position: Optional[int] = None,
+        best_sector_2_time: Optional[str] = None,
+        sector_2_position: Optional[int] = None,
+        best_sector_3_time: Optional[str] = None,
+        sector_3_position: Optional[int] = None,
+        best_intermediate_1_speed: Optional[str] = None,
+        intermediate_1_position: Optional[int] = None,
+        best_intermediate_2_speed: Optional[str] = None,
+        intermediate_2_position: Optional[int] = None,
+        best_finish_line_speed: Optional[str] = None,
+        finish_line_position: Optional[int] = None,
+        best_speed_trap_speed: Optional[str] = None,
+        speed_trap_position: Optional[int] = None,
     ) -> None:
         self.__racing_number = racing_number
 
