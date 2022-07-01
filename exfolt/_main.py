@@ -338,7 +338,7 @@ try:
             return DiscordModel.Embed(
                 title="Pit Stop Information",
                 author=author,
-                fields=[],
+                fields=fields,
                 timestamp=timestamp,
             )
 
@@ -1162,6 +1162,9 @@ def __program_main():
                                     datetime_string_parser(timestamp),
                                 ),
                             )
+
+                        else:
+                            logger.info(timing_item)
 
                     while embed_queue.qsize() > 0:
                         embeds: List[DiscordModel.Embed] = []
