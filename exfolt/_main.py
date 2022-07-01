@@ -942,10 +942,11 @@ def __program_main():
 
                         elif (
                             topic == TimingType.Topic.TIMING_STATS and
-                            isinstance(timing_item, TimingStatsData)
+                            isinstance(timing_item, dict)
                         ):
                             for racing_number, lines_data in data["Lines"].items():
                                 driver_data = timing_client.drivers.get(racing_number, None)
+                                timing_stats: TimingStatsData = timing_item[racing_number]
 
                                 if driver_data:
                                     author = DiscordModel.Embed.Author(
@@ -961,7 +962,7 @@ def __program_main():
                                     "Position" in lines_data["PersonalBestLapTime"] and
                                     lines_data["PersonalBestLapTime"]["Position"] == 1
                                 ):
-                                    new_fl_time = timing_item.best_lap_time
+                                    new_fl_time = timing_stats.best_lap_time
                                     assert new_fl_time
                                     minutes = new_fl_time.seconds // 60
                                     seconds = new_fl_time.total_seconds() - (minutes * 60)
@@ -987,7 +988,7 @@ def __program_main():
                                     "Position" in lines_data["BestSpeeds"]["I1"] and
                                     lines_data["BestSpeeds"]["I1"]["Position"] == 1
                                 ):
-                                    new_i2_speed = timing_item.best_intermediate_1_speed
+                                    new_i2_speed = timing_stats.best_intermediate_1_speed
                                     assert new_i2_speed
 
                                     embed_queue.put(
@@ -1011,7 +1012,7 @@ def __program_main():
                                     "Position" in lines_data["BestSpeeds"]["I2"] and
                                     lines_data["BestSpeeds"]["I2"]["Position"] == 1
                                 ):
-                                    new_i2_speed = timing_item.best_intermediate_2_speed
+                                    new_i2_speed = timing_stats.best_intermediate_2_speed
                                     assert new_i2_speed
 
                                     embed_queue.put(
@@ -1035,7 +1036,7 @@ def __program_main():
                                     "Position" in lines_data["BestSpeeds"]["FL"] and
                                     lines_data["BestSpeeds"]["FL"]["Position"] == 1
                                 ):
-                                    new_fl_speed = timing_item.best_finish_line_speed
+                                    new_fl_speed = timing_stats.best_finish_line_speed
                                     assert new_fl_speed
 
                                     embed_queue.put(
@@ -1059,7 +1060,7 @@ def __program_main():
                                     "Position" in lines_data["BestSpeeds"]["ST"] and
                                     lines_data["BestSpeeds"]["ST"]["Position"] == 1
                                 ):
-                                    new_st_speed = timing_item.best_speed_trap_speed
+                                    new_st_speed = timing_stats.best_speed_trap_speed
                                     assert new_st_speed
 
                                     embed_queue.put(
@@ -1084,7 +1085,7 @@ def __program_main():
                                     "Position" in lines_data["BestSectors"]["0"] and
                                     lines_data["BestSectors"]["0"]["Position"] == 1
                                 ):
-                                    new_s1_time = timing_item.best_sector_1
+                                    new_s1_time = timing_stats.best_sector_1
                                     assert new_s1_time
 
                                     embed_queue.put(
@@ -1109,7 +1110,7 @@ def __program_main():
                                     "Position" in lines_data["BestSectors"]["1"] and
                                     lines_data["BestSectors"]["1"]["Position"] == 1
                                 ):
-                                    new_s2_time = timing_item.best_sector_2
+                                    new_s2_time = timing_stats.best_sector_2
                                     assert new_s2_time
 
                                     embed_queue.put(
@@ -1134,7 +1135,7 @@ def __program_main():
                                     "Position" in lines_data["BestSectors"]["2"] and
                                     lines_data["BestSectors"]["2"]["Position"] == 1
                                 ):
-                                    new_s3_time = timing_item.best_sector_3
+                                    new_s3_time = timing_stats.best_sector_3
                                     assert new_s3_time
 
                                     embed_queue.put(
