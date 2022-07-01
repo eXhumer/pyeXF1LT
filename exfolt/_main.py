@@ -445,55 +445,192 @@ def __message_logger(args: Namespace):
 
 
 def __program_args():
-    parser = ArgumentParser(prog="eXF1LT", description="unofficial F1 live timing client")
-    parser.add_argument("--version", "-V", action="version",
-                        version=f"{parser.prog} {__version__}")
-    parser.add_argument("--verbose", "-v", action="count", default=0,
-                        help="verbose logging output")
-    parser.add_argument("--license", "-L", action="store_true", help="display project license")
-    topics_parser = parser.add_argument_group(title="F1 live timing SignalR streaming topics")
-    topics_parser.add_argument("--audio-streams", action="store_true", help="AudioStreams support")
-    topics_parser.add_argument("--driver-list", action="store_true", help="DriverList support")
-    topics_parser.add_argument("--extrapolated-clock", action="store_true",
-                               help="ExtrapolatedClock support")
-    topics_parser.add_argument("--race-control-messages", action="store_true",
-                               help="RaceControlMessages support")
-    topics_parser.add_argument("--session-info", action="store_true", help="SessionInfo support")
-    topics_parser.add_argument("--session-status", action="store_true",
-                               help="SessionStatus support")
-    topics_parser.add_argument("--team-radio", action="store_true", help="TeamRadio support")
-    topics_parser.add_argument("--timing-app-data", action="store_true",
-                               help="TimingAppData support")
-    topics_parser.add_argument("--timing-stats", action="store_true",
-                               help="TimingStats support")
-    topics_parser.add_argument("--track-status", action="store_true", help="TrackStatus support")
-    topics_parser.add_argument("--weather-data", action="store_true", help="WeatherData support")
-    action_subparser = parser.add_subparsers(dest="action", title="actions",
-                                             description="list of supported command line actions",
-                                             metavar="supported actions")
-    message_log_parser = action_subparser.add_parser("message-logger",
-                                                     help="log incoming messages to file",
-                                                     description="log incoming messages to file")
-    message_log_parser.add_argument("log_file", type=Path, help="file path to store logged " +
-                                    "messaged in")
+    parser = ArgumentParser(
+        prog="eXF1LT",
+        description="unofficial F1 live timing client",
+    )
+    parser.add_argument(
+        "--version",
+        "-V",
+        action="version",
+        version=f"{parser.prog} {__version__}",
+    )
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="count",
+        default=0,
+        help="verbose logging output",
+    )
+    parser.add_argument(
+        "--license",
+        "-L",
+        action="store_true",
+        help="display project license",
+    )
+    topics_parser = parser.add_argument_group(
+        title="F1 live timing SignalR streaming topics",
+    )
+    topics_parser.add_argument(
+        "--archive-status",
+        action="store_true",
+        help="ArchiveStatus support",
+    )
+    topics_parser.add_argument(
+        "--audio-streams",
+        action="store_true",
+        help="AudioStreams support",
+    )
+    topics_parser.add_argument(
+        "--car-data",
+        action="store_true",
+        help="CarData.z support",
+    )
+    topics_parser.add_argument(
+        "--championship-prediction",
+        action="store_true",
+        help="ChampionshipPrediction support",
+    )
+    topics_parser.add_argument(
+        "--content-streams",
+        action="store_true",
+        help="ContentStreams support",
+    )
+    topics_parser.add_argument(
+        "--current-tyres",
+        action="store_true",
+        help="CurrentTyres support",
+    )
+    topics_parser.add_argument(
+        "--driver-list",
+        action="store_true",
+        help="DriverList support",
+    )
+    topics_parser.add_argument(
+        "--extrapolated-clock",
+        action="store_true",
+        help="ExtrapolatedClock support",
+    )
+    topics_parser.add_argument(
+        "--heartbeat",
+        action="store_true",
+        help="Heartbeat support",
+    )
+    topics_parser.add_argument(
+        "--lap-count",
+        action="store_true",
+        help="LapCount support",
+    )
+    topics_parser.add_argument(
+        "--position",
+        action="store_true",
+        help="Position.z support",
+    )
+    topics_parser.add_argument(
+        "--race-control-messages",
+        action="store_true",
+        help="RaceControlMessages support",
+    )
+    topics_parser.add_argument(
+        "--session-data",
+        action="store_true",
+        help="SessionData support",
+    )
+    topics_parser.add_argument(
+        "--session-info",
+        action="store_true",
+        help="SessionInfo support",
+    )
+    topics_parser.add_argument(
+        "--session-status",
+        action="store_true",
+        help="SessionStatus support",
+    )
+    topics_parser.add_argument(
+        "--team-radio",
+        action="store_true",
+        help="TeamRadio support",
+    )
+    topics_parser.add_argument(
+        "--timing-app-data",
+        action="store_true",
+        help="TimingAppData support",
+    )
+    topics_parser.add_argument(
+        "--timing-data",
+        action="store_true",
+        help="TimingData support",
+    )
+    topics_parser.add_argument(
+        "--timing-stats",
+        action="store_true",
+        help="TimingStats support",
+    )
+    topics_parser.add_argument(
+        "--top-three",
+        action="store_true",
+        help="TopThree support",
+    )
+    topics_parser.add_argument(
+        "--track-status",
+        action="store_true",
+        help="TrackStatus support",
+    )
+    topics_parser.add_argument(
+        "--weather-data",
+        action="store_true",
+        help="WeatherData support",
+    )
+    action_subparser = parser.add_subparsers(
+        dest="action",
+        title="actions",
+        description="list of supported command line actions",
+        metavar="supported actions",
+    )
+    live_message_log_parser = action_subparser.add_parser(
+        "message-logger",
+        help="log incoming messages to file",
+        description="log incoming messages to file",
+    )
+    live_message_log_parser.add_argument(
+        "log_file",
+        type=Path,
+        help="file path to store logged messaged in",
+    )
 
     if exdc_available:
-        discord_bot_parser = action_subparser.add_parser("discord-bot", help="run Discord bot " +
-                                                         "output incoming messages as Discord " +
-                                                         "messages", description="run Discord " +
-                                                         "bot to output incoming messages as " +
-                                                         "Discord messages")
-        discord_bot_parser.add_argument("--env-path", type=Path, dest="discord_env_path",
-                                        default=Path("discord.env"),
-                                        help="Discord environment file path")
-        discord_bot_parser.add_argument("--start-message", action="store_true",
-                                        help="show start Discord message on startup")
-        discord_bot_parser.add_argument("--stop-message", action="store_true",
-                                        help="show stop Discord message on exit")
-        discord_bot_parser.add_argument("--replay-audio-streams-message", action="store_true",
-                                        help="replay AudioStreams data")
-        discord_bot_parser.add_argument("--replay-session-info-message", action="store_true",
-                                        help="replay SessionInfo data")
+        live_discord_bot_parser = action_subparser.add_parser(
+            "discord-bot",
+            help="run Discord bot output incoming messages as Discord messages",
+            description="run Discord bot to output incoming messages as Discord messages",
+        )
+        live_discord_bot_parser.add_argument(
+            "--env-path",
+            type=Path,
+            dest="discord_env_path",
+            default=Path("discord.env"),
+            help="Discord environment file path",
+        )
+        live_discord_bot_parser.add_argument(
+            "--start-message",
+            action="store_true",
+            help="show start Discord message on startup",
+        )
+        live_discord_bot_parser.add_argument(
+            "--stop-message",
+            action="store_true",
+            help="show stop Discord message on exit",
+        )
+        live_discord_bot_parser.add_argument(
+            "--replay-audio-streams-message",
+            action="store_true",
+            help="replay AudioStreams data",
+        )
+        live_discord_bot_parser.add_argument(
+            "--replay-session-info-message",
+            action="store_true",
+            help="replay SessionInfo data",
+        )
 
     return parser.parse_args(), parser.prog
 
@@ -546,8 +683,23 @@ def __program_logger(args: Namespace):
 def __setup_live_client(args: Namespace):
     topics: List[TimingType.Topic] = []
 
+    if args.archive_status:
+        topics.append(TimingType.Topic.ARCHIVE_STATUS)
+
     if args.audio_streams:
         topics.append(TimingType.Topic.AUDIO_STREAMS)
+
+    if args.car_data:
+        topics.append(TimingType.Topic.CAR_DATA_Z)
+
+    if args.championship_prediction:
+        topics.append(TimingType.Topic.CHAMPIONSHIP_PREDICTION)
+
+    if args.content_streams:
+        topics.append(TimingType.Topic.CONTENT_STREAMS)
+
+    if args.current_tyres:
+        topics.append(TimingType.Topic.CURRENT_TYRES)
 
     if args.driver_list:
         topics.append(TimingType.Topic.DRIVER_LIST)
@@ -555,8 +707,20 @@ def __setup_live_client(args: Namespace):
     if args.extrapolated_clock:
         topics.append(TimingType.Topic.EXTRAPOLATED_CLOCK)
 
+    if args.heartbeat:
+        topics.append(TimingType.Topic.HEARTBEAT)
+
+    if args.lap_count:
+        topics.append(TimingType.Topic.LAP_COUNT)
+
+    if args.position:
+        topics.append(TimingType.Topic.POSITION_Z)
+
     if args.race_control_messages:
         topics.append(TimingType.Topic.RACE_CONTROL_MESSAGES)
+
+    if args.session_data:
+        topics.append(TimingType.Topic.SESSION_DATA)
 
     if args.session_info:
         topics.append(TimingType.Topic.SESSION_INFO)
@@ -570,8 +734,14 @@ def __setup_live_client(args: Namespace):
     if args.timing_app_data:
         topics.append(TimingType.Topic.TIMING_APP_DATA)
 
+    if args.timing_data:
+        topics.append(TimingType.Topic.TIMING_DATA)
+
     if args.timing_stats:
         topics.append(TimingType.Topic.TIMING_STATS)
+
+    if args.top_three:
+        topics.append(TimingType.Topic.TOP_THREE)
 
     if args.track_status:
         topics.append(TimingType.Topic.TRACK_STATUS)
