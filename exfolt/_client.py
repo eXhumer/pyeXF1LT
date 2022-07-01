@@ -533,9 +533,9 @@ class TimingClient:
     def __update_driver_timing_stats(self, timing_stats_data):
         for racing_number, driver_timing_stats in timing_stats_data["Lines"].items():
             if "RacingNumber" in driver_timing_stats:
-                self.__timing_stats.update({
+                self.__timing_stats |= {
                     racing_number: TimingStatsData(driver_timing_stats["RacingNumber"]),
-                })
+                }
 
             if "PersonalBestLapTime" in driver_timing_stats:
                 if "Value" in driver_timing_stats["PersonalBestLapTime"]:
@@ -1308,7 +1308,7 @@ class TimingClient:
                                 ),
                             )
 
-                    self.__timing_app_data.update({drv_num: data})
+                    self.__timing_app_data |= {drv_num: data}
 
             elif d_key == TimingType.Topic.TIMING_STATS:
                 if len(d_val) == 0:

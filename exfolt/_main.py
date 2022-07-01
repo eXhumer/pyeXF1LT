@@ -406,11 +406,11 @@ try:
         if env_path.is_file():
             for k, v in dotenv_values(dotenv_path=env_path).items():
                 if v is not None and len(v) > 0:
-                    discord_env.update({k: v})
+                    discord_env |= {k: v}
 
         for k, v in environ.items():
             if k.startswith("DISCORD_") and len(v) > 0:
-                discord_env.update({k[8:]: v})
+                discord_env |= {k[8:]: v}
 
         assert all([
             item in discord_env.keys() for item in (
