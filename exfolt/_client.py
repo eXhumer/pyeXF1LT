@@ -1,7 +1,7 @@
 import json
 import zlib
 from base64 import b64decode
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from queue import Queue
 from random import randint
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -338,7 +338,7 @@ class SignalRClient:
 
 class F1LiveClient(SignalRClient):
     """
-    F1 live timing client to receive messages from a live session
+    F1 timing client to receive messages from a live session
     """
 
     __LIVE_URL = "https://livetiming.formula1.com/signalr"
@@ -346,6 +346,113 @@ class F1LiveClient(SignalRClient):
     def __init__(self, *topics: TimingType.Topic) -> None:
         super().__init__(F1LiveClient.__LIVE_URL, TimingType.Hub.STREAMING, *topics,
                          reconnect=True)
+
+
+class F1ReplayClient:
+    """
+    F1 timing client to receive messages from an archived session
+    """
+
+    __REPLAY_URL = "https://livetiming.formula1.com/static"
+
+    def __init__(self, path: str, *topics: TimingType.Topic, session: Optional[Session] = None):
+        if not session:
+            session = Session()
+
+        res = session.get(f"{F1ReplayClient.__REPLAY_URL}/{path}ArchiveStatus.json")
+        res.raise_for_status()
+
+        archive_status = json.loads(res.content.decode("utf-8-sig"))["Status"]
+        assert archive_status == "Complete", f"Unexpected archive status \"{archive_status}\"!"
+
+        self.__path = path
+        self.__topics = topics
+        self.__session = session
+        self.__data_queue: Queue[Tuple[timedelta, Dict[str, Any]]] = Queue()
+
+        self.__load_data()
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.__data_queue.qsize() == 0:
+            raise StopIteration
+
+        return self.__data_queue.get()
+
+    @staticmethod
+    def __timedelta_parser(delta_string: str):
+        assert delta_string.count(":") == 2 and delta_string.count(".") == 1
+        [hours, minutes, seconds] = delta_string.split(":")
+        return timedelta(hours=int(hours), minutes=int(minutes), seconds=float(seconds))
+
+    def __load_data(self):
+        data_entries: List[Tuple[timedelta, Dict[str, Any]]] = []
+
+        for topic in self.__topics:
+            res = self.__session.get(
+                "".join((
+                    f"{F1ReplayClient.__REPLAY_URL}/{self.__path}",
+                    f"{topic}.jsonStream",
+                )),
+            )
+            res.raise_for_status()
+
+            data_entries.extend([
+                (F1ReplayClient.__timedelta_parser(data_entry[:12]), json.loads(data_entry[12:]))
+                for data_entry
+                in res.content.decode(encoding="utf-8-sig").replace("\r", "").split("\n")
+                if len(data_entry) > 0
+            ])
+
+        data_entries.sort(key=lambda entry: entry[0])
+
+        for data_entry in data_entries:
+            self.__data_queue.put(data_entry)
+
+    @classmethod
+    def get_session(
+        cls,
+        event_name: str,
+        event_date: date,
+        session_name: str,
+        session_date: date,
+        *topics: TimingType.Topic,
+        session: Optional[Session] = None,
+    ):
+        if not session:
+            session = Session()
+
+        path = "/".join((
+            str(event_date.year),
+            "_".join((
+                event_date.strftime("%Y-%m-%d"),
+                event_name.replace(" ", "_"),
+            )),
+            "_".join((
+                session_date.strftime("%Y-%m-%d"),
+                session_name.replace(" ", "_"),
+            )),
+        )) + "/"
+
+        return cls(path, *topics, session=session)
+
+    @classmethod
+    def get_last_session(cls, *topics: TimingType.Topic, session: Optional[Session] = None):
+        if not session:
+            session = Session()
+
+        res = session.get(f"{F1ReplayClient.__REPLAY_URL}/StreamingStatus.json")
+        res.raise_for_status()
+        streaming_status = json.loads(res.content.decode("utf-8-sig"))
+        assert streaming_status["Status"] == "Offline", "Use F1LiveClient class for live sessions!"
+
+        res = session.get(f"{F1ReplayClient.__REPLAY_URL}/SessionInfo.json")
+        res.raise_for_status()
+        session_info = json.loads(res.content.decode("utf-8-sig"))
+
+        return cls(session_info["Path"], *topics, session=session)
 
 
 class TimingClient:
