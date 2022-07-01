@@ -1,11 +1,11 @@
-import json
-import zlib
 from base64 import b64decode
 from datetime import date, datetime, timedelta
+from json import dumps, loads
 from queue import Queue
 from random import randint
 from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import quote, urlencode
+from zlib import decompress, MAX_WBITS
 
 from requests import ConnectionError, HTTPError, Session
 from websocket import (
@@ -110,7 +110,7 @@ class SignalRClient:
                     "transport": "webSockets",
                     "connectionToken": self.__token,
                     "clientProtocol": SignalRClient.__client_protocol,
-                    "connectionData": json.dumps(
+                    "connectionData": dumps(
                         [{"name": self.__hub}],
                         separators=(',', ':'),
                     ),
@@ -145,7 +145,7 @@ class SignalRClient:
                         "clientProtocol":
                             SignalRClient.__client_protocol,
                         "connectionToken": self.__token,
-                        "connectionData": json.dumps(
+                        "connectionData": dumps(
                             [{"name": self.__hub}],
                             separators=(',', ':'),
                         ),
@@ -168,7 +168,7 @@ class SignalRClient:
                         "clientProtocol":
                             SignalRClient.__client_protocol,
                         "connectionToken": self.__token,
-                        "connectionData": json.dumps(
+                        "connectionData": dumps(
                             [{"name": self.__hub}],
                             separators=(',', ':'),
                         ),
@@ -191,7 +191,7 @@ class SignalRClient:
             params={
                 "_": str(self.__negotiated_at),
                 "clientProtocol": SignalRClient.__client_protocol,
-                "connectionData": json.dumps(
+                "connectionData": dumps(
                     [{"name": self.__hub}],
                     separators=(',', ':'),
                 ),
@@ -241,7 +241,7 @@ class SignalRClient:
                 opcode, raw_data = self.__ws.recv_data()
                 opcode: int
                 raw_data: bytes
-                json_data = json.loads(raw_data)
+                json_data = loads(raw_data)
                 json_data: Dict[str, Any]
 
                 if "C" in json_data:
@@ -269,7 +269,7 @@ class SignalRClient:
                 "transport": "webSockets",
                 "clientProtocol": SignalRClient.__client_protocol,
                 "connectionToken": self.__token,
-                "connectionData": json.dumps(
+                "connectionData": dumps(
                     [{"name": self.__hub}],
                     separators=(',', ':'),
                 ),
@@ -282,7 +282,7 @@ class SignalRClient:
 
     def __subscribe(self):
         self.__ws.send(
-            json.dumps(
+            dumps(
                 {
                     "H": self.__hub,
                     "M": "Subscribe",
@@ -296,7 +296,7 @@ class SignalRClient:
 
     def __unsubscribe(self):
         self.__ws.send(
-            json.dumps(
+            dumps(
                 {
                     "H": self.__hub,
                     "M": "Unsubscribe",
@@ -362,13 +362,19 @@ class F1ReplayClient:
         res = session.get(f"{F1ReplayClient.__REPLAY_URL}/{path}ArchiveStatus.json")
         res.raise_for_status()
 
-        archive_status = json.loads(res.content.decode("utf-8-sig"))["Status"]
+        archive_status = loads(res.content.decode("utf-8-sig"))["Status"]
         assert archive_status == "Complete", f"Unexpected archive status \"{archive_status}\"!"
 
         self.__path = path
         self.__topics = topics
         self.__session = session
-        self.__data_queue: Queue[Tuple[timedelta, Dict[str, Any]]] = Queue()
+        self.__data_queue: Queue[
+            Tuple[
+                TimingType.Topic,
+                Union[Dict[str, Any], str],
+                timedelta,
+            ]
+        ] = Queue()
 
         self.__load_data()
 
@@ -388,7 +394,7 @@ class F1ReplayClient:
         return timedelta(hours=int(hours), minutes=int(minutes), seconds=float(seconds))
 
     def __load_data(self):
-        data_entries: List[Tuple[timedelta, Dict[str, Any]]] = []
+        data_entries: List[Tuple[TimingType.Topic, Dict[str, Any], timedelta]] = []
 
         for topic in self.__topics:
             res = self.__session.get(
@@ -399,14 +405,31 @@ class F1ReplayClient:
             )
             res.raise_for_status()
 
-            data_entries.extend([
-                (F1ReplayClient.__timedelta_parser(data_entry[:12]), json.loads(data_entry[12:]))
-                for data_entry
-                in res.content.decode(encoding="utf-8-sig").replace("\r", "").split("\n")
-                if len(data_entry) > 0
-            ])
+            if topic not in [TimingType.Topic.CAR_DATA_Z, TimingType.Topic.POSITION_Z]:
+                data_entries.extend([
+                    (
+                        topic,
+                        loads(data_entry[12:]),
+                        F1ReplayClient.__timedelta_parser(data_entry[:12]),
+                    )
+                    for data_entry
+                    in res.content.decode(encoding="utf-8-sig").replace("\r", "").split("\n")
+                    if len(data_entry) > 0
+                ])
 
-        data_entries.sort(key=lambda entry: entry[0])
+            else:
+                data_entries.extend([
+                    (
+                        topic,
+                        data_entry[12:].replace("\"", ""),
+                        F1ReplayClient.__timedelta_parser(data_entry[:12]),
+                    )
+                    for data_entry
+                    in res.content.decode(encoding="utf-8-sig").replace("\r", "").split("\n")
+                    if len(data_entry) > 0
+                ])
+
+        data_entries.sort(key=lambda entry: entry[2])
 
         for data_entry in data_entries:
             self.__data_queue.put(data_entry)
@@ -445,12 +468,12 @@ class F1ReplayClient:
 
         res = session.get(f"{F1ReplayClient.__REPLAY_URL}/StreamingStatus.json")
         res.raise_for_status()
-        streaming_status = json.loads(res.content.decode("utf-8-sig"))
+        streaming_status = loads(res.content.decode("utf-8-sig"))
         assert streaming_status["Status"] == "Offline", "Use F1LiveClient class for live sessions!"
 
         res = session.get(f"{F1ReplayClient.__REPLAY_URL}/SessionInfo.json")
         res.raise_for_status()
-        session_info = json.loads(res.content.decode("utf-8-sig"))
+        session_info = loads(res.content.decode("utf-8-sig"))
 
         return cls(session_info["Path"], *topics, session=session)
 
@@ -505,7 +528,7 @@ class TimingClient:
 
     @staticmethod
     def __decompress_zlib_data(data: str):
-        return zlib.decompress(b64decode(data.encode("ascii")), -15).decode("utf8")
+        return decompress(b64decode(data.encode("ascii")), -MAX_WBITS).decode("utf8")
 
     def __update_driver_timing_stats(self, timing_stats_data):
         for racing_number, driver_timing_stats in timing_stats_data["Lines"].items():
@@ -654,7 +677,7 @@ class TimingClient:
             decompressed_data = TimingClient.__decompress_zlib_data(data)
             self.__msg_q.put((
                 topic,
-                json.loads(decompressed_data),
+                loads(decompressed_data),
                 data,
                 timestamp,
             ))
