@@ -217,6 +217,7 @@ class SignalRClient:
             r = self.__rs.get(
                 f"{self.__url}/ping",
                 params={"_": str(self.__negotiated_at)},
+                cookies={"GCLB": self.__gclb},
             )
             r.raise_for_status()
             response: str = r.json()["Response"]
