@@ -1008,7 +1008,7 @@ def __program_main():
                                             fields=[
                                                 DiscordModel.Embed.Field(
                                                     "Lap Time",
-                                                    f"{minutes}:{seconds}",
+                                                    f"{minutes}:{round(seconds, 3)}",
                                                 ),
                                             ],
                                             timestamp=datetime_string_parser(timestamp),
@@ -1129,7 +1129,7 @@ def __program_main():
                                             fields=[
                                                 DiscordModel.Embed.Field(
                                                     "Time",
-                                                    f"{new_s1_time}",
+                                                    f"{round(new_s1_time, 3)}",
                                                 ),
                                             ],
                                             timestamp=datetime_string_parser(timestamp),
@@ -1154,7 +1154,7 @@ def __program_main():
                                             fields=[
                                                 DiscordModel.Embed.Field(
                                                     "Time",
-                                                    f"{new_s2_time}",
+                                                    f"{round(new_s2_time, 3)}",
                                                 ),
                                             ],
                                             timestamp=datetime_string_parser(timestamp),
@@ -1179,7 +1179,7 @@ def __program_main():
                                             fields=[
                                                 DiscordModel.Embed.Field(
                                                     "Time",
-                                                    f"{new_s3_time}",
+                                                    f"{round(new_s3_time, 3)}",
                                                 ),
                                             ],
                                             timestamp=datetime_string_parser(timestamp),
