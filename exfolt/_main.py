@@ -631,6 +631,17 @@ def __program_args():
             action="store_true",
             help="replay SessionInfo data",
         )
+        live_discord_bot_parser.add_argument(
+            "--log-to-file",
+            dest="log_path",
+            type=Path,
+            help="log to local file",
+        )
+        live_discord_bot_parser.add_argument(
+            "--no-console-log",
+            action="store_true",
+            help="disable logging to console",
+        )
 
     return parser.parse_args(), parser.prog
 
@@ -663,18 +674,40 @@ def __program_license(program_name: str):
 
 
 def __program_logger(args: Namespace):
-    out_stream = StreamHandler(stdout)
-    out_stream.setFormatter(Formatter("[%(asctime)s][%(name)s][%(levelname)s]\t%(message)s"))
+    log_formatter = Formatter("[%(asctime)s][%(name)s][%(levelname)s]\t%(message)s")
+
+    if not args.no_console_log:
+        out_stream = StreamHandler(stdout)
+        out_stream.setFormatter(log_formatter)
+
+    if args.log_path:
+        file_stream = FileHandler(args.log_path, mode="w")
+        file_stream.setFormatter(log_formatter)
 
     logger = getLogger("exfolt")
-    logger.addHandler(out_stream)
+
+    if not args.no_console_log:
+        logger.addHandler(out_stream)
+
+    if args.log_path:
+        logger.addHandler(file_stream)
 
     if args.verbose == 0:
-        out_stream.setLevel(INFO)
+        if not args.no_console_log:
+            out_stream.setLevel(INFO)
+
+        if args.log_path:
+            file_stream.setLevel(INFO)
+
         logger.setLevel(INFO)
 
     else:
-        out_stream.setLevel(DEBUG)
+        if not args.no_console_log:
+            out_stream.setLevel(DEBUG)
+
+        if args.log_path:
+            file_stream.setLevel(DEBUG)
+
         logger.setLevel(DEBUG)
 
     return logger
