@@ -632,6 +632,11 @@ def __program_args():
             help="replay SessionInfo data",
         )
         live_discord_bot_parser.add_argument(
+            "--skip-replay-data",
+            action="store_true",
+            help="skip replay data",
+        )
+        live_discord_bot_parser.add_argument(
             "--log-to-file",
             dest="log_path",
             type=Path,
@@ -845,7 +850,7 @@ def __program_main():
                                     str(datetime.now(tz=timezone.utc)))
                         continue
 
-                    if "R" in message:
+                    if "R" in message and not args.skip_replay_data:
                         logger.info("Old data packet received at " +
                                     str(datetime.now(tz=timezone.utc)))
                         timing_client.process_old_data(message["R"])
