@@ -1032,13 +1032,13 @@ class WeatherData:
         wind_direction: str,
         wind_speed: str,
     ) -> None:
-        self.__air_temp = air_temp
-        self.__humidity = humidity
-        self.__pressure = pressure
-        self.__rainfall = rainfall
-        self.__track_temp = track_temp
-        self.__wind_direction = wind_direction
-        self.__wind_speed = wind_speed
+        self.__air_temp = float(air_temp)
+        self.__humidity = float(humidity)
+        self.__pressure = float(pressure)
+        self.__rainfall = int(rainfall) == 1
+        self.__track_temp = float(track_temp)
+        self.__wind_direction = int(wind_direction)
+        self.__wind_speed = float(wind_speed) * 3.6
 
     def __repr__(self) -> str:
         data = ", ".join((
@@ -1059,7 +1059,7 @@ class WeatherData:
 
     @air_temp.setter
     def air_temp(self, new_air_temp: str):
-        self.__air_temp = new_air_temp
+        self.__air_temp = float(new_air_temp)
 
     @property
     def humidity(self):
@@ -1067,7 +1067,7 @@ class WeatherData:
 
     @humidity.setter
     def humidity(self, new_humidity: str):
-        self.__humidity = new_humidity
+        self.__humidity = float(new_humidity)
 
     @property
     def pressure(self):
@@ -1075,7 +1075,7 @@ class WeatherData:
 
     @pressure.setter
     def pressure(self, new_pressure: str):
-        self.__pressure = new_pressure
+        self.__pressure = float(new_pressure)
 
     @property
     def rainfall(self):
@@ -1083,7 +1083,7 @@ class WeatherData:
 
     @rainfall.setter
     def rainfall(self, new_rainfall: str):
-        self.__rainfall = new_rainfall
+        self.__rainfall = int(new_rainfall) == 1
 
     @property
     def track_temp(self):
@@ -1091,7 +1091,7 @@ class WeatherData:
 
     @track_temp.setter
     def track_temp(self, new_track_temp: str):
-        self.__track_temp = new_track_temp
+        self.__track_temp = float(new_track_temp)
 
     @property
     def wind_direction(self):
@@ -1099,7 +1099,7 @@ class WeatherData:
 
     @wind_direction.setter
     def wind_direction(self, new_wind_direction: str):
-        self.__wind_direction = new_wind_direction
+        self.__wind_direction = int(new_wind_direction)
 
     @property
     def wind_speed(self):
@@ -1107,4 +1107,4 @@ class WeatherData:
 
     @wind_speed.setter
     def wind_speed(self, new_wind_speed: str):
-        self.__wind_speed = new_wind_speed
+        self.__wind_speed = float(new_wind_speed) * 3.6
