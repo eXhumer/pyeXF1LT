@@ -10,8 +10,9 @@ from zlib import decompress, MAX_WBITS
 from requests import ConnectionError, HTTPError, Session
 from websocket import (
     WebSocket,
-    WebSocketTimeoutException,
+    WebSocketBadStatusException,
     WebSocketConnectionClosedException,
+    WebSocketTimeoutException,
 )
 
 from ._model import (
@@ -132,53 +133,65 @@ class SignalRClient:
     def __connect(self):
         assert not self.connected and self.__token
 
-        if self.__groups_token and self.__message_id:
-            self.__ws.connect(
-                "/".join((
-                    self.__url.replace("https://", "wss://"),
-                    "reconnect",
-                )) + "?" + urlencode(
-                    {
-                        "transport": "webSockets",
-                        "groupsToken": self.__groups_token,
-                        "messageId": self.__message_id,
-                        "clientProtocol":
-                            SignalRClient.__client_protocol,
-                        "connectionToken": self.__token,
-                        "connectionData": dumps(
-                            [{"name": self.__hub}],
-                            separators=(',', ':'),
+        while True:
+            try:
+                if self.__groups_token and self.__message_id:
+                    self.__ws.connect(
+                        "/".join((
+                            self.__url.replace("https://", "wss://"),
+                            "reconnect",
+                        )) + "?" + urlencode(
+                            {
+                                "transport": "webSockets",
+                                "groupsToken": self.__groups_token,
+                                "messageId": self.__message_id,
+                                "clientProtocol":
+                                    SignalRClient.__client_protocol,
+                                "connectionToken": self.__token,
+                                "connectionData": dumps(
+                                    [{"name": self.__hub}],
+                                    separators=(',', ':'),
+                                ),
+                                "tid": randint(0, 11),
+                            },
+                            quote_via=quote,
                         ),
-                        "tid": randint(0, 11),
-                    },
-                    quote_via=quote,
-                ),
-                cookie=f"GCLB={self.__gclb}" if self.__gclb else None,
-            )
-            self.__last_ping_at = datetime.now()
+                        cookie=f"GCLB={self.__gclb}" if self.__gclb else None,
+                    )
+                    self.__last_ping_at = datetime.now()
 
-        else:
-            self.__ws.connect(
-                "/".join((
-                    self.__url.replace("https://", "wss://"),
-                    "connect",
-                )) + "?" + urlencode(
-                    {
-                        "transport": "webSockets",
-                        "clientProtocol":
-                            SignalRClient.__client_protocol,
-                        "connectionToken": self.__token,
-                        "connectionData": dumps(
-                            [{"name": self.__hub}],
-                            separators=(',', ':'),
+                else:
+                    self.__ws.connect(
+                        "/".join((
+                            self.__url.replace("https://", "wss://"),
+                            "connect",
+                        )) + "?" + urlencode(
+                            {
+                                "transport": "webSockets",
+                                "clientProtocol":
+                                    SignalRClient.__client_protocol,
+                                "connectionToken": self.__token,
+                                "connectionData": dumps(
+                                    [{"name": self.__hub}],
+                                    separators=(',', ':'),
+                                ),
+                                "tid": randint(0, 11),
+                            },
+                            quote_via=quote,
                         ),
-                        "tid": randint(0, 11),
-                    },
-                    quote_via=quote,
-                ),
-                cookie=f"GCLB={self.__gclb}" if self.__gclb else None,
-            )
-            self.__last_ping_at = datetime.now()
+                        cookie=f"GCLB={self.__gclb}" if self.__gclb else None,
+                    )
+                    self.__last_ping_at = datetime.now()
+
+            except WebSocketBadStatusException as e:
+                if "set-cookie" in e.resp_headers:
+                    set_cookie = e.resp_headers["set-cookie"]
+
+                    if set_cookie.startswith("GCLB"):
+                        self.__gclb = set_cookie.split(";")[0].split("=")[1]
+                        continue
+
+                raise e
 
     def __negotiate(self):
         if self.__token:
