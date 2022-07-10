@@ -183,6 +183,8 @@ class SignalRClient:
                     )
                     self.__last_ping_at = datetime.now()
 
+                break
+
             except WebSocketBadStatusException as e:
                 if "set-cookie" in e.resp_headers:
                     set_cookie = e.resp_headers["set-cookie"]
