@@ -804,8 +804,6 @@ def __program_main():
             with __setup_live_client(args) as live_client:
                 for _, message in live_client:
                     if len(message) == 0:
-                        logger.info("KeepAlive packet received at " +
-                                    str(datetime.now(tz=timezone.utc)))
                         continue
 
                     if "R" in message:
@@ -846,8 +844,6 @@ def __program_main():
             with __setup_live_client(args) as live_client:
                 for _, message in live_client:
                     if len(message) == 0:
-                        logger.info("KeepAlive packet received at " +
-                                    str(datetime.now(tz=timezone.utc)))
                         continue
 
                     if "R" in message and not args.skip_replay_data:

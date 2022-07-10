@@ -1,5 +1,5 @@
 from base64 import b64decode
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from json import dumps, loads
 from logging import getLogger
 from queue import Queue
@@ -256,8 +256,7 @@ class SignalRClient:
         self.__negotiated_at += 1
 
         try:
-            SignalRClient.__logger.info("Pinging SignalR connection with ID " +
-                                        f"{self.__connection_id}!")
+            SignalRClient.__logger.info(f"Pinging SignalR connection with ID {self.__id}!")
             r = self.__rest_transport.get(
                 f"{self.__url}/ping",
                 params={"_": str(self.__negotiated_at)},
@@ -280,12 +279,19 @@ class SignalRClient:
                     self.__ping()
 
                 opcode, raw_data = self.__transport.recv_data()
-                SignalRClient.__logger.info("Received SignalR message from connection with ID " +
-                                            f"{self.__id}!")
                 opcode: int
                 raw_data: bytes
                 json_data = loads(raw_data)
                 json_data: Dict[str, Any]
+
+                if len(json_data) == 0:
+                    SignalRClient.__logger.info("KeepAlive packet received at " +
+                                                str(datetime.now(tz=timezone.utc)) +
+                                                f" from connection with ID {self.__id}!")
+
+                else:
+                    SignalRClient.__logger.info("Received SignalR message from connection with " +
+                                                f"ID {self.__id}!")
 
                 if "C" in json_data:
                     message_id: str = json_data["C"]
