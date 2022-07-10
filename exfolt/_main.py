@@ -16,7 +16,7 @@
 
 import json
 from argparse import ArgumentParser, Namespace
-from datetime import datetime, timezone
+from datetime import datetime
 from logging import (
     DEBUG,
     FileHandler,
@@ -807,13 +807,9 @@ def __program_main():
                         continue
 
                     if "R" in message:
-                        logger.info("Old data packet received at " +
-                                    str(datetime.now(tz=timezone.utc)))
                         message_logger.info(json.dumps(message["R"]))
 
                     if "M" in message and len(message["M"]) > 0:
-                        logger.info("New data packet received at " +
-                                    str(datetime.now(tz=timezone.utc)))
                         message_logger.info(json.dumps(message["M"][0]["A"]))
 
         except KeyboardInterrupt:
@@ -847,8 +843,6 @@ def __program_main():
                         continue
 
                     if "R" in message and not args.skip_replay_data:
-                        logger.info("Old data packet received at " +
-                                    str(datetime.now(tz=timezone.utc)))
                         timing_client.process_old_data(message["R"])
 
                         if args.replay_audio_streams_message:
@@ -870,8 +864,6 @@ def __program_main():
                             )
 
                     if "M" in message and len(message["M"]) > 0:
-                        logger.info("New data packet received at " +
-                                    str(datetime.now(tz=timezone.utc)))
                         live_msg_data = message["M"][0]["A"]
                         timing_client.process_data(*live_msg_data)
 
