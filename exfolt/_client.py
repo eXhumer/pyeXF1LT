@@ -151,8 +151,7 @@ class SignalRClient:
     def __connect(self):
         try:
             assert not self.connected and self.__token
-            SignalRClient.__logger.info("Connecting to SignalR transport with URL " +
-                                        f"({self.__url})!")
+            SignalRClient.__logger.info(f"Connecting to SignalR transport with URL {self.__url}!")
 
         except AssertionError as ex:
             if self.connected:
