@@ -286,7 +286,7 @@ class SignalRClient:
                 if len(json_data) == 0:
                     SignalRClient.__logger.info("KeepAlive packet received at " +
                                                 str(datetime.now(tz=timezone.utc)) +
-                                                f" from connection with ID {self.__id}!")
+                                                f" from SignalR connection with ID {self.__id}!")
 
                 else:
                     SignalRClient.__logger.info("Received SignalR message from connection with " +
