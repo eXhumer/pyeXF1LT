@@ -1,6 +1,7 @@
 from base64 import b64decode
 from datetime import date, datetime, timedelta
 from json import dumps, loads
+from logging import getLogger
 from queue import Queue
 from random import randint
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -33,36 +34,43 @@ from ._type import TimingType
 
 class SignalRClient:
     """
-    SignalR client to communicate with SignalR server
+    SignalR client to communicate with SignalR server.
+
+    Currently only supports webSocket transport. Mainly created for use as F1 live timing client
+    (F1LiveClient).
     """
+
     __client_protocol = "1.5"
+    __logger = getLogger("exfolt.SignalRClient")
     __ping_interval = timedelta(minutes=5)
 
-    def __init__(
-        self,
-        url: str,
-        hub: str,
-        *topics: str,
-        reconnect: bool = True,
-    ) -> None:
+    def __init__(self, url: str, connection_data: Dict[str, List[str]], reconnect: bool = True):
         self.__gclb: Optional[str] = None
+        self.__connection_data = connection_data
         self.__groups_token: Optional[str] = None
-        self.__hub = hub
-        self.__idx = 0
+        self.__command_id = 0
         self.__last_ping_at: Optional[datetime] = None
+        self.__id: Optional[str] = None
         self.__message_id: Optional[str] = None
         self.__negotiated_at: Optional[int] = None
         self.__reconnect = reconnect
-        self.__rs = Session()
         self.__token: Optional[str] = None
-        self.__topics = topics
+        self.__transport_type = "webSockets"
         self.__url = url
-        self.__ws = WebSocket(skip_utf8_validation=True)
+        self.__rest_transport = Session()
+
+        if self.__transport_type == "webSockets":
+            self.__transport = WebSocket(skip_utf8_validation=True)
+
+        else:
+            self.__transport = None
 
     def __enter__(self):
+        SignalRClient.__logger.info("Entering SignalR client context!")
         return self.open()
 
     def __exit__(self, *args):
+        SignalRClient.__logger.info("Exiting SignalR client context!")
         self.close()
 
     def __iter__(self):
@@ -78,9 +86,13 @@ class SignalRClient:
                     return self.__recv()
 
                 except WebSocketConnectionClosedException:
+                    SignalRClient.__logger.warning("Connection closed unexpectedly!")
+
                     if not self.__reconnect:
+                        SignalRClient.__logger.info("Reconnection disabled! Raising exception!")
                         raise
 
+                    SignalRClient.__logger.info("Attempting to reconnect!")
                     continue
 
             raise StopIteration
@@ -88,14 +100,14 @@ class SignalRClient:
     def __repr__(self):
         __data = ", ".join((
             f"url={self.__url}",
-            f"hub={self.__hub}",
+            f"connection_data={self.__connection_data}",
+            f"id={self.__id}",
             f"token={self.__token}",
-            f"topics={self.__topics}",
             f"message_id={self.__message_id}",
             f"groups_token={self.__groups_token}",
         ))
 
-        return f"SRLiveClient({__data})"
+        return f"{type(self).__name__}({__data})"
 
     def __str__(self):
         return self.__repr__()
@@ -105,14 +117,15 @@ class SignalRClient:
             return False
 
         try:
-            r = self.__rs.post(
+            SignalRClient.__logger.info(f"Aborting SignalR connection with ID {self.__id}!")
+            r = self.__rest_transport.post(
                 f"{self.__url}/abort",
                 params={
-                    "transport": "webSockets",
+                    "transport": self.__transport_type,
                     "connectionToken": self.__token,
                     "clientProtocol": SignalRClient.__client_protocol,
                     "connectionData": dumps(
-                        [{"name": self.__hub}],
+                        [{"name": hub} for hub in self.__connection_data.keys()],
                         separators=(',', ':'),
                     ),
                 },
@@ -122,34 +135,47 @@ class SignalRClient:
             return True
 
         except (ConnectionError, HTTPError):
+            SignalRClient.__logger.error("Error while trying to abort SignalR connection with " +
+                                         f"ID {self.__id}!")
             return False
 
     def __close(self):
-        if not self.__ws.connected:
+        if not self.__transport.connected:
             return
 
-        self.__ws.close()
+        SignalRClient.__logger.info(f"Closing SignalR connection with ID {self.__id}!")
+        self.__transport.close()
+        self.__id = None
+        self.__token = None
 
     def __connect(self):
-        assert not self.connected and self.__token
+        try:
+            assert not self.connected and self.__token
+            SignalRClient.__logger.info("Connecting to SignalR transport with URL " +
+                                        f"({self.__url})!")
+
+        except AssertionError as ex:
+            if self.connected:
+                SignalRClient.__logger.warning("Connection already established!")
+
+            if not self.__token:
+                SignalRClient.__logger.warning("No connection token available!")
+
+            raise ex
 
         while True:
             try:
                 if self.__groups_token and self.__message_id:
-                    self.__ws.connect(
-                        "/".join((
-                            self.__url.replace("https://", "wss://"),
-                            "reconnect",
-                        )) + "?" + urlencode(
+                    self.__transport.connect(
+                        f"{self.__url.replace('https://', 'wss://')}/reconnect" + "?" + urlencode(
                             {
-                                "transport": "webSockets",
+                                "transport": self.__transport_type,
                                 "groupsToken": self.__groups_token,
                                 "messageId": self.__message_id,
-                                "clientProtocol":
-                                    SignalRClient.__client_protocol,
+                                "clientProtocol": SignalRClient.__client_protocol,
                                 "connectionToken": self.__token,
                                 "connectionData": dumps(
-                                    [{"name": self.__hub}],
+                                    [{"name": hub} for hub in self.__connection_data.keys()],
                                     separators=(',', ':'),
                                 ),
                                 "tid": randint(0, 11),
@@ -158,21 +184,16 @@ class SignalRClient:
                         ),
                         cookie=f"GCLB={self.__gclb}" if self.__gclb else None,
                     )
-                    self.__last_ping_at = datetime.now()
 
                 else:
-                    self.__ws.connect(
-                        "/".join((
-                            self.__url.replace("https://", "wss://"),
-                            "connect",
-                        )) + "?" + urlencode(
+                    self.__transport.connect(
+                        f"{self.__url.replace('https://', 'wss://')}/connect" + "?" + urlencode(
                             {
-                                "transport": "webSockets",
-                                "clientProtocol":
-                                    SignalRClient.__client_protocol,
+                                "transport": self.__transport_type,
+                                "clientProtocol": SignalRClient.__client_protocol,
                                 "connectionToken": self.__token,
                                 "connectionData": dumps(
-                                    [{"name": self.__hub}],
+                                    [{"name": hub} for hub in self.__connection_data.keys()],
                                     separators=(',', ':'),
                                 ),
                                 "tid": randint(0, 11),
@@ -181,11 +202,14 @@ class SignalRClient:
                         ),
                         cookie=f"GCLB={self.__gclb}" if self.__gclb else None,
                     )
-                    self.__last_ping_at = datetime.now()
 
+                self.__last_ping_at = datetime.utcnow()
                 break
 
             except WebSocketBadStatusException as e:
+                SignalRClient.__logger.warning("Connecting to SignalR transport failed due to " +
+                                               "transport handshake exception!")
+
                 if "set-cookie" in e.resp_headers:
                     set_cookie = e.resp_headers["set-cookie"]
 
@@ -199,15 +223,16 @@ class SignalRClient:
         if self.__token:
             return
 
-        self.__negotiated_at = int(datetime.now().timestamp() * 1000)
+        SignalRClient.__logger.info("Negotiating for new SignalR connection!")
+        self.__negotiated_at = int(datetime.utcnow().timestamp() * 1000)
 
-        r = self.__rs.get(
+        r = self.__rest_transport.get(
             f"{self.__url}/negotiate",
             params={
                 "_": str(self.__negotiated_at),
                 "clientProtocol": SignalRClient.__client_protocol,
                 "connectionData": dumps(
-                    [{"name": self.__hub}],
+                    [{"name": hub} for hub in self.__connection_data.keys()],
                     separators=(',', ':'),
                 ),
             },
@@ -220,7 +245,9 @@ class SignalRClient:
 
         r_json = r.json()
         conn_token: str = r_json["ConnectionToken"]
+        conn_id: str = r_json["ConnectionId"]
         self.__token = conn_token
+        self.__id = conn_id
 
     def __ping(self):
         if not self.__token:
@@ -229,7 +256,9 @@ class SignalRClient:
         self.__negotiated_at += 1
 
         try:
-            r = self.__rs.get(
+            SignalRClient.__logger.info("Pinging SignalR connection with ID " +
+                                        f"{self.__connection_id}!")
+            r = self.__rest_transport.get(
                 f"{self.__url}/ping",
                 params={"_": str(self.__negotiated_at)},
                 cookies={"GCLB": self.__gclb},
@@ -246,15 +275,13 @@ class SignalRClient:
 
         while True:
             try:
-                if (
-                    datetime.now() >=
-                    self.__last_ping_at +
-                    SignalRClient.__ping_interval
-                ):
-                    self.__last_ping_at = datetime.now()
+                if datetime.utcnow() >= self.__last_ping_at + SignalRClient.__ping_interval:
+                    self.__last_ping_at = datetime.utcnow()
                     self.__ping()
 
-                opcode, raw_data = self.__ws.recv_data()
+                opcode, raw_data = self.__transport.recv_data()
+                SignalRClient.__logger.info("Received SignalR message from connection with ID " +
+                                            f"{self.__id}!")
                 opcode: int
                 raw_data: bytes
                 json_data = loads(raw_data)
@@ -278,15 +305,15 @@ class SignalRClient:
             return False
 
         self.__negotiated_at += 1
-
-        r = self.__rs.get(
+        SignalRClient.__logger.info(f"Started SignalR connection with ID {self.__id}!")
+        r = self.__rest_transport.get(
             f"{self.__url}/start",
             params={
-                "transport": "webSockets",
+                "transport": self.__transport_type,
                 "clientProtocol": SignalRClient.__client_protocol,
                 "connectionToken": self.__token,
                 "connectionData": dumps(
-                    [{"name": self.__hub}],
+                    [{"name": hub} for hub in self.__connection_data.keys()],
                     separators=(',', ':'),
                 ),
                 "_": str(self.__negotiated_at),
@@ -297,32 +324,38 @@ class SignalRClient:
         return response == "started"
 
     def __subscribe(self):
-        self.__ws.send(
-            dumps(
-                {
-                    "H": self.__hub,
-                    "M": "Subscribe",
-                    "A": [self.__topics],
-                    "I": self.__idx,
-                },
-                separators=(',', ':'),
-            ),
-        )
-        self.__idx += 1
+        for hub, topics in self.__connection_data.items():
+            SignalRClient.__logger.info(f"Subscribing SignalR connection with ID {self.__id} to " +
+                                        f"hub '{hub}' for topics {topics}!")
+            self.__transport.send(
+                dumps(
+                    {
+                        "H": hub,
+                        "M": "Subscribe",
+                        "A": [topics],
+                        "I": self.__command_id,
+                    },
+                    separators=(',', ':'),
+                ),
+            )
+            self.__command_id += 1
 
     def __unsubscribe(self):
-        self.__ws.send(
-            dumps(
-                {
-                    "H": self.__hub,
-                    "M": "Unsubscribe",
-                    "A": [self.__topics],
-                    "I": self.__idx,
-                },
-                separators=(',', ':'),
-            ),
-        )
-        self.__idx += 1
+        for hub, topics in self.__connection_data.items():
+            SignalRClient.__logger.info(f"Unsubscribing SignalR connection with ID {self.__id} " +
+                                        f"from hub '{hub}' for topics {topics}!")
+            self.__transport.send(
+                dumps(
+                    {
+                        "H": hub,
+                        "M": "Unsubscribe",
+                        "A": [topics],
+                        "I": self.__command_id,
+                    },
+                    separators=(',', ':'),
+                ),
+            )
+            self.__command_id += 1
 
     def close(self):
         if self.connected:
@@ -335,7 +368,7 @@ class SignalRClient:
 
     @property
     def connected(self):
-        return self.__ws.connected
+        return self.__transport.connected
 
     def open(self):
         if not self.__token:
@@ -359,8 +392,8 @@ class F1LiveClient(SignalRClient):
 
     __LIVE_URL = "https://livetiming.formula1.com/signalr"
 
-    def __init__(self, *topics: TimingType.Topic) -> None:
-        super().__init__(F1LiveClient.__LIVE_URL, TimingType.Hub.STREAMING, *topics,
+    def __init__(self, *topics: TimingType.Topic):
+        super().__init__(F1LiveClient.__LIVE_URL, {TimingType.Hub.STREAMING: topics},
                          reconnect=True)
 
 
@@ -499,7 +532,7 @@ class TimingClient:
     Timing client to handle streamed session data from F1 sessions.
     """
 
-    def __init__(self) -> None:
+    def __init__(self):
         self.__audio_streams: List[AudioStreamData] = []
         self.__drivers: Dict[str, DriverData] = {}
         self.__timing_app_data: Dict[str, TimingAppData] = {}
