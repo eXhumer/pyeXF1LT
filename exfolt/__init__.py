@@ -20,12 +20,12 @@ Unofficial F1 live timing client package
 
 from pkg_resources import require
 
-from ._client import F1LiveClient, F1ReplayClient, TimingClient  # noqa: F401
+from ._client import F1LiveClient, F1ArchiveClient, TimingClient  # noqa: F401
 from ._type import TimingType  # noqa: F401
 from ._model import (  # noqa: F401
-    AudioStreamData,
-    DriverData,
-    ExtrapolatedClockData,
+    AudioStream,
+    Driver,
+    ExtrapolatedClock,
     LapCountData,
     RaceControlMessageData,
     SessionData,

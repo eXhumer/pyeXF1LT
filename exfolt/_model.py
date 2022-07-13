@@ -14,36 +14,28 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Dict, List, Literal, Optional, Union
 
 from ._type import TimingType
 
 
-class AudioStreamData:
-    def __init__(
-        self,
-        name: str,
-        language: str,
-        uri: str,
-        path: str,
-    ) -> None:
+class AudioStream:
+    def __init__(self, name: str, language: str, uri: str, path: str):
         self.__name = name
         self.__language = language
         self.__uri = uri
         self.__path = path
 
-    def __repr__(self) -> str:
-        return (
-            "AudioStreamData(" +
-            ", ".join((
-                f"name={self.__name}",
-                f"language={self.__language}",
-                f"uri={self.__uri}",
-                f"path={self.__path}",
-            )) +
-            ")"
-        )
+    def __repr__(self):
+        data = ", ".join((
+            f"name={self.__name}",
+            f"language={self.__language}",
+            f"uri={self.__uri}",
+            f"path={self.__path}",
+        ))
+
+        return f"{type(self).__name__}({data})"
 
     @property
     def name(self):
@@ -62,21 +54,13 @@ class AudioStreamData:
         return self.__path
 
 
-class DriverData:
-    def __init__(
-        self,
-        racing_number: str,
-        broadcast_name: Optional[str] = None,
-        full_name: Optional[str] = None,
-        tla: Optional[str] = None,
-        team_name: Optional[str] = None,
-        team_color: Optional[str] = None,
-        first_name: Optional[str] = None,
-        last_name: Optional[str] = None,
-        reference: Optional[str] = None,
-        headshot_url: Optional[str] = None,
-        country_code: Optional[str] = None,
-    ) -> None:
+class Driver:
+    def __init__(self, racing_number: str, broadcast_name: Optional[str] = None,
+                 full_name: Optional[str] = None, tla: Optional[str] = None,
+                 team_name: Optional[str] = None, team_color: Optional[str] = None,
+                 first_name: Optional[str] = None, last_name: Optional[str] = None,
+                 reference: Optional[str] = None, headshot_url: Optional[str] = None,
+                 country_code: Optional[str] = None):
         self.__racing_number = racing_number
         self.__broadcast_name = broadcast_name
         self.__full_name = full_name
@@ -89,24 +73,28 @@ class DriverData:
         self.__headshot_url = headshot_url
         self.__country_code = country_code
 
-    def __repr__(self) -> str:
-        return (
-            "DriverData(" +
-            ", ".join((
-                f"racing_number={self.__racing_number}",
-                f"broadcast_name={self.__broadcast_name}",
-                f"full_name={self.__full_name}",
-                f"tla={self.__tla}",
-                f"team_name={self.__team_name}",
-                f"team_color={self.__team_color}",
-                f"first_name={self.__first_name}",
-                f"last_name={self.__last_name}",
-                f"reference={self.__reference}",
-                f"headshot_url={self.__headshot_url}",
-                f"country_code={self.__country_code}",
-            )) +
-            ")"
-        )
+    def __repr__(self):
+        data = ", ".join((
+            f"racing_number={self.__racing_number}",
+            f"broadcast_name={self.__broadcast_name}",
+            f"full_name={self.__full_name}",
+            f"tla={self.__tla}",
+            f"team_name={self.__team_name}",
+            f"team_color={self.__team_color}",
+            f"first_name={self.__first_name}",
+            f"last_name={self.__last_name}",
+            f"reference={self.__reference}",
+            f"headshot_url={self.__headshot_url}",
+            f"country_code={self.__country_code}",
+        ))
+
+        return f"{type(self).__name__}({data})"
+
+    def __str__(self):
+        if self.first_name and self.last_name:
+            return f"{self.first_name} {self.last_name} ({self.racing_number})"
+
+        return self.racing_number
 
     @property
     def racing_number(self):
@@ -180,34 +168,21 @@ class DriverData:
     def country_code(self, country_code: str):
         self.__country_code = country_code
 
-    def __str__(self) -> str:
-        if self.first_name and self.last_name:
-            return f"{self.first_name} {self.last_name} ({self.racing_number})"
 
-        return self.racing_number
-
-
-class ExtrapolatedClockData:
-    def __init__(
-        self,
-        remanining: str,
-        extrapolating: bool,
-        utc: str,
-    ) -> None:
+class ExtrapolatedClock:
+    def __init__(self, remanining: str, extrapolating: bool, timestamp: datetime):
         self.__remaining = remanining
         self.__extrapolating = extrapolating
-        self.__utc = utc
+        self.__timestamp = timestamp
 
-    def __repr__(self) -> str:
-        return (
-            "ExtrapolatedClockData(" +
-            ", ".join((
-                f"remanining={self.__remaining}",
-                f"extrapolating={self.__extrapolating}",
-                f"utc={self.__utc}",
-            )) +
-            ")"
-        )
+    def __repr__(self):
+        data = ", ".join((
+            f"remanining={self.__remaining}",
+            f"extrapolating={self.__extrapolating}",
+            f"utc={self.__timestamp}",
+        ))
+
+        return f"{type(self).__name__}({data})"
 
     @property
     def remaining(self):
@@ -218,8 +193,8 @@ class ExtrapolatedClockData:
         return self.__extrapolating
 
     @property
-    def utc(self):
-        return self.__utc
+    def timestamp(self):
+        return self.__timestamp
 
     @remaining.setter
     def remaining(self, remaining: str):
@@ -229,9 +204,9 @@ class ExtrapolatedClockData:
     def extrapolating(self, extrapolating: bool):
         self.__extrapolating = extrapolating
 
-    @utc.setter
-    def utc(self, utc: str):
-        self.__utc = utc
+    @timestamp.setter
+    def timestamp(self, timestamp: datetime):
+        self.__timestamp = timestamp
 
 
 class LapCountData:
@@ -239,7 +214,7 @@ class LapCountData:
         self,
         current_lap: int,
         total_laps: int,
-    ) -> None:
+    ):
         self.__current_lap = current_lap
         self.__total_laps = total_laps
 
@@ -278,7 +253,7 @@ class RaceControlMessageData:
         sector: Optional[int] = None,
         lap: Optional[int] = None,
         status: Optional[str] = None,
-    ) -> None:
+    ):
         self.__category = category
         self.__message = message
         self.__flag = flag
@@ -288,7 +263,7 @@ class RaceControlMessageData:
         self.__lap = lap
         self.__status = status
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         return (
             "RaceControlMessageData(" +
             ", ".join((
@@ -347,13 +322,13 @@ class SessionData:
         qualifying_part: Optional[int] = None,
         track_status: Optional[str] = None,
         session_status: Optional[str] = None,
-    ) -> None:
+    ):
         self.__lap = lap
         self.__qualifying_part = qualifying_part
         self.__track_status = track_status
         self.__session_status = session_status
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         return (
             "SessionData(" +
             ", ".join((
@@ -429,7 +404,7 @@ class SessionInfoData:
         gmt_offset: str,
         path: str,
         number: Optional[int] = None,
-    ) -> None:
+    ):
         self.__meeting = meeting
         self.__archive_status = archive_status
         self.__key = key
@@ -441,7 +416,7 @@ class SessionInfoData:
         self.__path = path
         self.__number = number
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         return (
             "SessionInfoData(" +
             ", ".join((
@@ -506,12 +481,12 @@ class TeamRadioData:
         racing_number: str,
         path: str,
         timestamp: str,
-    ) -> None:
+    ):
         self.__racing_number = racing_number
         self.__path = path
         self.__timestamp = timestamp
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         return (
             "TeamRadioData(" +
             ", ".join((
@@ -547,7 +522,7 @@ class TimingAppData:
             start_laps: int,
             lap_time: Optional[str] = None,
             lap_number: Optional[int] = None,
-        ) -> None:
+        ):
             self.__lap_flags = lap_flags
             self.__compound = compound
             self.__new = new
@@ -639,7 +614,7 @@ class TimingAppData:
         self,
         racing_number: str,
         grid_position: Optional[str] = None,
-    ) -> None:
+    ):
         self.__racing_number = racing_number
         self.__grid_position = grid_position
         self.__stints: List[TimingAppData.Stint] = []
@@ -691,7 +666,7 @@ class TimingStatsData:
         finish_line_position: Optional[int] = None,
         best_speed_trap_speed: Optional[str] = None,
         speed_trap_position: Optional[int] = None,
-    ) -> None:
+    ):
         self.__racing_number = racing_number
 
         if best_lap_time:
@@ -938,7 +913,7 @@ class TimingStatsData:
     def speed_trap_position(self, new_position: int):
         self.__speed_trap_position = int(new_position)
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         return (
             "TimingStatsData(" + ", ".join((
                 f"racing_number={self.__racing_number}",
@@ -964,11 +939,11 @@ class TimingStatsData:
 
 
 class TrackStatusData:
-    def __init__(self, status: TimingType.TrackStatus, message: str) -> None:
+    def __init__(self, status: TimingType.TrackStatus, message: str):
         self.__status = status
         self.__message = message
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         return (
             "TrackStatusData(" +
             ", ".join((
@@ -1031,7 +1006,7 @@ class WeatherData:
         track_temp: str,
         wind_direction: str,
         wind_speed: str,
-    ) -> None:
+    ):
         self.__air_temp = float(air_temp)
         self.__humidity = float(humidity)
         self.__pressure = float(pressure)
@@ -1040,7 +1015,7 @@ class WeatherData:
         self.__wind_direction = int(wind_direction)
         self.__wind_speed = float(wind_speed) * 3.6
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         data = ", ".join((
             f"air_temp={self.__air_temp}",
             f"humidity={self.__humidity}",

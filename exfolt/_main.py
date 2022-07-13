@@ -35,8 +35,8 @@ from typing import Dict, List, Optional
 from dotenv import dotenv_values
 
 from ._client import (
-    AudioStreamData,
-    ExtrapolatedClockData,
+    AudioStream,
+    ExtrapolatedClock,
     F1LiveClient,
     RaceControlMessageData,
     SessionInfoData,
@@ -47,7 +47,7 @@ from ._client import (
     TimingType,
     TrackStatusData,
 )
-from ._utils import datetime_string_parser
+from ._utils import datetime_parser
 
 
 __version__ = require(__package__)[0].version
@@ -80,7 +80,7 @@ try:
         YELLOW_FLAG_EMOJI = discord_env["YELLOW_FLAG_EMOJI"]
 
         def __audio_stream_embed(
-            audio_stream: AudioStreamData,
+            audio_stream: AudioStream,
             timing_client: TimingClient,
             timestamp: datetime,
         ):
@@ -143,7 +143,7 @@ try:
             if WEBHOOK_TOKEN and WEBHOOK_ID:
                 DiscordClient.post_webhook_message(WEBHOOK_ID, WEBHOOK_TOKEN, **args)
 
-        def __extrapolated_clock_embed(clock_data: ExtrapolatedClockData, timestamp: datetime):
+        def __extrapolated_clock_embed(clock_data: ExtrapolatedClock, timestamp: datetime):
             return DiscordModel.Embed(
                 title="Extrapolated Clock",
                 fields=[
@@ -463,6 +463,17 @@ def __program_args():
         help="verbose logging output",
     )
     parser.add_argument(
+        "--log-to-file",
+        dest="log_path",
+        type=Path,
+        help="log to local file",
+    )
+    parser.add_argument(
+        "--no-console-log",
+        action="store_true",
+        help="disable logging to console",
+    )
+    parser.add_argument(
         "--license",
         "-L",
         action="store_true",
@@ -635,17 +646,6 @@ def __program_args():
             "--skip-replay-data",
             action="store_true",
             help="skip replay data",
-        )
-        live_discord_bot_parser.add_argument(
-            "--log-to-file",
-            dest="log_path",
-            type=Path,
-            help="log to local file",
-        )
-        live_discord_bot_parser.add_argument(
-            "--no-console-log",
-            action="store_true",
-            help="disable logging to console",
         )
 
     return parser.parse_args(), parser.prog
@@ -870,24 +870,24 @@ def __program_main():
                     for (topic, timing_item, data, timestamp) in timing_client:
                         if (
                             topic == TimingType.Topic.AUDIO_STREAMS and
-                            isinstance(timing_item, AudioStreamData)
+                            isinstance(timing_item, AudioStream)
                         ):
                             embed_queue.put(
                                 audio_stream_embed(
                                     timing_item,
                                     timing_client,
-                                    datetime_string_parser(timestamp),
+                                    datetime_parser(timestamp),
                                 ),
                             )
 
                         elif (
                             topic == TimingType.Topic.EXTRAPOLATED_CLOCK and
-                            isinstance(timing_item, ExtrapolatedClockData)
+                            isinstance(timing_item, ExtrapolatedClock)
                         ):
                             embed_queue.put(
                                 extrapolated_clock_embed(
                                     timing_item,
-                                    datetime_string_parser(timestamp),
+                                    datetime_parser(timestamp),
                                 )
                             )
 
@@ -899,7 +899,7 @@ def __program_main():
                                 race_control_message_embed(
                                     timing_item,
                                     timing_client,
-                                    datetime_string_parser(timestamp),
+                                    datetime_parser(timestamp),
                                 ),
                             )
 
@@ -910,7 +910,7 @@ def __program_main():
                             embed_queue.put(
                                 session_info_embed(
                                     timing_item,
-                                    datetime_string_parser(timestamp),
+                                    datetime_parser(timestamp),
                                 ),
                             )
 
@@ -921,7 +921,7 @@ def __program_main():
                             embed_queue.put(
                                 session_status_embed(
                                     timing_item,
-                                    datetime_string_parser(timestamp),
+                                    datetime_parser(timestamp),
                                 ),
                             )
 
@@ -933,7 +933,7 @@ def __program_main():
                                 team_radio_embed(
                                     timing_item,
                                     timing_client,
-                                    datetime_string_parser(timestamp),
+                                    datetime_parser(timestamp),
                                 ),
                             )
 
@@ -949,7 +949,7 @@ def __program_main():
                                         embed_queue.put(
                                             timing_app_data_stint_embed(
                                                 timing_item.stints[-1],
-                                                datetime_string_parser(timestamp),
+                                                datetime_parser(timestamp),
                                                 racing_number=timing_item.racing_number,
                                                 timing_client=timing_client,
                                             ),
@@ -960,7 +960,7 @@ def __program_main():
                                         embed_queue.put(
                                             timing_app_data_stint_embed(
                                                 timing_item.stints[-1],
-                                                datetime_string_parser(timestamp),
+                                                datetime_parser(timestamp),
                                                 racing_number=timing_item.racing_number,
                                                 timing_client=timing_client,
                                             ),
@@ -1004,7 +1004,7 @@ def __program_main():
                                                     f"{minutes}:{round(seconds, 3)}",
                                                 ),
                                             ],
-                                            timestamp=datetime_string_parser(timestamp),
+                                            timestamp=datetime_parser(timestamp),
                                         )
                                     )
 
@@ -1028,7 +1028,7 @@ def __program_main():
                                                     f"{new_i2_speed}",
                                                 ),
                                             ],
-                                            timestamp=datetime_string_parser(timestamp),
+                                            timestamp=datetime_parser(timestamp),
                                         )
                                     )
 
@@ -1052,7 +1052,7 @@ def __program_main():
                                                     f"{new_i2_speed}",
                                                 ),
                                             ],
-                                            timestamp=datetime_string_parser(timestamp),
+                                            timestamp=datetime_parser(timestamp),
                                         )
                                     )
 
@@ -1076,7 +1076,7 @@ def __program_main():
                                                     f"{new_fl_speed}",
                                                 ),
                                             ],
-                                            timestamp=datetime_string_parser(timestamp),
+                                            timestamp=datetime_parser(timestamp),
                                         )
                                     )
 
@@ -1100,7 +1100,7 @@ def __program_main():
                                                     f"{new_st_speed}",
                                                 ),
                                             ],
-                                            timestamp=datetime_string_parser(timestamp),
+                                            timestamp=datetime_parser(timestamp),
                                         )
                                     )
 
@@ -1125,7 +1125,7 @@ def __program_main():
                                                     f"{round(new_s1_time, 3)}",
                                                 ),
                                             ],
-                                            timestamp=datetime_string_parser(timestamp),
+                                            timestamp=datetime_parser(timestamp),
                                         )
                                     )
 
@@ -1150,7 +1150,7 @@ def __program_main():
                                                     f"{round(new_s2_time, 3)}",
                                                 ),
                                             ],
-                                            timestamp=datetime_string_parser(timestamp),
+                                            timestamp=datetime_parser(timestamp),
                                         )
                                     )
 
@@ -1175,7 +1175,7 @@ def __program_main():
                                                     f"{round(new_s3_time, 3)}",
                                                 ),
                                             ],
-                                            timestamp=datetime_string_parser(timestamp),
+                                            timestamp=datetime_parser(timestamp),
                                         )
                                     )
 
@@ -1186,7 +1186,7 @@ def __program_main():
                             embed_queue.put(
                                 track_status_embed(
                                     timing_item,
-                                    datetime_string_parser(timestamp),
+                                    datetime_parser(timestamp),
                                 ),
                             )
 

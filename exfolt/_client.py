@@ -17,9 +17,9 @@ from websocket import (
 )
 
 from ._model import (
-    AudioStreamData,
-    DriverData,
-    ExtrapolatedClockData,
+    AudioStream,
+    Driver,
+    ExtrapolatedClock,
     LapCountData,
     RaceControlMessageData,
     SessionInfoData,
@@ -30,6 +30,7 @@ from ._model import (
     WeatherData,
 )
 from ._type import TimingType
+from ._utils import datetime_parser, timedelta_parser
 
 
 class SignalRClient:
@@ -45,7 +46,7 @@ class SignalRClient:
     __ping_interval = timedelta(minutes=5)
 
     def __init__(self, url: str, connection_data: Dict[str, List[str]], reconnect: bool = True):
-        self.__gclb: Optional[str] = None
+        self.__cookies: List[str] = []
         self.__connection_data = connection_data
         self.__groups_token: Optional[str] = None
         self.__command_id = 0
@@ -181,7 +182,7 @@ class SignalRClient:
                             },
                             quote_via=quote,
                         ),
-                        cookie=f"GCLB={self.__gclb}" if self.__gclb else None,
+                        cookie=";".join(self.__cookies) if len(self.__cookies) > 0 else None,
                     )
 
                 else:
@@ -199,7 +200,7 @@ class SignalRClient:
                             },
                             quote_via=quote,
                         ),
-                        cookie=f"GCLB={self.__gclb}" if self.__gclb else None,
+                        cookie=";".join(self.__cookies) if len(self.__cookies) > 0 else None,
                     )
 
                 self.__last_ping_at = datetime.utcnow()
@@ -210,11 +211,9 @@ class SignalRClient:
                                                "transport handshake exception!")
 
                 if "set-cookie" in e.resp_headers:
-                    set_cookie = e.resp_headers["set-cookie"]
-
-                    if set_cookie.startswith("GCLB"):
-                        self.__gclb = set_cookie.split(";")[0].split("=")[1]
-                        continue
+                    set_cookie: str = e.resp_headers["set-cookie"]
+                    self.__cookies = set_cookie
+                    continue
 
                 raise e
 
@@ -238,15 +237,12 @@ class SignalRClient:
         )
         r.raise_for_status()
 
-        if "GCLB" in r.cookies:
-            gclb: str = r.cookies["GCLB"]
-            self.__gclb = gclb
-
         r_json = r.json()
         conn_token: str = r_json["ConnectionToken"]
         conn_id: str = r_json["ConnectionId"]
         self.__token = conn_token
         self.__id = conn_id
+        self.__cookies = [f"{cookie.name}={cookie.value}" for cookie in r.cookies]
 
     def __ping(self):
         if not self.__token:
@@ -259,7 +255,6 @@ class SignalRClient:
             r = self.__rest_transport.get(
                 f"{self.__url}/ping",
                 params={"_": str(self.__negotiated_at)},
-                cookies={"GCLB": self.__gclb},
             )
             r.raise_for_status()
             response: str = r.json()["Response"]
@@ -395,28 +390,27 @@ class F1LiveClient(SignalRClient):
     F1 timing client to receive messages from a live session
     """
 
-    __LIVE_URL = "https://livetiming.formula1.com/signalr"
+    URL = "https://livetiming.formula1.com/signalr"
 
-    def __init__(self, *topics: TimingType.Topic):
-        super().__init__(F1LiveClient.__LIVE_URL, {TimingType.Hub.STREAMING: topics},
-                         reconnect=True)
+    def __init__(self, *topics: TimingType.Topic, reconnect: bool = True):
+        super().__init__(F1LiveClient.URL, {TimingType.Hub.STREAMING: topics}, reconnect=reconnect)
 
 
-class F1ReplayClient:
+class F1ArchiveClient:
     """
     F1 timing client to receive messages from an archived session
     """
 
-    __REPLAY_URL = "https://livetiming.formula1.com/static"
+    STATIC_URL = "https://livetiming.formula1.com/static"
 
     def __init__(self, path: str, *topics: TimingType.Topic, session: Optional[Session] = None):
         if not session:
             session = Session()
 
-        res = session.get(f"{F1ReplayClient.__REPLAY_URL}/{path}ArchiveStatus.json")
+        res = session.get(f"{F1ArchiveClient.STATIC_URL}/{path}ArchiveStatus.json")
         res.raise_for_status()
 
-        archive_status = loads(res.content.decode("utf-8-sig"))["Status"]
+        archive_status: str = loads(res.content.decode("utf-8-sig"))["Status"]
         assert archive_status == "Complete", f"Unexpected archive status \"{archive_status}\"!"
 
         self.__path = path
@@ -441,31 +435,21 @@ class F1ReplayClient:
 
         return self.__data_queue.get()
 
-    @staticmethod
-    def __timedelta_parser(delta_string: str):
-        assert delta_string.count(":") == 2 and delta_string.count(".") == 1
-        [hours, minutes, seconds] = delta_string.split(":")
-        return timedelta(hours=int(hours), minutes=int(minutes), seconds=float(seconds))
-
     def __load_data(self):
         data_entries: List[Tuple[TimingType.Topic, Dict[str, Any], timedelta]] = []
 
         for topic in self.__topics:
             res = self.__session.get(
                 "".join((
-                    f"{F1ReplayClient.__REPLAY_URL}/{self.__path}",
+                    f"{F1ArchiveClient.STATIC_URL}/{self.__path}",
                     f"{topic}.jsonStream",
                 )),
             )
             res.raise_for_status()
 
-            if topic not in [TimingType.Topic.CAR_DATA_Z, TimingType.Topic.POSITION_Z]:
+            if not topic.endswith(".z"):
                 data_entries.extend([
-                    (
-                        topic,
-                        loads(data_entry[12:]),
-                        F1ReplayClient.__timedelta_parser(data_entry[:12]),
-                    )
+                    (topic, loads(data_entry[12:]), timedelta_parser(data_entry[:12]))
                     for data_entry
                     in res.content.decode(encoding="utf-8-sig").replace("\r", "").split("\n")
                     if len(data_entry) > 0
@@ -473,11 +457,7 @@ class F1ReplayClient:
 
             else:
                 data_entries.extend([
-                    (
-                        topic,
-                        data_entry[12:].replace("\"", ""),
-                        F1ReplayClient.__timedelta_parser(data_entry[:12]),
-                    )
+                    (topic, data_entry[13:-1], timedelta_parser(data_entry[:12]))
                     for data_entry
                     in res.content.decode(encoding="utf-8-sig").replace("\r", "").split("\n")
                     if len(data_entry) > 0
@@ -520,12 +500,12 @@ class F1ReplayClient:
         if not session:
             session = Session()
 
-        res = session.get(f"{F1ReplayClient.__REPLAY_URL}/StreamingStatus.json")
+        res = session.get(f"{F1ArchiveClient.STATIC_URL}/StreamingStatus.json")
         res.raise_for_status()
         streaming_status = loads(res.content.decode("utf-8-sig"))
         assert streaming_status["Status"] == "Offline", "Use F1LiveClient class for live sessions!"
 
-        res = session.get(f"{F1ReplayClient.__REPLAY_URL}/SessionInfo.json")
+        res = session.get(f"{F1ArchiveClient.STATIC_URL}/SessionInfo.json")
         res.raise_for_status()
         session_info = loads(res.content.decode("utf-8-sig"))
 
@@ -538,18 +518,18 @@ class TimingClient:
     """
 
     def __init__(self):
-        self.__audio_streams: List[AudioStreamData] = []
-        self.__drivers: Dict[str, DriverData] = {}
+        self.__audio_streams: List[AudioStream] = []
+        self.__drivers: Dict[str, Driver] = {}
         self.__timing_app_data: Dict[str, TimingAppData] = {}
         self.__timing_stats: Dict[str, TimingStatsData] = {}
-        self.__extrapolated_clock: Optional[ExtrapolatedClockData] = None
+        self.__extrapolated_clock: Optional[ExtrapolatedClock] = None
         self.__lap_count_data: Optional[LapCountData] = None
         self.__msg_q: Queue[
             Tuple[
                 TimingType.Topic,
                 Union[
-                    AudioStreamData,
-                    ExtrapolatedClockData,
+                    AudioStream,
+                    ExtrapolatedClock,
                     RaceControlMessageData,
                     SessionInfoData,
                     TeamRadioData,
@@ -743,7 +723,7 @@ class TimingClient:
                 self.__audio_streams = []
 
                 for stream in data["Streams"]:
-                    stream_data = AudioStreamData(
+                    stream_data = AudioStream(
                         stream["Name"],
                         stream["Language"],
                         stream["Uri"],
@@ -768,7 +748,7 @@ class TimingClient:
                         "FullName" in value and
                         "Tla" in value
                     ):
-                        self.__drivers[key] = DriverData(
+                        self.__drivers[key] = Driver(
                             value["RacingNumber"],
                             broadcast_name=value["BroadcastName"],
                             full_name=value["FullName"],
@@ -843,10 +823,10 @@ class TimingClient:
 
             elif topic == TimingType.Topic.EXTRAPOLATED_CLOCK:
                 if self.__extrapolated_clock is None:
-                    self.__extrapolated_clock = ExtrapolatedClockData(
+                    self.__extrapolated_clock = ExtrapolatedClock(
                         data["Remaining"],
                         data["Extrapolating"],
-                        data["Utc"],
+                        datetime_parser(data["Utc"]),
                     )
 
                 else:
@@ -858,7 +838,7 @@ class TimingClient:
                             data["Extrapolating"]
 
                     if "Utc" in data:
-                        self.__extrapolated_clock.utc = data["Utc"]
+                        self.__extrapolated_clock.timestamp = datetime_parser(data["Utc"])
 
                 self.__msg_q.put((
                     topic,
@@ -1153,17 +1133,14 @@ class TimingClient:
                     timestamp,
                 ))
 
-    def process_old_data(
-        self,
-        old_data: Dict[TimingType.Topic, Any],
-    ):
+    def process_old_data(self, old_data: Dict[TimingType.Topic, Any]):
         for d_key, d_val in old_data.items():
             if d_key == TimingType.Topic.AUDIO_STREAMS:
                 if len(d_val) == 0:
                     continue
 
                 for stream in d_val["Streams"]:
-                    stream_data = AudioStreamData(
+                    stream_data = AudioStream(
                         stream["Name"],
                         stream["Language"],
                         stream["Uri"],
@@ -1179,7 +1156,7 @@ class TimingClient:
                     if drv_num == "_kf":
                         continue
 
-                    self.__drivers[drv_num] = DriverData(
+                    self.__drivers[drv_num] = Driver(
                         drv_data["RacingNumber"],
                         broadcast_name=drv_data["BroadcastName"],
                         full_name=drv_data["FullName"],
@@ -1225,10 +1202,10 @@ class TimingClient:
                 if len(d_val) == 0:
                     continue
 
-                self.__extrapolated_clock = ExtrapolatedClockData(
+                self.__extrapolated_clock = ExtrapolatedClock(
                     d_val["Remaining"],
                     d_val["Extrapolating"],
-                    d_val["Utc"],
+                    datetime_parser(d_val["Utc"]),
                 )
 
             elif d_key == TimingType.Topic.LAP_COUNT:
