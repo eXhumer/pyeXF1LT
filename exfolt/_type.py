@@ -17,16 +17,7 @@
 from enum import Enum, IntEnum
 
 
-class TimingDataStatus(IntEnum):
-    YELLOW = 2048
-    GREEN = 2049
-    PURPLE = 2051
-    STOPPED = 2052
-    PITTED = 2064
-    PIT_ISSUE = 2068
-
-
-class TimingType:
+class F1LTType:
     """
     F1 live timing related types
     """
@@ -58,9 +49,9 @@ class TimingType:
         FINALISED = "Finalised"
         ENDS = "Ends"
 
-    class Topic(str, Enum):
+    class StreamingTopic(str, Enum):
         """
-        F1 live timing SignalR topics
+        F1 live timing SignalR streaming topics
         """
 
         ARCHIVE_STATUS = "ArchiveStatus"
@@ -86,6 +77,14 @@ class TimingType:
         TRACK_STATUS = "TrackStatus"
         WEATHER_DATA = "WeatherData"
 
+    class TimingDataStatus(IntEnum):
+        YELLOW = 2048
+        GREEN = 2049
+        PURPLE = 2051
+        STOPPED = 2052
+        PITTED = 2064
+        PIT_ISSUE = 2068
+
     class TrackStatus(str, Enum):
         ALL_CLEAR = "1"
         YELLOW = "2"
@@ -94,6 +93,15 @@ class TimingType:
         RED = "5"
         VSC_DEPLOYED = "6"
         VSC_ENDING = "7"
+
+    class TrackStatus2(str, Enum):
+        ALL_CLEAR = "AllClear"
+        YELLOW = "Yellow"
+        GREEN = "Green"
+        SC_DEPLOYED = "SCDeployed"
+        RED = "Red"
+        VSC_DEPLOYED = "VSCDeployed"
+        VSC_ENDING = "VSCEnding"
 
     class TyreCompound(str, Enum):
         SOFT = "SOFT"

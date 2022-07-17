@@ -14,7 +14,9 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from base64 import b64decode
 from datetime import datetime, timedelta, timezone
+from zlib import decompress, MAX_WBITS
 
 
 def datetime_parser(datetime_str: str):
@@ -33,15 +35,12 @@ def datetime_parser(datetime_str: str):
     [year, month, day] = date.split("-")
     [hour, minute, second] = time.split(":")
 
-    return datetime(
-        int(year),
-        int(month),
-        int(day),
-        hour=int(hour),
-        minute=int(minute),
-        second=float(second),
-        tzinfo=timezone.utc,
-    )
+    return datetime(int(year), int(month), int(day), hour=int(hour), minute=int(minute),
+                    tzinfo=timezone.utc) + timedelta(seconds=float(second))
+
+
+def decompress_zlib_data(data: str):
+    return decompress(b64decode(data.encode("ascii")), -MAX_WBITS).decode("utf8")
 
 
 def laptime_parser(laptime_str: str):

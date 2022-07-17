@@ -34,24 +34,13 @@ from typing import Dict, List, Optional
 
 from dotenv import dotenv_values
 
-from ._client import (
-    AudioStream,
-    ExtrapolatedClock,
-    F1LiveClient,
-    RaceControlMessageData,
-    SessionInfoData,
-    TeamRadioData,
-    TimingAppData,
-    TimingClient,
-    TimingStatsData,
-    TimingType,
-    TrackStatusData,
-)
-from ._utils import datetime_parser
+from ._client import F1LiveClient, F1TimingClient
+from ._model import F1LTModel
+from ._type import F1LTType
+from ._utils import datetime_parser, decompress_zlib_data
 
-
+__project_url__ = "https://github.com/eXhumer/pyeXF1LT"
 __version__ = require(__package__)[0].version
-
 
 try:
     from exdc import DiscordClient, DiscordModel, DiscordType
@@ -79,11 +68,8 @@ try:
         WET_TYRE_EMOJI = discord_env["WET_TYRE_EMOJI"]
         YELLOW_FLAG_EMOJI = discord_env["YELLOW_FLAG_EMOJI"]
 
-        def __audio_stream_embed(
-            audio_stream: AudioStream,
-            timing_client: TimingClient,
-            timestamp: datetime,
-        ):
+        def __audio_stream_embed(audio_stream: F1LTModel.AudioStream,
+                                 timing_client: F1TimingClient, timestamp: datetime):
             archive_url = (
                 "https://livetiming.formula1.com/static/" +
                 timing_client.session_info.path + audio_stream.path
@@ -112,7 +98,7 @@ try:
                         DiscordModel.ButtonComponent(
                             DiscordType.ButtonStyle.LINK,
                             label="Source Code",
-                            url="https://github.com/eXhumer/pyeXF1LT",
+                            url=__project_url__,
                         )
                     ])
                 ],
@@ -129,7 +115,7 @@ try:
                         DiscordModel.ButtonComponent(
                             DiscordType.ButtonStyle.LINK,
                             label="Source Code",
-                            url="https://github.com/eXhumer/pyeXF1LT",
+                            url=__project_url__,
                         )
                     ])
                 ],
@@ -143,7 +129,8 @@ try:
             if WEBHOOK_TOKEN and WEBHOOK_ID:
                 DiscordClient.post_webhook_message(WEBHOOK_ID, WEBHOOK_TOKEN, **args)
 
-        def __extrapolated_clock_embed(clock_data: ExtrapolatedClock, timestamp: datetime):
+        def __extrapolated_clock_embed(clock_data: F1LTModel.ExtrapolatedClock,
+                                       timestamp: datetime):
             return DiscordModel.Embed(
                 title="Extrapolated Clock",
                 fields=[
@@ -153,21 +140,18 @@ try:
                 timestamp=timestamp,
             )
 
-        def __race_control_message_embed(
-            rcm_msg: RaceControlMessageData,
-            timing_client: TimingClient,
-            timestamp: datetime,
-        ):
+        def __race_control_message_embed(rcm_msg: F1LTModel.RaceControlMessage,
+                                         timestamp: datetime,
+                                         driver: Optional[F1LTModel.Driver] = None):
             fields = [
                 DiscordModel.Embed.Field("Message", rcm_msg.message),
                 DiscordModel.Embed.Field("Category", rcm_msg.category),
             ]
 
             if rcm_msg.racing_number is not None:
-                if rcm_msg.racing_number in timing_client.drivers:
-                    driver_data = timing_client.drivers[rcm_msg.racing_number]
-                    author = DiscordModel.Embed.Author(str(driver_data),
-                                                       icon_url=driver_data.headshot_url)
+                if driver is not None:
+                    assert rcm_msg.racing_number == driver.racing_number
+                    author = DiscordModel.Embed.Author(str(driver), icon_url=driver.headshot_url)
 
                 else:
                     author = None
@@ -176,44 +160,44 @@ try:
             else:
                 author = None
 
-            if rcm_msg.flag == TimingType.FlagStatus.BLACK:
+            if rcm_msg.flag == F1LTType.FlagStatus.BLACK:
                 color = 0x000000
                 description = BLACK_FLAG_EMOJI
 
-            elif rcm_msg.flag == TimingType.FlagStatus.BLACK_AND_ORANGE:
+            elif rcm_msg.flag == F1LTType.FlagStatus.BLACK_AND_ORANGE:
                 color = 0xFFA500
                 description = BLACK_ORANGE_FLAG_EMOJI
 
-            elif rcm_msg.flag == TimingType.FlagStatus.BLACK_AND_WHITE:
+            elif rcm_msg.flag == F1LTType.FlagStatus.BLACK_AND_WHITE:
                 color = 0xFFA500
                 description = BLACK_WHITE_FLAG_EMOJI
 
-            elif rcm_msg.flag == TimingType.FlagStatus.BLUE:
+            elif rcm_msg.flag == F1LTType.FlagStatus.BLUE:
                 color = 0x0000FF
                 description = BLUE_FLAG_EMOJI
 
-            elif rcm_msg.flag in (TimingType.FlagStatus.CHEQUERED, TimingType.FlagStatus.CLEAR):
+            elif rcm_msg.flag in (F1LTType.FlagStatus.CHEQUERED, F1LTType.FlagStatus.CLEAR):
                 color = 0xFFFFFF
 
-                if rcm_msg.flag == TimingType.FlagStatus.CLEAR:
+                if rcm_msg.flag == F1LTType.FlagStatus.CLEAR:
                     description = GREEN_FLAG_EMOJI
 
                 else:
                     description = CHEQUERED_FLAG_EMOJI
 
-            elif rcm_msg.flag == TimingType.FlagStatus.GREEN:
+            elif rcm_msg.flag == F1LTType.FlagStatus.GREEN:
                 color = 0x00FF00
                 description = GREEN_FLAG_EMOJI
 
-            elif rcm_msg.flag == TimingType.FlagStatus.YELLOW:
+            elif rcm_msg.flag == F1LTType.FlagStatus.YELLOW:
                 color = 0xFFFF00
                 description = YELLOW_FLAG_EMOJI
 
-            elif rcm_msg.flag == TimingType.FlagStatus.DOUBLE_YELLOW:
+            elif rcm_msg.flag == F1LTType.FlagStatus.DOUBLE_YELLOW:
                 color = 0xFFA500
                 description = "".join((YELLOW_FLAG_EMOJI, YELLOW_FLAG_EMOJI))
 
-            elif rcm_msg.flag == TimingType.FlagStatus.RED:
+            elif rcm_msg.flag == F1LTType.FlagStatus.RED:
                 color = 0xFF0000
                 description = RED_FLAG_EMOJI
 
@@ -246,7 +230,7 @@ try:
             return DiscordModel.Embed(title="Race Control Message", author=author, color=color,
                                       description=description, fields=fields, timestamp=timestamp)
 
-        def __session_info_embed(session_info: SessionInfoData, timestamp: datetime):
+        def __session_info_embed(session_info: F1LTModel.SessionInfo, timestamp: datetime):
             return DiscordModel.Embed(
                 title="Session Information",
                 fields=[
@@ -266,50 +250,48 @@ try:
                 color=0xFFFFFF,
             )
 
-        def __session_status_embed(status: TimingType.SessionStatus, timestamp: datetime):
+        def __session_status_embed(status: F1LTType.SessionStatus, timestamp: datetime):
             return DiscordModel.Embed(title="Session Status", description=status,
                                       timestamp=timestamp)
 
-        def __team_radio_embed(
-            team_radio: TeamRadioData,
-            timing_client: TimingClient,
-            timestamp: datetime,
-        ):
-            driver_data = timing_client.drivers.get(team_radio.racing_number, None)
-            session_info = timing_client.session_info
-
-            if driver_data:
-                author = DiscordModel.Embed.Author(str(driver_data),
-                                                   icon_url=driver_data.headshot_url)
+        def __team_radio_embed(team_radio: F1LTModel.TeamRadio, timestamp: datetime,
+                               driver: Optional[F1LTModel.Driver] = None,
+                               session_info: Optional[F1LTModel.SessionInfo] = None):
+            if driver:
+                author = DiscordModel.Embed.Author(str(driver), icon_url=driver.headshot_url)
                 fields = None
 
             else:
                 author = None
                 fields = [DiscordModel.Embed.Field("Racing Number", team_radio.racing_number)]
 
+            if session_info:
+                url = (
+                    "https://livetiming.formula1.com/static/" + session_info.path +
+                    team_radio.path
+                )
+
+            else:
+                fields.append(DiscordModel.Embed.Field("Path", team_radio.path))
+                url = None
+
             return DiscordModel.Embed(
                 title="Team Radio",
                 author=author,
                 fields=fields,
-                url=(
-                    "https://livetiming.formula1.com/static/" + session_info.path +
-                    team_radio.path
-                ),
+                url=url,
                 timestamp=timestamp,
             )
 
-        def __timing_app_data_stint_embed(
-            stint: TimingAppData.Stint,
-            timestamp: datetime,
-            racing_number: Optional[str] = None,
-            timing_client: Optional[TimingClient] = None,
-        ):
+        def __timing_app_data_stint_embed(stint: F1LTModel.TimingAppData.Stint,
+                                          timestamp: datetime, racing_number: str,
+                                          driver: Optional[F1LTModel.Driver] = None):
             compound = (
-                WET_TYRE_EMOJI if stint.compound == TimingType.TyreCompound.WET
-                else INTER_TYRE_EMOJI if stint.compound == TimingType.TyreCompound.INTERMEDIATE
-                else SOFT_TYRE_EMOJI if stint.compound == TimingType.TyreCompound.SOFT
-                else MEDIUM_TYRE_EMOJI if stint.compound == TimingType.TyreCompound.MEDIUM
-                else HARD_TYRE_EMOJI if stint.compound == TimingType.TyreCompound.HARD
+                WET_TYRE_EMOJI if stint.compound == F1LTType.TyreCompound.WET
+                else INTER_TYRE_EMOJI if stint.compound == F1LTType.TyreCompound.INTERMEDIATE
+                else SOFT_TYRE_EMOJI if stint.compound == F1LTType.TyreCompound.SOFT
+                else MEDIUM_TYRE_EMOJI if stint.compound == F1LTType.TyreCompound.MEDIUM
+                else HARD_TYRE_EMOJI if stint.compound == F1LTType.TyreCompound.HARD
                 else UNKNOWN_TYRE_EMOJI
             )
 
@@ -323,10 +305,9 @@ try:
             ]
 
             if racing_number:
-                if timing_client:
-                    driver_data = timing_client.drivers[racing_number]
-                    author = DiscordModel.Embed.Author(str(driver_data),
-                                                       icon_url=driver_data.headshot_url)
+                if driver:
+                    assert racing_number == driver.racing_number
+                    author = DiscordModel.Embed.Author(str(driver), icon_url=driver.headshot_url)
 
                 else:
                     fields.append(DiscordModel.Embed.Field("Racing Number", racing_number))
@@ -342,7 +323,7 @@ try:
                 timestamp=timestamp,
             )
 
-        def __track_status_embed(track_status: TrackStatusData, timestamp: datetime):
+        def __track_status_embed(track_status: F1LTModel.TrackStatus, timestamp: datetime):
             return DiscordModel.Embed(
                 title="Track Status",
                 fields=[
@@ -357,30 +338,30 @@ try:
                 ],
                 description=(
                     GREEN_FLAG_EMOJI if track_status.status in [
-                        TimingType.TrackStatus.ALL_CLEAR,
-                        TimingType.TrackStatus.GREEN,
-                        TimingType.TrackStatus.VSC_ENDING,
+                        F1LTType.TrackStatus.ALL_CLEAR,
+                        F1LTType.TrackStatus.GREEN,
+                        F1LTType.TrackStatus.VSC_ENDING,
                     ]
-                    else YELLOW_FLAG_EMOJI if track_status.status == TimingType.TrackStatus.YELLOW
+                    else YELLOW_FLAG_EMOJI if track_status.status == F1LTType.TrackStatus.YELLOW
                     else SAFETY_CAR_EMOJI if track_status.status ==
-                    TimingType.TrackStatus.SC_DEPLOYED
+                    F1LTType.TrackStatus.SC_DEPLOYED
                     else VIRTUAL_SAFETY_CAR_EMOJI
-                    if track_status.status == TimingType.TrackStatus.VSC_DEPLOYED
-                    else RED_FLAG_EMOJI if track_status.status == TimingType.TrackStatus.RED
+                    if track_status.status == F1LTType.TrackStatus.VSC_DEPLOYED
+                    else RED_FLAG_EMOJI if track_status.status == F1LTType.TrackStatus.RED
                     else None
                 ),
                 color=(
                     0x00FF00 if track_status.status in [
-                        TimingType.TrackStatus.ALL_CLEAR,
-                        TimingType.TrackStatus.GREEN,
-                        TimingType.TrackStatus.VSC_ENDING,
+                        F1LTType.TrackStatus.ALL_CLEAR,
+                        F1LTType.TrackStatus.GREEN,
+                        F1LTType.TrackStatus.VSC_ENDING,
                     ]
                     else 0xFFFF00 if track_status.status in [
-                        TimingType.TrackStatus.YELLOW,
-                        TimingType.TrackStatus.SC_DEPLOYED,
-                        TimingType.TrackStatus.VSC_DEPLOYED,
+                        F1LTType.TrackStatus.YELLOW,
+                        F1LTType.TrackStatus.SC_DEPLOYED,
+                        F1LTType.TrackStatus.VSC_DEPLOYED,
                     ]
-                    else 0xFF0000 if track_status.status == TimingType.TrackStatus.RED
+                    else 0xFF0000 if track_status.status == F1LTType.TrackStatus.RED
                     else None
                 ),
                 timestamp=timestamp,
@@ -437,7 +418,7 @@ except ImportError:
 def __message_logger(args: Namespace):
     file_stream = FileHandler(args.log_file, mode="w")
     file_stream.setFormatter(Formatter("%(message)s\n"))
-    logger = getLogger("message_logger")
+    logger = getLogger("exfolt.message_logger")
     logger.addHandler(file_stream)
     file_stream.setLevel(INFO)
     logger.setLevel(INFO)
@@ -445,208 +426,70 @@ def __message_logger(args: Namespace):
 
 
 def __program_args():
-    parser = ArgumentParser(
-        prog="eXF1LT",
-        description="unofficial F1 live timing client",
-    )
-    parser.add_argument(
-        "--version",
-        "-V",
-        action="version",
-        version=f"{parser.prog} {__version__}",
-    )
-    parser.add_argument(
-        "--verbose",
-        "-v",
-        action="count",
-        default=0,
-        help="verbose logging output",
-    )
-    parser.add_argument(
-        "--log-to-file",
-        dest="log_path",
-        type=Path,
-        help="log to local file",
-    )
-    parser.add_argument(
-        "--no-console-log",
-        action="store_true",
-        help="disable logging to console",
-    )
-    parser.add_argument(
-        "--license",
-        "-L",
-        action="store_true",
-        help="display project license",
-    )
-    topics_parser = parser.add_argument_group(
-        title="F1 live timing SignalR streaming topics",
-    )
-    topics_parser.add_argument(
-        "--archive-status",
-        action="store_true",
-        help="ArchiveStatus support",
-    )
-    topics_parser.add_argument(
-        "--audio-streams",
-        action="store_true",
-        help="AudioStreams support",
-    )
-    topics_parser.add_argument(
-        "--car-data",
-        action="store_true",
-        help="CarData.z support",
-    )
-    topics_parser.add_argument(
-        "--championship-prediction",
-        action="store_true",
-        help="ChampionshipPrediction support",
-    )
-    topics_parser.add_argument(
-        "--content-streams",
-        action="store_true",
-        help="ContentStreams support",
-    )
-    topics_parser.add_argument(
-        "--current-tyres",
-        action="store_true",
-        help="CurrentTyres support",
-    )
-    topics_parser.add_argument(
-        "--driver-list",
-        action="store_true",
-        help="DriverList support",
-    )
-    topics_parser.add_argument(
-        "--extrapolated-clock",
-        action="store_true",
-        help="ExtrapolatedClock support",
-    )
-    topics_parser.add_argument(
-        "--heartbeat",
-        action="store_true",
-        help="Heartbeat support",
-    )
-    topics_parser.add_argument(
-        "--lap-count",
-        action="store_true",
-        help="LapCount support",
-    )
-    topics_parser.add_argument(
-        "--position",
-        action="store_true",
-        help="Position.z support",
-    )
-    topics_parser.add_argument(
-        "--race-control-messages",
-        action="store_true",
-        help="RaceControlMessages support",
-    )
-    topics_parser.add_argument(
-        "--session-data",
-        action="store_true",
-        help="SessionData support",
-    )
-    topics_parser.add_argument(
-        "--session-info",
-        action="store_true",
-        help="SessionInfo support",
-    )
-    topics_parser.add_argument(
-        "--session-status",
-        action="store_true",
-        help="SessionStatus support",
-    )
-    topics_parser.add_argument(
-        "--team-radio",
-        action="store_true",
-        help="TeamRadio support",
-    )
-    topics_parser.add_argument(
-        "--timing-app-data",
-        action="store_true",
-        help="TimingAppData support",
-    )
-    topics_parser.add_argument(
-        "--timing-data",
-        action="store_true",
-        help="TimingData support",
-    )
-    topics_parser.add_argument(
-        "--timing-stats",
-        action="store_true",
-        help="TimingStats support",
-    )
-    topics_parser.add_argument(
-        "--top-three",
-        action="store_true",
-        help="TopThree support",
-    )
-    topics_parser.add_argument(
-        "--track-status",
-        action="store_true",
-        help="TrackStatus support",
-    )
-    topics_parser.add_argument(
-        "--weather-data",
-        action="store_true",
-        help="WeatherData support",
-    )
-    action_subparser = parser.add_subparsers(
-        dest="action",
-        title="actions",
-        description="list of supported command line actions",
-        metavar="supported actions",
-    )
-    live_message_log_parser = action_subparser.add_parser(
-        "message-logger",
-        help="log incoming messages to file",
-        description="log incoming messages to file",
-    )
-    live_message_log_parser.add_argument(
-        "log_file",
-        type=Path,
-        help="file path to store logged messaged in",
-    )
+    parser = ArgumentParser(prog="eXF1LT", description="unofficial F1 live timing client")
+    parser.add_argument("--version", "-V", action="version",
+                        version=f"{parser.prog} {__version__}")
+    parser.add_argument("--license", "-L", action="store_true", help="display project license")
+    logging_parser = parser.add_argument_group(title="logging arguments")
+    logging_parser.add_argument("--verbose", "-v", action="count", default=0,
+                                help="verbose logging output")
+    logging_parser.add_argument("--log-to-file", dest="log_path", type=Path,
+                                help="log to local file")
+    logging_parser.add_argument("--no-console-log", action="store_true",
+                                help="disable logging to console")
+    topics_parser = parser.add_argument_group(title="F1 live timing SignalR streaming topics")
+    topics_parser.add_argument("--archive-status", action="store_true",
+                               help="ArchiveStatus support")
+    topics_parser.add_argument("--audio-streams", action="store_true", help="AudioStreams support")
+    topics_parser.add_argument("--car-data", action="store_true", help="CarData.z support")
+    topics_parser.add_argument("--championship-prediction", action="store_true",
+                               help="ChampionshipPrediction support")
+    topics_parser.add_argument("--content-streams", action="store_true",
+                               help="ContentStreams support")
+    topics_parser.add_argument("--current-tyres", action="store_true", help="CurrentTyres support")
+    topics_parser.add_argument("--driver-list", action="store_true", help="DriverList support")
+    topics_parser.add_argument("--extrapolated-clock", action="store_true",
+                               help="ExtrapolatedClock support")
+    topics_parser.add_argument("--heartbeat", action="store_true", help="Heartbeat support")
+    topics_parser.add_argument("--lap-count", action="store_true", help="LapCount support")
+    topics_parser.add_argument("--position", action="store_true", help="Position.z support")
+    topics_parser.add_argument("--race-control-messages", action="store_true",
+                               help="RaceControlMessages support")
+    topics_parser.add_argument("--session-data", action="store_true", help="SessionData support")
+    topics_parser.add_argument("--session-info", action="store_true", help="SessionInfo support")
+    topics_parser.add_argument("--session-status", action="store_true",
+                               help="SessionStatus support")
+    topics_parser.add_argument("--team-radio", action="store_true", help="TeamRadio support")
+    topics_parser.add_argument("--timing-app-data", action="store_true",
+                               help="TimingAppData support")
+    topics_parser.add_argument("--timing-data", action="store_true", help="TimingData support")
+    topics_parser.add_argument("--timing-stats", action="store_true", help="TimingStats support")
+    topics_parser.add_argument("--top-three", action="store_true", help="TopThree support")
+    topics_parser.add_argument("--track-status", action="store_true", help="TrackStatus support")
+    topics_parser.add_argument("--weather-data", action="store_true", help="WeatherData support")
+    action_subparser = parser.add_subparsers(dest="action", title="actions",
+                                             description="list of supported command line actions",
+                                             metavar="supported actions")
+    live_message_log_parser = action_subparser.add_parser("live-message-logger",
+                                                          help="log incoming messages to file",
+                                                          description="log incoming messages to " +
+                                                          "file")
+    live_message_log_parser.add_argument("log_file", type=Path,
+                                         help="file path to store logged messaged in")
 
     if exdc_available:
         live_discord_bot_parser = action_subparser.add_parser(
-            "discord-bot",
+            "live-discord-bot",
             help="run Discord bot output incoming messages as Discord messages",
             description="run Discord bot to output incoming messages as Discord messages",
         )
-        live_discord_bot_parser.add_argument(
-            "--env-path",
-            type=Path,
-            dest="discord_env_path",
-            default=Path("discord.env"),
-            help="Discord environment file path",
-        )
-        live_discord_bot_parser.add_argument(
-            "--start-message",
-            action="store_true",
-            help="show start Discord message on startup",
-        )
-        live_discord_bot_parser.add_argument(
-            "--stop-message",
-            action="store_true",
-            help="show stop Discord message on exit",
-        )
-        live_discord_bot_parser.add_argument(
-            "--replay-audio-streams-message",
-            action="store_true",
-            help="replay AudioStreams data",
-        )
-        live_discord_bot_parser.add_argument(
-            "--replay-session-info-message",
-            action="store_true",
-            help="replay SessionInfo data",
-        )
-        live_discord_bot_parser.add_argument(
-            "--skip-replay-data",
-            action="store_true",
-            help="skip replay data",
-        )
+        live_discord_bot_parser.add_argument("--env-path", type=Path, dest="discord_env_path",
+                                             default=Path("discord.env"),
+                                             help="Discord environment file path")
+        live_discord_bot_parser.add_argument("--start-message", action="store_true",
+                                             help="show start Discord message on startup")
+        live_discord_bot_parser.add_argument("--stop-message", action="store_true",
+                                             help="show stop Discord message on exit")
 
     return parser.parse_args(), parser.prog
 
@@ -719,73 +562,73 @@ def __program_logger(args: Namespace):
 
 
 def __setup_live_client(args: Namespace):
-    topics: List[TimingType.Topic] = []
+    topics: List[F1LTType.StreamingTopic] = []
 
     if args.archive_status:
-        topics.append(TimingType.Topic.ARCHIVE_STATUS)
+        topics.append(F1LTType.StreamingTopic.ARCHIVE_STATUS)
 
     if args.audio_streams:
-        topics.append(TimingType.Topic.AUDIO_STREAMS)
+        topics.append(F1LTType.StreamingTopic.AUDIO_STREAMS)
 
     if args.car_data:
-        topics.append(TimingType.Topic.CAR_DATA_Z)
+        topics.append(F1LTType.StreamingTopic.CAR_DATA_Z)
 
     if args.championship_prediction:
-        topics.append(TimingType.Topic.CHAMPIONSHIP_PREDICTION)
+        topics.append(F1LTType.StreamingTopic.CHAMPIONSHIP_PREDICTION)
 
     if args.content_streams:
-        topics.append(TimingType.Topic.CONTENT_STREAMS)
+        topics.append(F1LTType.StreamingTopic.CONTENT_STREAMS)
 
     if args.current_tyres:
-        topics.append(TimingType.Topic.CURRENT_TYRES)
+        topics.append(F1LTType.StreamingTopic.CURRENT_TYRES)
 
     if args.driver_list:
-        topics.append(TimingType.Topic.DRIVER_LIST)
+        topics.append(F1LTType.StreamingTopic.DRIVER_LIST)
 
     if args.extrapolated_clock:
-        topics.append(TimingType.Topic.EXTRAPOLATED_CLOCK)
+        topics.append(F1LTType.StreamingTopic.EXTRAPOLATED_CLOCK)
 
     if args.heartbeat:
-        topics.append(TimingType.Topic.HEARTBEAT)
+        topics.append(F1LTType.StreamingTopic.HEARTBEAT)
 
     if args.lap_count:
-        topics.append(TimingType.Topic.LAP_COUNT)
+        topics.append(F1LTType.StreamingTopic.LAP_COUNT)
 
     if args.position:
-        topics.append(TimingType.Topic.POSITION_Z)
+        topics.append(F1LTType.StreamingTopic.POSITION_Z)
 
     if args.race_control_messages:
-        topics.append(TimingType.Topic.RACE_CONTROL_MESSAGES)
+        topics.append(F1LTType.StreamingTopic.RACE_CONTROL_MESSAGES)
 
     if args.session_data:
-        topics.append(TimingType.Topic.SESSION_DATA)
+        topics.append(F1LTType.StreamingTopic.SESSION_DATA)
 
     if args.session_info:
-        topics.append(TimingType.Topic.SESSION_INFO)
+        topics.append(F1LTType.StreamingTopic.SESSION_INFO)
 
     if args.session_status:
-        topics.append(TimingType.Topic.SESSION_STATUS)
+        topics.append(F1LTType.StreamingTopic.SESSION_STATUS)
 
     if args.team_radio:
-        topics.append(TimingType.Topic.TEAM_RADIO)
+        topics.append(F1LTType.StreamingTopic.TEAM_RADIO)
 
     if args.timing_app_data:
-        topics.append(TimingType.Topic.TIMING_APP_DATA)
+        topics.append(F1LTType.StreamingTopic.TIMING_APP_DATA)
 
     if args.timing_data:
-        topics.append(TimingType.Topic.TIMING_DATA)
+        topics.append(F1LTType.StreamingTopic.TIMING_DATA)
 
     if args.timing_stats:
-        topics.append(TimingType.Topic.TIMING_STATS)
+        topics.append(F1LTType.StreamingTopic.TIMING_STATS)
 
     if args.top_three:
-        topics.append(TimingType.Topic.TOP_THREE)
+        topics.append(F1LTType.StreamingTopic.TOP_THREE)
 
     if args.track_status:
-        topics.append(TimingType.Topic.TRACK_STATUS)
+        topics.append(F1LTType.StreamingTopic.TRACK_STATUS)
 
     if args.weather_data:
-        topics.append(TimingType.Topic.WEATHER_DATA)
+        topics.append(F1LTType.StreamingTopic.WEATHER_DATA)
 
     return F1LiveClient(*topics)
 
@@ -793,11 +636,12 @@ def __setup_live_client(args: Namespace):
 def __program_main():
     args, prog = __program_args()
     logger = __program_logger(args)
+    logger.info(f"Logging for action {args.action}")
 
     if args.license:
         print(__program_license(prog))
 
-    if args.action == "message-logger":
+    if args.action == "live-message-logger":
         message_logger = __message_logger(args)
 
         try:
@@ -807,15 +651,39 @@ def __program_main():
                         continue
 
                     if "R" in message:
-                        message_logger.info(json.dumps(message["R"]))
+                        old_data = message["R"]
+
+                        if F1LTType.StreamingTopic.CAR_DATA_Z in old_data:
+                            old_data[F1LTType.StreamingTopic.CAR_DATA_Z] = json.loads(
+                                decompress_zlib_data(old_data[F1LTType.StreamingTopic.CAR_DATA_Z])
+                            )
+
+                        if F1LTType.StreamingTopic.POSITION_Z in old_data:
+                            old_data[F1LTType.StreamingTopic.POSITION_Z] = json.loads(
+                                decompress_zlib_data(old_data[F1LTType.StreamingTopic.POSITION_Z])
+                            )
+
+                        message_logger.info(json.dumps(old_data))
 
                     if "M" in message and len(message["M"]) > 0:
-                        message_logger.info(json.dumps(message["M"][0]["A"]))
+                        message_data = message["M"][0]["A"]
+                        if message_data[0] in [F1LTType.StreamingTopic.CAR_DATA_Z,
+                                               F1LTType.StreamingTopic.POSITION_Z]:
+                            message_logger.info(
+                                json.dumps(
+                                    [topic, json.loads(decompress_zlib_data(data)), timestamp]
+                                    for topic, data, timestamp
+                                    in message_data
+                                )
+                            )
+
+                        else:
+                            message_logger.info(json.dumps(message_data))
 
         except KeyboardInterrupt:
             pass
 
-    if exdc_available and args.action == "discord-bot":
+    if exdc_available and args.action == "live-discord-bot":
         (
             audio_stream_embed,
             bot_start_message,
@@ -833,7 +701,7 @@ def __program_main():
         if args.start_message:
             discord_message(**bot_start_message())
 
-        timing_client = TimingClient()
+        timing_client = F1TimingClient()
         embed_queue: Queue[DiscordModel.Embed] = Queue()
 
         try:
@@ -842,35 +710,47 @@ def __program_main():
                     if len(message) == 0:
                         continue
 
-                    if "R" in message and not args.skip_replay_data:
+                    if "R" in message:
                         timing_client.process_old_data(message["R"])
 
-                        if args.replay_audio_streams_message:
-                            for audio_stream in timing_client.audio_streams:
-                                embed_queue.put(
-                                    audio_stream_embed(
-                                        audio_stream,
-                                        timing_client,
-                                        datetime.utcnow(),
-                                    ),
-                                )
+                        # if args.replay_audio_streams_message:
+                        #     for audio_stream in timing_client.audio_streams:
+                        #         embed_queue.put(
+                        #             audio_stream_embed(
+                        #                 audio_stream,
+                        #                 timing_client,
+                        #                 datetime.utcnow(),
+                        #             ),
+                        #         )
 
-                        if args.replay_session_info_message:
-                            embed_queue.put(
-                                session_info_embed(
-                                    timing_client.session_info,
-                                    datetime.utcnow(),
-                                ),
-                            )
+                        # if args.replay_session_info_message:
+                        #     embed_queue.put(
+                        #         session_info_embed(
+                        #             timing_client.session_info,
+                        #             datetime.utcnow(),
+                        #         ),
+                        #     )
 
                     if "M" in message and len(message["M"]) > 0:
                         live_msg_data = message["M"][0]["A"]
-                        timing_client.process_data(*live_msg_data)
+
+                        if live_msg_data[0] in [
+                            F1LTType.StreamingTopic.CAR_DATA_Z,
+                            F1LTType.StreamingTopic.POSITION_Z,
+                        ]:
+                            timing_client.process_data(
+                                live_msg_data[0],
+                                json.loads(decompress_zlib_data(live_msg_data[1])),
+                                live_msg_data[2],
+                            )
+
+                        else:
+                            timing_client.process_data(*live_msg_data)
 
                     for (topic, timing_item, data, timestamp) in timing_client:
                         if (
-                            topic == TimingType.Topic.AUDIO_STREAMS and
-                            isinstance(timing_item, AudioStream)
+                            topic == F1LTType.StreamingTopic.AUDIO_STREAMS and
+                            isinstance(timing_item, F1LTModel.AudioStream)
                         ):
                             embed_queue.put(
                                 audio_stream_embed(
@@ -881,8 +761,8 @@ def __program_main():
                             )
 
                         elif (
-                            topic == TimingType.Topic.EXTRAPOLATED_CLOCK and
-                            isinstance(timing_item, ExtrapolatedClock)
+                            topic == F1LTType.StreamingTopic.EXTRAPOLATED_CLOCK and
+                            isinstance(timing_item, F1LTModel.ExtrapolatedClock)
                         ):
                             embed_queue.put(
                                 extrapolated_clock_embed(
@@ -892,20 +772,21 @@ def __program_main():
                             )
 
                         elif (
-                            topic == TimingType.Topic.RACE_CONTROL_MESSAGES and
-                            isinstance(timing_item, RaceControlMessageData)
+                            topic == F1LTType.StreamingTopic.RACE_CONTROL_MESSAGES and
+                            isinstance(timing_item, F1LTModel.RaceControlMessage)
                         ):
                             embed_queue.put(
                                 race_control_message_embed(
                                     timing_item,
-                                    timing_client,
                                     datetime_parser(timestamp),
+                                    driver=timing_client.drivers.get(timing_item.racing_number,
+                                                                     None),
                                 ),
                             )
 
                         elif (
-                            topic == TimingType.Topic.SESSION_INFO and
-                            isinstance(timing_item, SessionInfoData)
+                            topic == F1LTType.StreamingTopic.SESSION_INFO and
+                            isinstance(timing_item, F1LTModel.SessionInfo)
                         ):
                             embed_queue.put(
                                 session_info_embed(
@@ -915,8 +796,8 @@ def __program_main():
                             )
 
                         elif (
-                            topic == TimingType.Topic.SESSION_STATUS and
-                            isinstance(timing_item, TimingType.SessionStatus)
+                            topic == F1LTType.StreamingTopic.SESSION_STATUS and
+                            isinstance(timing_item, F1LTType.SessionStatus)
                         ):
                             embed_queue.put(
                                 session_status_embed(
@@ -926,20 +807,22 @@ def __program_main():
                             )
 
                         elif (
-                            topic == TimingType.Topic.TEAM_RADIO and
-                            isinstance(timing_item, TeamRadioData)
+                            topic == F1LTType.StreamingTopic.TEAM_RADIO and
+                            isinstance(timing_item, F1LTModel.TeamRadio)
                         ):
                             embed_queue.put(
                                 team_radio_embed(
                                     timing_item,
-                                    timing_client,
                                     datetime_parser(timestamp),
+                                    driver=timing_client.drivers.get(timing_item.racing_number,
+                                                                     None),
+                                    session_info=timing_client.session_info,
                                 ),
                             )
 
                         elif (
-                            topic == TimingType.Topic.TIMING_APP_DATA and
-                            isinstance(timing_item, TimingAppData)
+                            topic == F1LTType.StreamingTopic.TIMING_APP_DATA and
+                            isinstance(timing_item, F1LTModel.TimingAppData)
                         ):
                             if "Stints" in data:
                                 timing_stints = data["Stints"]
@@ -950,8 +833,11 @@ def __program_main():
                                             timing_app_data_stint_embed(
                                                 timing_item.stints[-1],
                                                 datetime_parser(timestamp),
-                                                racing_number=timing_item.racing_number,
-                                                timing_client=timing_client,
+                                                timing_item.racing_number,
+                                                driver=timing_client.drivers.get(
+                                                    timing_item.racing_number,
+                                                    None,
+                                                ),
                                             ),
                                         )
 
@@ -961,18 +847,21 @@ def __program_main():
                                             timing_app_data_stint_embed(
                                                 timing_item.stints[-1],
                                                 datetime_parser(timestamp),
-                                                racing_number=timing_item.racing_number,
-                                                timing_client=timing_client,
+                                                timing_item.racing_number,
+                                                driver=timing_client.drivers.get(
+                                                    timing_item.racing_number,
+                                                    None,
+                                                ),
                                             ),
                                         )
 
                         elif (
-                            topic == TimingType.Topic.TIMING_STATS and
+                            topic == F1LTType.StreamingTopic.TIMING_STATS and
                             isinstance(timing_item, dict)
                         ):
                             for racing_number, lines_data in data["Lines"].items():
                                 driver_data = timing_client.drivers.get(racing_number, None)
-                                timing_stats: TimingStatsData = timing_item[racing_number]
+                                timing_stats: F1LTModel.TimingStats = timing_item[racing_number]
 
                                 if driver_data:
                                     author = DiscordModel.Embed.Author(
@@ -1180,8 +1069,8 @@ def __program_main():
                                     )
 
                         elif (
-                            topic == TimingType.Topic.TRACK_STATUS and
-                            isinstance(timing_item, TrackStatusData)
+                            topic == F1LTType.StreamingTopic.TRACK_STATUS and
+                            isinstance(timing_item, F1LTModel.TrackStatus)
                         ):
                             embed_queue.put(
                                 track_status_embed(
