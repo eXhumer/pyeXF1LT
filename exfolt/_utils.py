@@ -34,9 +34,10 @@ def datetime_parser(datetime_str: str):
 
     [year, month, day] = date.split("-")
     [hour, minute, second] = time.split(":")
+    microsecond = int(float("0." + second.split(".")[1]) * (10 ** 6)) if "." in second else 0
 
     return datetime(int(year), int(month), int(day), hour=int(hour), minute=int(minute),
-                    tzinfo=timezone.utc) + timedelta(seconds=float(second))
+                    second=int(second.split(".")[0]), microsecond=microsecond, tzinfo=timezone.utc)
 
 
 def decompress_zlib_data(data: str):
