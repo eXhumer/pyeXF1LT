@@ -20,7 +20,7 @@ jobs:
       - name: Build distributions
         shell: bash -l {0}
         run: |
-          python setup.py sdist --dest-dir dist
+          python setup.py sdist --dist-dir dist
           python -m pip wheel . --wheel-dir dist --no-deps
 
       - name: Publish package to PyPI
