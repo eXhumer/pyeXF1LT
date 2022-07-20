@@ -414,6 +414,89 @@ try:
 except ImportError:
     exdc_available = False
 
+try:
+    from extc import OAuth1Client
+    extc_available = True
+
+    def __twitter_methods(twitter_env: Dict[str, str]):
+        twitter = OAuth1Client(
+            twitter_env["OAUTH_CONSUMER_KEY"],
+            twitter_env["OAUTH_CONSUMER_SECRET"],
+            twitter_env["OAUTH_TOKEN"],
+            twitter_env["OAUTH_TOKEN_SECRET"],
+        )
+
+        def __bot_start_message():
+            return twitter.create_new_tweet(
+                text="\n".join((
+                    "Live Timing Bot Started!",
+                    "",
+                    f"Source Code: {__project_url__}",
+                )),
+            )
+
+        def __bot_stop_message():
+            return twitter.create_new_tweet(
+                text="\n".join((
+                    "Live Timing Bot Stopped!",
+                    "",
+                    f"Source Code: {__project_url__}",
+                )),
+            )
+
+        def __create_new_tweet(direct_message_deep_link: str | None = None,
+                               for_super_followers_only: bool | None = None,
+                               geo_place_id: str | None = None, media_ids: List[str] | None = None,
+                               media_tagged_user_ids: List[str] | None = None,
+                               poll_options: List[str] | None = None,
+                               poll_duration_minutes: int | None = None,
+                               quote_tweet_id: str | None = None,
+                               reply_exclude_reply_user_ids: List[str] | None = None,
+                               reply_in_reply_to_tweet_id: str | None = None,
+                               reply_settings: str | None = None, text: str | None = None):
+            return twitter.create_new_tweet(direct_message_deep_link=direct_message_deep_link,
+                for_super_followers_only=for_super_followers_only, geo_place_id=geo_place_id,
+                media_ids=media_ids, media_tagged_user_ids=media_tagged_user_ids,
+                poll_options=poll_options, poll_duration_minutes=poll_duration_minutes,
+                quote_tweet_id=quote_tweet_id,
+                reply_exclude_reply_user_ids=reply_exclude_reply_user_ids,
+                reply_in_reply_to_tweet_id=reply_in_reply_to_tweet_id,
+                reply_settings=reply_settings, text=text)
+
+        def __lap_count_message(lap_count: F1LTModel.LapCount):
+            return f"Lap Count: {lap_count.current_lap}/{lap_count.total_laps}"
+
+        return (
+            __bot_start_message,
+            __bot_stop_message,
+            __create_new_tweet,
+            __lap_count_message,
+        )
+
+    def __load_twitter_envs(env_path: Path):
+        twitter_env: Dict[str, str] = {}
+
+        if env_path.is_file():
+            for k, v in dotenv_values(dotenv_path=env_path).items():
+                if v is not None and len(v) > 0:
+                    twitter_env |= {k: v}
+
+        for k, v in environ.items():
+            if k.startswith("TWITTER_") and len(v) > 0:
+                twitter_env |= {k[8:]: v}
+
+        assert (
+            "OAUTH_CONSUMER_KEY" in twitter_env.keys() and
+            "OAUTH_CONSUMER_SECRET" in twitter_env.keys() and
+            "OAUTH_TOKEN" in twitter_env.keys() and
+            "OAUTH_TOKEN_SECRET" in twitter_env.keys()
+        ), "Missing required credentials for Twitter!"
+
+        return twitter_env
+
+except ImportError:
+    extc_available = False
+
 
 def __message_logger(args: Namespace):
     file_stream = FileHandler(args.log_file, mode="w")
@@ -487,9 +570,27 @@ def __program_args():
                                              default=Path("discord.env"),
                                              help="Discord environment file path")
         live_discord_bot_parser.add_argument("--start-message", action="store_true",
+                                             dest="discord_start_message",
                                              help="show start Discord message on startup")
         live_discord_bot_parser.add_argument("--stop-message", action="store_true",
+                                             dest="discord_stop_message",
                                              help="show stop Discord message on exit")
+
+    if extc_available:
+        live_twitter_bot_parser = action_subparser.add_parser(
+            "live-twitter-bot",
+            help="run Twitter bot output incoming messages as Twitter tweets",
+            description="run Twitter bot to output incoming messages as Twitter tweets",
+        )
+        live_twitter_bot_parser.add_argument("--env-path", type=Path, dest="twitter_env_path",
+                                             default=Path("twitter.env"),
+                                             help="Twitter environment file path")
+        live_twitter_bot_parser.add_argument("--start-message", action="store_true",
+                                             dest="twitter_start_message",
+                                             help="show start Twitter tweet on startup")
+        live_twitter_bot_parser.add_argument("--stop-message", action="store_true",
+                                             dest="twitter_stop_message",
+                                             help="show stop Twitter tweet on exit")
 
     return parser.parse_args(), parser.prog
 
@@ -698,7 +799,7 @@ def __program_main():
             track_status_embed,
         ) = __discord_methods(__load_discord_envs(args.discord_env_path))
 
-        if args.start_message:
+        if args.discord_start_message:
             discord_message(**bot_start_message())
 
         timing_client = F1TimingClient()
@@ -1091,5 +1192,123 @@ def __program_main():
                         discord_message(embeds=embeds)
 
         except KeyboardInterrupt:
-            if args.stop_message:
+            if args.discord_stop_message:
                 discord_message(**bot_stop_message())
+
+    if extc_available and args.action == "live-twitter-bot":
+        (
+            bot_start_message,
+            bot_stop_message,
+            create_new_tweet,
+            lap_count_message,
+        ) = __twitter_methods(__load_twitter_envs(args.twitter_env_path))
+
+        if args.twitter_start_message:
+            bot_start_message()
+
+        timing_client = F1TimingClient()
+        message_queue: Queue[str] = Queue()
+
+        try:
+            with __setup_live_client(args) as live_client:
+                for _, message in live_client:
+                    if len(message) == 0:
+                        continue
+
+                    if "R" in message:
+                        timing_client.process_old_data(message["R"])
+
+                    if "M" in message and len(message["M"]) > 0:
+                        live_msg_data = message["M"][0]["A"]
+
+                        if live_msg_data[0] in [
+                            F1LTType.StreamingTopic.CAR_DATA_Z,
+                            F1LTType.StreamingTopic.POSITION_Z,
+                        ]:
+                            timing_client.process_data(
+                                live_msg_data[0],
+                                json.loads(decompress_zlib_data(live_msg_data[1])),
+                                live_msg_data[2],
+                            )
+
+                        else:
+                            timing_client.process_data(*live_msg_data)
+
+                    for (topic, timing_item, data, timestamp) in timing_client:
+                        if (
+                            topic == F1LTType.StreamingTopic.LAP_COUNT and
+                            isinstance(timing_item, F1LTModel.LapCount)
+                        ):
+                            message_queue.put(lap_count_message(timing_item))
+
+                        elif (
+                            topic == F1LTType.StreamingTopic.RACE_CONTROL_MESSAGES and
+                            isinstance(timing_item, F1LTModel.RaceControlMessage)
+                        ):
+                            message = [
+                                "Race Control Message",
+                                "",
+                                f"Message: {timing_item.message}",
+                                f"Category: {timing_item.category}",
+                            ]
+
+                            if timing_item.flag:
+                                message.append(f"Flag: {timing_item.flag}")
+
+                            if timing_item.scope:
+                                message.append(f"Scope: {timing_item.scope}")
+
+                            if timing_item.racing_number:
+                                driver = timing_client.drivers.get(timing_item.racing_number, None)
+
+                                if driver:
+                                    message.append(f"Driver: {str(driver)}")
+    
+                                else:
+                                    message.append(f"Racing Number: {timing_item.racing_number}")
+
+                            if timing_item.sector:
+                                message.append(f"Sector: {timing_item.sector}")
+
+                            if timing_item.lap:
+                                message.append(f"Lap: {timing_item.lap}")
+
+                            if timing_item.status:
+                                if timing_item.category == "Drs":
+                                    message.append(f"DRS Status: {timing_item.status}")
+
+                                elif timing_item.category == "SafetyCar":
+                                    message.append(f"Safety Car Status: {timing_item.status}")
+
+                                else:
+                                    message.append(f"Status: {timing_item.status}")
+
+                            message_queue.put("\n".join(message))
+
+                        elif (
+                            topic == F1LTType.StreamingTopic.SESSION_INFO and
+                            isinstance(timing_item, F1LTModel.SessionInfo)
+                        ):
+                            message_queue.put(
+                                "\n".join((
+                                    "Session Info",
+                                    "",
+                                    f"Session Name: {timing_item.name}",
+                                    f"Meeting Name: {timing_item.meeting.name}",
+                                    f"Meeting Official Name: {timing_item.meeting.official_name}",
+                                    f"Circuit: {timing_item.meeting.circuit.short_name}",
+                                    f"Country: {timing_item.meeting.country.name}",
+                                ))
+                            )
+
+                        elif (
+                            topic == F1LTType.StreamingTopic.TRACK_STATUS and
+                            isinstance(timing_item, F1LTModel.TrackStatus)
+                        ):
+                            message_queue.put(f"Track Status: {timing_item.status_string}")
+
+                    while message_queue.qsize() > 0:
+                        create_new_tweet(text=message_queue.get())
+
+        except KeyboardInterrupt:
+            bot_stop_message()
