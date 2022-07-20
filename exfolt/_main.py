@@ -454,7 +454,8 @@ try:
                                reply_exclude_reply_user_ids: List[str] | None = None,
                                reply_in_reply_to_tweet_id: str | None = None,
                                reply_settings: str | None = None, text: str | None = None):
-            return twitter.create_new_tweet(direct_message_deep_link=direct_message_deep_link,
+            return twitter.create_new_tweet(
+                direct_message_deep_link=direct_message_deep_link,
                 for_super_followers_only=for_super_followers_only, geo_place_id=geo_place_id,
                 media_ids=media_ids, media_tagged_user_ids=media_tagged_user_ids,
                 poll_options=poll_options, poll_duration_minutes=poll_duration_minutes,
@@ -1263,7 +1264,7 @@ def __program_main():
 
                                 if driver:
                                     message.append(f"Driver: {str(driver)}")
-    
+
                                 else:
                                     message.append(f"Racing Number: {timing_item.racing_number}")
 
@@ -1300,6 +1301,12 @@ def __program_main():
                                     f"Country: {timing_item.meeting.country.name}",
                                 ))
                             )
+
+                        elif (
+                            topic == F1LTType.StreamingTopic.SESSION_STATUS and
+                            isinstance(timing_item, F1LTType.SessionStatus)
+                        ):
+                            message_queue.put(f"Session Status: {timing_item}")
 
                         elif (
                             topic == F1LTType.StreamingTopic.TRACK_STATUS and
