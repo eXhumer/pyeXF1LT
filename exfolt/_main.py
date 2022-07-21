@@ -415,34 +415,66 @@ except ImportError:
     exdc_available = False
 
 try:
-    from extc import OAuth1Client
+    from extc import OAuth1TwitterClient, OAuth2TwitterClient
     extc_available = True
 
     def __twitter_methods(twitter_env: Dict[str, str]):
-        twitter = OAuth1Client(
-            twitter_env["OAUTH_CONSUMER_KEY"],
-            twitter_env["OAUTH_CONSUMER_SECRET"],
-            twitter_env["OAUTH_TOKEN"],
-            twitter_env["OAUTH_TOKEN_SECRET"],
-        )
+        if (
+            "OAUTH_CONSUMER_KEY" in twitter_env and
+            "OAUTH_CONSUMER_SECRET" in twitter_env and
+            "OAUTH_TOKEN" in twitter_env and
+            "OAUTH_TOKEN_SECRET" in twitter_env
+        ):
+            oauth1 = OAuth1TwitterClient(
+                twitter_env["OAUTH_CONSUMER_KEY"],
+                twitter_env["OAUTH_CONSUMER_SECRET"],
+                twitter_env["OAUTH_TOKEN"],
+                twitter_env["OAUTH_TOKEN_SECRET"],
+            )
+
+        else:
+            oauth1 = None
+
+        if (
+            "OAUTH2_ACCESS_TOKEN" in twitter_env and
+            "OAUTH2_CLIENT_ID" in twitter_env and
+            "OAUTH2_CLIENT_SECRET" in twitter_env and
+            "OAUTH2_REFRESH_TOKEN" in twitter_env
+        ):
+            oauth2 = OAuth2TwitterClient(
+                twitter_env["OAUTH2_CLIENT_ID"],
+                client_secret=twitter_env["OAUTH2_CLIENT_SECRET"],
+                access_token=twitter_env["OAUTH2_ACCESS_TOKEN"],
+                refresh_token=twitter_env["OAUTH2_REFRESH_TOKEN"],
+            )
+
+        else:
+            oauth2 = None
 
         def __bot_start_message():
-            return twitter.create_new_tweet(
-                text="\n".join((
-                    "Live Timing Bot Started!",
-                    "",
-                    f"Source Code: {__project_url__}",
-                )),
-            )
+            text = "\n".join((
+                "Live Timing Bot Started!",
+                "",
+                f"Source Code: {__project_url__}",
+            ))
+
+            if oauth1:
+                oauth1.create_new_tweet(text=text)
+
+            if oauth2:
+                oauth2.create_new_tweet(text=text)
 
         def __bot_stop_message():
-            return twitter.create_new_tweet(
-                text="\n".join((
-                    "Live Timing Bot Stopped!",
-                    "",
-                    f"Source Code: {__project_url__}",
-                )),
-            )
+            text = "\n".join((
+                "Live Timing Bot Stopped!",
+                __project_url__,
+            ))
+
+            if oauth1:
+                oauth1.create_new_tweet(text=text)
+
+            if oauth2:
+                oauth2.create_new_tweet(text=text)
 
         def __create_new_tweet(direct_message_deep_link: str | None = None,
                                for_super_followers_only: bool | None = None,
@@ -454,24 +486,32 @@ try:
                                reply_exclude_reply_user_ids: List[str] | None = None,
                                reply_in_reply_to_tweet_id: str | None = None,
                                reply_settings: str | None = None, text: str | None = None):
-            return twitter.create_new_tweet(
-                direct_message_deep_link=direct_message_deep_link,
-                for_super_followers_only=for_super_followers_only, geo_place_id=geo_place_id,
-                media_ids=media_ids, media_tagged_user_ids=media_tagged_user_ids,
-                poll_options=poll_options, poll_duration_minutes=poll_duration_minutes,
-                quote_tweet_id=quote_tweet_id,
-                reply_exclude_reply_user_ids=reply_exclude_reply_user_ids,
-                reply_in_reply_to_tweet_id=reply_in_reply_to_tweet_id,
-                reply_settings=reply_settings, text=text)
+            if oauth1:
+                oauth1.create_new_tweet(
+                    direct_message_deep_link=direct_message_deep_link,
+                    for_super_followers_only=for_super_followers_only, geo_place_id=geo_place_id,
+                    media_ids=media_ids, media_tagged_user_ids=media_tagged_user_ids,
+                    poll_options=poll_options, poll_duration_minutes=poll_duration_minutes,
+                    quote_tweet_id=quote_tweet_id,
+                    reply_exclude_reply_user_ids=reply_exclude_reply_user_ids,
+                    reply_in_reply_to_tweet_id=reply_in_reply_to_tweet_id,
+                    reply_settings=reply_settings, text=text)
 
-        def __lap_count_message(lap_count: F1LTModel.LapCount):
-            return f"Lap Count: {lap_count.current_lap}/{lap_count.total_laps}"
+            if oauth2:
+                oauth2.create_new_tweet(
+                    direct_message_deep_link=direct_message_deep_link,
+                    for_super_followers_only=for_super_followers_only, geo_place_id=geo_place_id,
+                    media_ids=media_ids, media_tagged_user_ids=media_tagged_user_ids,
+                    poll_options=poll_options, poll_duration_minutes=poll_duration_minutes,
+                    quote_tweet_id=quote_tweet_id,
+                    reply_exclude_reply_user_ids=reply_exclude_reply_user_ids,
+                    reply_in_reply_to_tweet_id=reply_in_reply_to_tweet_id,
+                    reply_settings=reply_settings, text=text)
 
         return (
             __bot_start_message,
             __bot_stop_message,
             __create_new_tweet,
-            __lap_count_message,
         )
 
     def __load_twitter_envs(env_path: Path):
@@ -486,12 +526,17 @@ try:
             if k.startswith("TWITTER_") and len(v) > 0:
                 twitter_env |= {k[8:]: v}
 
-        assert (
-            "OAUTH_CONSUMER_KEY" in twitter_env.keys() and
-            "OAUTH_CONSUMER_SECRET" in twitter_env.keys() and
-            "OAUTH_TOKEN" in twitter_env.keys() and
-            "OAUTH_TOKEN_SECRET" in twitter_env.keys()
-        ), "Missing required credentials for Twitter!"
+        assert ((
+            "OAUTH_CONSUMER_KEY" in twitter_env and
+            "OAUTH_CONSUMER_SECRET" in twitter_env and
+            "OAUTH_TOKEN" in twitter_env and
+            "OAUTH_TOKEN_SECRET" in twitter_env
+        ) or (
+            "OAUTH2_ACCESS_TOKEN" in twitter_env and
+            "OAUTH2_CLIENT_ID" in twitter_env and
+            "OAUTH2_CLIENT_SECRET" in twitter_env and
+            "OAUTH2_REFRESH_TOKEN" in twitter_env
+        )), "Missing required credentials for Twitter!"
 
         return twitter_env
 
@@ -1201,7 +1246,6 @@ def __program_main():
             bot_start_message,
             bot_stop_message,
             create_new_tweet,
-            lap_count_message,
         ) = __twitter_methods(__load_twitter_envs(args.twitter_env_path))
 
         if args.twitter_start_message:
@@ -1240,7 +1284,8 @@ def __program_main():
                             topic == F1LTType.StreamingTopic.LAP_COUNT and
                             isinstance(timing_item, F1LTModel.LapCount)
                         ):
-                            message_queue.put(lap_count_message(timing_item))
+                            message_queue.put(
+                                f"Lap Count: {timing_item.current_lap}/{timing_item.total_laps}")
 
                         elif (
                             topic == F1LTType.StreamingTopic.RACE_CONTROL_MESSAGES and
