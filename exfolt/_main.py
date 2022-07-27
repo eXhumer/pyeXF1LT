@@ -235,12 +235,12 @@ try:
                 title="Session Information",
                 fields=[
                     DiscordModel.Embed.Field("Official Name",
-                                             session_info.meeting["OfficialName"]),
-                    DiscordModel.Embed.Field("Meeting Name", session_info.meeting["Name"]),
-                    DiscordModel.Embed.Field("Location", session_info.meeting["Location"]),
-                    DiscordModel.Embed.Field("Country", session_info.meeting["Country"]["Name"]),
+                                             session_info.meeting.official_name),
+                    DiscordModel.Embed.Field("Meeting Name", session_info.meeting.name),
+                    DiscordModel.Embed.Field("Location", session_info.meeting.location),
+                    DiscordModel.Embed.Field("Country", session_info.meeting.country.name),
                     DiscordModel.Embed.Field("Circuit",
-                                             session_info.meeting["Circuit"]["ShortName"]),
+                                             session_info.meeting.circuit.short_name),
                     DiscordModel.Embed.Field("Session Name", session_info.name),
                     DiscordModel.Embed.Field("Start Date", session_info.start_date),
                     DiscordModel.Embed.Field("End Date", session_info.end_date),
@@ -296,7 +296,7 @@ try:
             )
 
             fields = [
-                DiscordModel.Embed.Field("Compound", compound, inline=True,),
+                DiscordModel.Embed.Field("Compound", compound, inline=True),
                 DiscordModel.Embed.Field("New", str(stint.new), inline=True),
                 DiscordModel.Embed.Field("Tyre Changed", str(not stint.tyre_not_changed),
                                          inline=True),
