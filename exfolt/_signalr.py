@@ -183,15 +183,22 @@ class SignalRClient:
                 break
 
             except WebSocketBadStatusException as e:
-                SignalRClient.__logger.warning("Connecting to SignalR transport failed due to " +
-                                               "transport handshake exception!")
+                SignalRClient.__logger.warning(
+                    "\n".join((
+                        "Connecting to SignalR transport failed due to transport handshake " +
+                        "exception! Will attempt to establish new connection!",
+                        f"Status Code: {e.status_code}",
+                        f"Arguments: {e.args}",
+                        f"Response Headers: {e.resp_headers}",
+                    )),
+                )
 
-                if "set-cookie" in e.resp_headers:
-                    set_cookie: str = e.resp_headers["set-cookie"]
-                    self.__cookies = set_cookie
-                    continue
-
-                raise e
+                self.__cookies = []
+                self.__token = None
+                self.__groups_token = None
+                self.__message_id = None
+                self.__negotiate()
+                continue
 
     def __negotiate(self):
         if self.__token:
@@ -260,7 +267,7 @@ class SignalRClient:
                                                 f" from SignalR connection with ID {self.__id}!")
 
                 else:
-                    SignalRClient.__logger.info("Received SignalR message from connection with " +
+                    SignalRClient.__logger.info("Received message from SignalR connection with " +
                                                 f"ID {self.__id}!")
 
                 if "C" in json_data:
