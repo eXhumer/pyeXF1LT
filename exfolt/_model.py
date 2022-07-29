@@ -931,7 +931,8 @@ class F1LTModel:
 
             if best_lap_time:
                 [lap_min, lap_sec] = best_lap_time.split(":")
-                self.__best_lap_time = timedelta(minutes=int(lap_min), seconds=float(lap_sec))
+                self.__best_lap_time = timedelta(minutes=int(lap_min),
+                                                 seconds=round(float(lap_sec), 3))
 
             else:
                 self.__best_lap_time = None
@@ -949,7 +950,7 @@ class F1LTModel:
                 self.__best_time_position = None
 
             if best_sector_1_time:
-                self.__best_sector_1 = float(best_sector_1_time)
+                self.__best_sector_1 = round(float(best_sector_1_time), 3)
 
             else:
                 self.__best_sector_1 = None
@@ -961,7 +962,7 @@ class F1LTModel:
                 self.__sector_1_position = None
 
             if best_sector_2_time:
-                self.__best_sector_2 = float(best_sector_2_time)
+                self.__best_sector_2 = round(float(best_sector_2_time), 3)
 
             else:
                 self.__best_sector_2 = None
@@ -973,7 +974,7 @@ class F1LTModel:
                 self.__sector_2_position = None
 
             if best_sector_3_time:
-                self.__best_sector_3 = float(best_sector_3_time)
+                self.__best_sector_3 = round(float(best_sector_3_time), 3)
 
             else:
                 self.__best_sector_3 = None
@@ -1043,7 +1044,8 @@ class F1LTModel:
         @best_lap_time.setter
         def best_lap_time(self, new_lap_time: str):
             [lap_min, lap_sec] = new_lap_time.split(":")
-            self.__best_lap_time = timedelta(minutes=int(lap_min), seconds=float(lap_sec))
+            self.__best_lap_time = timedelta(minutes=int(lap_min),
+                                             seconds=round(float(lap_sec), 3))
 
         @property
         def best_time_lap_number(self):
@@ -1067,7 +1069,7 @@ class F1LTModel:
 
         @best_sector_1.setter
         def best_sector_1(self, new_sector_time: str):
-            self.__best_sector_1 = float(new_sector_time)
+            self.__best_sector_1 = round(float(new_sector_time), 3)
 
         @property
         def sector_1_position(self):
@@ -1083,7 +1085,7 @@ class F1LTModel:
 
         @best_sector_2.setter
         def best_sector_2(self, new_sector_time: str):
-            self.__best_sector_2 = float(new_sector_time)
+            self.__best_sector_2 = round(float(new_sector_time), 3)
 
         @property
         def sector_2_position(self):
@@ -1099,7 +1101,7 @@ class F1LTModel:
 
         @best_sector_3.setter
         def best_sector_3(self, new_sector_time: str):
-            self.__best_sector_3 = float(new_sector_time)
+            self.__best_sector_3 = round(float(new_sector_time), 3)
 
         @property
         def sector_3_position(self):
@@ -1255,13 +1257,13 @@ class F1LTModel:
     class WeatherData:
         def __init__(self, air_temp: str, humidity: str, pressure: str, rainfall: str,
                      track_temp: str, wind_direction: str, wind_speed: str):
-            self.__air_temp = float(air_temp)
-            self.__humidity = float(humidity)
-            self.__pressure = float(pressure)
+            self.__air_temp = round(float(air_temp), 1)
+            self.__humidity = round(float(humidity), 1)
+            self.__pressure = round(float(pressure), 1)
             self.__rainfall = int(rainfall) == 1
-            self.__track_temp = float(track_temp)
+            self.__track_temp = round(float(track_temp), 1)
             self.__wind_direction = int(wind_direction)
-            self.__wind_speed = float(wind_speed) * 3.6
+            self.__wind_speed = round(float(wind_speed) * 3.6, 2)
 
         def __repr__(self):
             data = ", ".join((
@@ -1282,7 +1284,7 @@ class F1LTModel:
 
         @air_temp.setter
         def air_temp(self, new_air_temp: str):
-            self.__air_temp = float(new_air_temp)
+            self.__air_temp = round(float(new_air_temp), 1)
 
         @property
         def humidity(self):
@@ -1290,7 +1292,7 @@ class F1LTModel:
 
         @humidity.setter
         def humidity(self, new_humidity: str):
-            self.__humidity = float(new_humidity)
+            self.__humidity = round(float(new_humidity), 1)
 
         @property
         def pressure(self):
@@ -1298,7 +1300,7 @@ class F1LTModel:
 
         @pressure.setter
         def pressure(self, new_pressure: str):
-            self.__pressure = float(new_pressure)
+            self.__pressure = round(float(new_pressure), 1)
 
         @property
         def rainfall(self):
@@ -1314,7 +1316,7 @@ class F1LTModel:
 
         @track_temp.setter
         def track_temp(self, new_track_temp: str):
-            self.__track_temp = float(new_track_temp)
+            self.__track_temp = round(float(new_track_temp), 1)
 
         @property
         def wind_direction(self):
@@ -1330,4 +1332,4 @@ class F1LTModel:
 
         @wind_speed.setter
         def wind_speed(self, new_wind_speed: str):
-            self.__wind_speed = float(new_wind_speed) * 3.6
+            self.__wind_speed = round(float(new_wind_speed) * 3.6, 2)
