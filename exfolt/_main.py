@@ -316,8 +316,13 @@ try:
             else:
                 author = None
 
+            embed_title = "Pit Stop Information"
+
+            if stint.corrected:
+                embed_title = f"{embed_title} (Corrected)"
+
             return DiscordModel.Embed(
-                title="Pit Stop Information",
+                title=embed_title,
                 author=author,
                 fields=fields,
                 timestamp=timestamp,
@@ -1037,7 +1042,7 @@ def __program_main():
                                             fields=[
                                                 DiscordModel.Embed.Field(
                                                     "Lap Time",
-                                                    f"{minutes}:{round(seconds, 3)}",
+                                                    f"{minutes}:{seconds:.3f}",
                                                 ),
                                             ],
                                             timestamp=datetime_parser(timestamp),
@@ -1158,7 +1163,7 @@ def __program_main():
                                             fields=[
                                                 DiscordModel.Embed.Field(
                                                     "Time",
-                                                    f"{round(new_s1_time, 3)}",
+                                                    f"{new_s1_time:.3f}",
                                                 ),
                                             ],
                                             timestamp=datetime_parser(timestamp),
@@ -1183,7 +1188,7 @@ def __program_main():
                                             fields=[
                                                 DiscordModel.Embed.Field(
                                                     "Time",
-                                                    f"{round(new_s2_time, 3)}",
+                                                    f"{new_s2_time:.3f}",
                                                 ),
                                             ],
                                             timestamp=datetime_parser(timestamp),
@@ -1208,7 +1213,7 @@ def __program_main():
                                             fields=[
                                                 DiscordModel.Embed.Field(
                                                     "Time",
-                                                    f"{round(new_s3_time, 3)}",
+                                                    f"{new_s3_time:.3f}",
                                                 ),
                                             ],
                                             timestamp=datetime_parser(timestamp),

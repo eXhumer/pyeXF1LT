@@ -792,6 +792,7 @@ class F1LTModel:
                 self.__start_laps = start_laps
                 self.__lap_time = lap_time
                 self.__lap_number = lap_number
+                self.__corrected = False
 
             def __repr__(self):
                 data = ", ".join((
@@ -803,9 +804,14 @@ class F1LTModel:
                     f"start_laps={self.__start_laps}",
                     f"lap_time={self.__lap_time}",
                     f"lap_number={self.__lap_number}",
+                    f"corrected={self.__corrected}",
                 ))
 
                 return f"{type(self).__name__}({data})"
+
+            @property
+            def corrected(self):
+                return self.__corrected
 
             @property
             def lap_flags(self):
@@ -821,6 +827,7 @@ class F1LTModel:
 
             @compound.setter
             def compound(self, new_compound: F1LTType.TyreCompound):
+                self.__corrected = True
                 self.__compound = new_compound
 
             @property
@@ -829,6 +836,7 @@ class F1LTModel:
 
             @new.setter
             def new(self, new_value: bool):
+                self.__corrected = True
                 self.__new = new_value
 
             @property
@@ -837,6 +845,7 @@ class F1LTModel:
 
             @tyre_not_changed.setter
             def tyre_not_changed(self, new_tyre_not_changed: bool):
+                self.__corrected = True
                 self.__tyre_not_changed = new_tyre_not_changed
 
             @property
