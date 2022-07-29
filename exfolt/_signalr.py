@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from http.cookies import SimpleCookie
 from json import dumps, loads
 from logging import getLogger
 from random import randint
@@ -193,11 +194,19 @@ class SignalRClient:
                     )),
                 )
 
-                self.__cookies = []
-                self.__token = None
-                self.__groups_token = None
-                self.__message_id = None
-                self.__negotiate()
+                if "set-cookie" in e.resp_headers:
+                    self.__cookies = []
+
+                    for cookie_name, morsel in SimpleCookie(e.resp_headers["set-cookie"]).items():
+                        self.__cookies.append(f"{cookie_name}={morsel.value}")
+
+                else:
+                    self.__cookies = []
+                    self.__token = None
+                    self.__groups_token = None
+                    self.__message_id = None
+                    self.__negotiate()
+
                 continue
 
     def __negotiate(self):
