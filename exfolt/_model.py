@@ -24,7 +24,7 @@ from ._utils import datetime_parser
 
 class F1LTModel:
     class ArchiveStatus:
-        def __init__(self, status: Literal["Complete", "Generating"]):
+        def __init__(self, status: F1LTType.ArchiveStatus):
             self.__status = status
 
         def __repr__(self):
@@ -39,7 +39,7 @@ class F1LTModel:
             return self.__status
 
         @status.setter
-        def status(self, status: Literal["Complete", "Generating"]):
+        def status(self, status: F1LTType.ArchiveStatus):
             self.__status = status
 
     class AudioStream:
@@ -142,6 +142,46 @@ class F1LTModel:
         @property
         def channel_data(self):
             return self.__channel_data
+
+    class ContentStream:
+        def __init__(self, type: str, name: str, language: str, uri: str,
+                     path: Optional[str] = None):
+            self.__type = type
+            self.__name = name
+            self.__language = language
+            self.__uri = uri
+            self.__path = path
+
+        def __repr__(self):
+            data = ", ".join((
+                f"type={self.__type}",
+                f"name={self.__name}",
+                f"language={self.__language}",
+                f"uri={self.__uri}",
+                f"path={self.__path}",
+            ))
+
+            return f"{type(self).__name__}({data})"
+
+        @property
+        def type(self):
+            return self.__type
+
+        @property
+        def name(self):
+            return self.__name
+
+        @property
+        def language(self):
+            return self.__language
+
+        @property
+        def uri(self):
+            return self.__uri
+
+        @property
+        def path(self):
+            return self.__path
 
     class CurrentTyre:
         def __init__(self, compound: F1LTType.TyreCompound, new: bool):

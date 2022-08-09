@@ -21,6 +21,9 @@ class F1LTType:
     """
     F1 live timing related types
     """
+    class ArchiveStatus(str, Enum):
+        COMPLETE = "Complete"
+        GENERATING = "Generating"
 
     class FlagStatus(str, Enum):
         BLACK = "BLACK"
@@ -108,5 +111,6 @@ class F1LTType:
         MEDIUM = "MEDIUM"
         HARD = "HARD"
         INTERMEDIATE = "INTERMEDIATE"
+        TEST_UNKNOWN = "TEST_UNKNOWN"
         WET = "WET"
         UNKNOWN = "UNKNOWN"

@@ -137,6 +137,497 @@ class F1LiveClient(SignalRClient):
         super().__init__(F1LiveClient.URL, {F1LTType.Hub.STREAMING: topics}, reconnect=reconnect)
 
 
+class NewF1TimingClient:
+    def __init__(self):
+        self.__archive_status: Optional[F1LTModel.ArchiveStatus] = None
+        self.__audio_streams: Optional[List[F1LTModel.AudioStream]] = None
+        self.__car_data = None
+        self.__championship_prediction = None
+        self.__content_streams = None
+        self.__current_tyres: Dict[str, F1LTModel.CurrentTyre] = None
+        self.__driver_list: Optional[List[F1LTModel.Driver]] = None
+        self.__extrapolated_clock: Optional[F1LTModel.ExtrapolatedClock] = None
+        self.__lap_count: Optional[F1LTModel.LapCount] = None
+        self.__position = None
+        self.__race_control_messages: Optional[F1LTModel.RaceControlMessage] = None
+        self.__session_data: Optional[F1LTModel.SessionData] = None
+        self.__session_info: Optional[F1LTModel.SessionInfo] = None
+        self.__session_status: Optional[F1LTType.SessionStatus] = None
+        self.__team_radio: Optional[List[F1LTModel.TeamRadio]] = None
+        self.__timing_app_data: Optional[Dict[str, F1LTModel.TimingAppData]] = None
+        self.__timing_data = None
+        self.__timing_stats = None
+        self.__top_three = None
+        self.__track_status: Optional[F1LTModel.TrackStatus] = None
+        self.__weather_data: Optional[F1LTModel.WeatherData] = None
+
+    def _process_replay(self, old_data: Dict[F1LTType.StreamingTopic, Any]):
+        if F1LTType.StreamingTopic.ARCHIVE_STATUS in old_data:
+            archive_status: Dict[Literal["Status"], F1LTType.ArchiveStatus] = \
+                old_data[F1LTType.StreamingTopic.ARCHIVE_STATUS]
+            self.__archive_status = F1LTModel.ArchiveStatus(archive_status["Status"])
+
+        if F1LTType.StreamingTopic.AUDIO_STREAMS in old_data:
+            audio_streams: Dict[Literal["Streams"], List[Dict[str, str]]] = \
+                old_data[F1LTType.StreamingTopic.AUDIO_STREAMS]
+            self.__audio_streams: List[F1LTModel.AudioStream] = []
+
+            for stream_data in audio_streams["Streams"]:
+                self.__audio_streams += F1LTModel.AudioStream(
+                    stream_data["Name"],
+                    stream_data["Language"],
+                    stream_data["Uri"],
+                    stream_data["Path"],
+                )
+
+        if F1LTType.StreamingTopic.CAR_DATA_Z in old_data:
+            pass
+
+        if F1LTType.StreamingTopic.CHAMPIONSHIP_PREDICTION in old_data:
+            pass
+
+        if F1LTType.StreamingTopic.CONTENT_STREAMS in old_data:
+            pass
+
+        if F1LTType.StreamingTopic.CURRENT_TYRES in old_data:
+            current_tyres: Dict[
+                Literal["Tyres"],
+                Dict[
+                    str,
+                    Dict[
+                        Literal["Compound", "New"],
+                        Union[F1LTType.TyreCompound, bool]
+                    ],
+                ],
+            ] = old_data[F1LTType.StreamingTopic.CURRENT_TYRES]
+
+            self.__current_tyres = {}
+
+            for racing_number, current_tyre in current_tyres["Tyres"].items():
+                self.__current_tyres |= {
+                    racing_number: F1LTModel.CurrentTyre(
+                        current_tyre["Compound"],
+                        current_tyre["New"],
+                    ),
+                }
+
+        if F1LTType.StreamingTopic.DRIVER_LIST in old_data:
+            drivers: Dict[str, Dict[str, str]] = \
+                old_data[F1LTType.StreamingTopic.DRIVER_LIST]
+
+            self.__driver_list = {}
+
+            for racing_number, driver_data in drivers.items():
+                assert racing_number == driver_data["RacingNumber"]
+
+                if "BroadcastName" in driver_data:
+                    broadcast_name = driver_data["BroadcastName"]
+
+                else:
+                    broadcast_name = None
+
+                if "FullName" in driver_data:
+                    full_name = driver_data["FullName"]
+
+                else:
+                    full_name = None
+
+                if "Tla" in driver_data:
+                    tla = driver_data["Tla"]
+
+                else:
+                    tla = None
+
+                if "TeamName" in driver_data:
+                    team_name = driver_data["TeamName"]
+
+                else:
+                    team_name = None
+
+                if "TeamColour" in driver_data:
+                    team_colour = driver_data["TeamColour"]
+
+                else:
+                    team_colour = None
+
+                if "FirstName" in driver_data:
+                    first_name = driver_data["FirstName"]
+
+                else:
+                    first_name = None
+
+                if "LastName" in driver_data:
+                    last_name = driver_data["LastName"]
+
+                else:
+                    last_name = None
+
+                if "Reference" in driver_data:
+                    reference = driver_data["Reference"]
+
+                else:
+                    reference = None
+
+                if "HeadshotUrl" in driver_data:
+                    headshot_url = driver_data["HeadshotUrl"]
+
+                else:
+                    headshot_url = None
+
+                if "CountryCode" in driver_data:
+                    country_code = driver_data["CountryCode"]
+
+                else:
+                    country_code = None
+
+                self.__driver_list |= {
+                    racing_number: F1LTModel.Driver(
+                        racing_number,
+                        broadcast_name=broadcast_name,
+                        full_name=full_name,
+                        tla=tla,
+                        team_name=team_name,
+                        team_colour=team_colour,
+                        first_name=first_name,
+                        last_name=last_name,
+                        reference=reference,
+                        headshot_url=headshot_url,
+                        country_code=country_code,
+                    ),
+                }
+
+        if F1LTType.StreamingTopic.EXTRAPOLATED_CLOCK in old_data:
+            extrapolated_clock: Dict[str, Union[str, bool]] = \
+                old_data[F1LTType.StreamingTopic.EXTRAPOLATED_CLOCK]
+            self.__extrapolated_clock = F1LTModel.ExtrapolatedClock(
+                extrapolated_clock["Remaining"],
+                extrapolated_clock["Extrapolating"],
+                datetime_parser(extrapolated_clock["Utc"]),
+            )
+
+        if F1LTType.StreamingTopic.LAP_COUNT in old_data:
+            lap_count: Dict[str, int] = old_data[F1LTType.StreamingTopic.LAP_COUNT]
+            self.__lap_count = F1LTModel.LapCount(lap_count["CurrentLap"], lap_count["TotalLaps"])
+
+        if F1LTType.StreamingTopic.POSITION_Z in old_data:
+            pass
+
+        if F1LTType.StreamingTopic.RACE_CONTROL_MESSAGES in old_data:
+            race_control_messages: List[Dict[str, Union[str, int]]] = \
+                old_data[F1LTType.StreamingTopic.RACE_CONTROL_MESSAGES]["Messages"]
+
+            self.__race_control_messages: List[F1LTModel.RaceControlMessage] = []
+
+            for race_control_message in race_control_messages:
+                category: str = race_control_message["Category"]
+                message: str = race_control_message["Message"]
+
+                if "Flag" in race_control_message:
+                    flag: str = race_control_message["Flag"]
+
+                else:
+                    flag = None
+
+                if "Scope" in race_control_message:
+                    scope: str = race_control_message["Scope"]
+
+                else:
+                    scope = None
+
+                if "RacingNumber" in race_control_message:
+                    racing_number: str = race_control_message["RacingNumber"]
+
+                else:
+                    racing_number = None
+
+                if "Sector" in race_control_message:
+                    sector: int = race_control_message["Sector"]
+
+                else:
+                    sector = None
+
+                if "Lap" in race_control_message:
+                    lap: int = race_control_message["Lap"]
+
+                else:
+                    lap = None
+
+                if "Status" in race_control_message:
+                    status: str = race_control_message["Status"]
+
+                else:
+                    status = None
+
+                self.__race_control_messages += F1LTModel.RaceControlMessage(
+                    category,
+                    message,
+                    flag=flag,
+                    scope=scope,
+                    racing_number=racing_number,
+                    sector=sector,
+                    lap=lap,
+                    status=status,
+                )
+
+        if F1LTType.StreamingTopic.SESSION_DATA in old_data:
+            session_data: Dict[str, List[Dict[str, Union[str, int]]]] = \
+                old_data[F1LTType.StreamingTopic.SESSION_DATA]
+
+            self.__session_data = F1LTModel.SessionData(
+                session_data["Series"],
+                session_data["StatusSeries"],
+            )
+
+        if F1LTType.StreamingTopic.SESSION_INFO in old_data:
+            session_info: Dict[str, Any] = old_data[F1LTType.StreamingTopic.SESSION_INFO]
+            self.__session_info = F1LTModel.SessionInfo(
+                session_info["Meeting"],
+                session_info["ArchiveStatus"],
+                session_info["Key"],
+                session_info["Type"],
+                session_info["Name"],
+                session_info["StartDate"],
+                session_info["EndDate"],
+                session_info["GmtOffset"],
+                session_info["Path"],
+                number=(
+                    session_info["Number"]
+                    if "Number" in session_info
+                    else None
+                ),
+            )
+
+        if F1LTType.StreamingTopic.SESSION_STATUS in old_data:
+            session_status: Dict[str, str] = old_data[F1LTType.StreamingTopic.SESSION_STATUS]
+            self.__session_status = F1LTType.SessionStatus(session_status["Status"])
+
+        if F1LTType.StreamingTopic.TEAM_RADIO in old_data:
+            team_radios: List[Dict[Literal["Utc", "RacingNumber", "Path"], str]] = \
+                old_data[F1LTType.StreamingTopic.TEAM_RADIO]["Captures"]
+
+            self.__team_radio: List[F1LTModel.TeamRadio] = []
+
+            for team_radio in team_radios:
+                self.__team_radio += F1LTModel.TeamRadio(
+                    team_radio["RacingNumber"],
+                    team_radio["Path"],
+                    team_radio["Utc"],
+                )
+
+        if F1LTType.StreamingTopic.TIMING_APP_DATA in old_data:
+            timing_app_data: Dict[str, Union[str, int, List[Dict[str, Union[str, int]]]]] = \
+                old_data[F1LTType.StreamingTopic.TIMING_APP_DATA]["Lines"]
+
+            self.__timing_app_data = {}
+
+            for racing_number, driver_data in timing_app_data.items():
+                data = F1LTModel.TimingAppData(
+                    driver_data["RacingNumber"],
+                    driver_data["GridPos"] if "GridPos" in driver_data else None,
+                )
+
+                if "Stints" in driver_data:
+                    stints: List[Dict[str, Union[str, int]]] = driver_data["Stints"]
+
+                    for stint in stints:
+                        data.stints.append(
+                            F1LTModel.TimingAppData.Stint(
+                                stint["LapFlags"],
+                                F1LTType.TyreCompound[stint["Compound"]],
+                                stint["New"] == "true",
+                                stint["TyresNotChanged"] == "1",
+                                stint["TotalLaps"],
+                                stint["StartLaps"],
+                                lap_time=stint["LapTime"] if "LapTime" in stint else None,
+                                lap_number=stint["LapNumber"] if "LapNumber" in stint else None,
+                            ),
+                        )
+
+                self.__timing_app_data |= {racing_number: data}
+
+        if F1LTType.StreamingTopic.TIMING_DATA in old_data:
+            pass
+
+        if F1LTType.StreamingTopic.TIMING_STATS in old_data:
+            pass
+
+        if F1LTType.StreamingTopic.TOP_THREE in old_data:
+            pass
+
+        if F1LTType.StreamingTopic.TRACK_STATUS in old_data:
+            track_status: Dict[str, str] = old_data[F1LTType.StreamingTopic.TRACK_STATUS]
+
+            self.__track_status = F1LTModel.TrackStatus(
+                F1LTType.TrackStatus(track_status["Status"]),
+                track_status["Message"],
+            )
+
+        if F1LTType.StreamingTopic.WEATHER_DATA in old_data:
+            weather_data: Dict[str, str] = old_data[F1LTType.StreamingTopic.WEATHER_DATA]
+
+            self.__weather_data = F1LTModel.WeatherData(
+                weather_data["AirTemp"],
+                weather_data["Humidity"],
+                weather_data["Pressure"],
+                weather_data["Rainfall"],
+                weather_data["TrackTemp"],
+                weather_data["WindDirection"],
+                weather_data["WindSpeed"],
+            )
+
+    def _process_update(self, topic: F1LTType.StreamingTopic, update_data,
+                        timestamp: Union[datetime, timedelta]):
+        if topic == F1LTType.StreamingTopic.ARCHIVE_STATUS:
+            pass
+
+        elif topic == F1LTType.StreamingTopic.AUDIO_STREAMS:
+            pass
+
+        elif topic == F1LTType.StreamingTopic.CAR_DATA_Z:
+            pass
+
+        elif topic == F1LTType.StreamingTopic.CHAMPIONSHIP_PREDICTION:
+            pass
+
+        elif topic == F1LTType.StreamingTopic.CONTENT_STREAMS:
+            pass
+
+        elif topic == F1LTType.StreamingTopic.CURRENT_TYRES:
+            pass
+
+        elif topic == F1LTType.StreamingTopic.DRIVER_LIST:
+            pass
+
+        elif topic == F1LTType.StreamingTopic.EXTRAPOLATED_CLOCK:
+            pass
+
+        elif topic == F1LTType.StreamingTopic.LAP_COUNT:
+            pass
+
+        elif topic == F1LTType.StreamingTopic.POSITION_Z:
+            pass
+
+        elif topic == F1LTType.StreamingTopic.RACE_CONTROL_MESSAGES:
+            pass
+
+        elif topic == F1LTType.StreamingTopic.SESSION_DATA:
+            pass
+
+        elif topic == F1LTType.StreamingTopic.SESSION_INFO:
+            pass
+
+        elif topic == F1LTType.StreamingTopic.SESSION_STATUS:
+            pass
+
+        elif topic == F1LTType.StreamingTopic.TEAM_RADIO:
+            pass
+
+        elif topic == F1LTType.StreamingTopic.TIMING_APP_DATA:
+            pass
+
+        elif topic == F1LTType.StreamingTopic.TIMING_DATA:
+            pass
+
+        elif topic == F1LTType.StreamingTopic.TIMING_STATS:
+            pass
+
+        elif topic == F1LTType.StreamingTopic.TOP_THREE:
+            pass
+
+        elif topic == F1LTType.StreamingTopic.TRACK_STATUS:
+            pass
+
+        elif topic == F1LTType.StreamingTopic.WEATHER_DATA:
+            pass
+
+        else:
+            assert False, "Unknown update topic!"
+
+    @property
+    def archive_status(self):
+        return self.__archive_status
+
+    @property
+    def audio_streams(self):
+        return self.__audio_streams
+
+    @property
+    def car_data(self):
+        return self.__car_data
+
+    @property
+    def championship_prediction(self):
+        return self.__championship_prediction
+
+    @property
+    def content_streams(self):
+        return self.__content_streams
+
+    @property
+    def current_tyres(self):
+        return self.__current_tyres
+
+    @property
+    def driver_list(self):
+        return self.__driver_list
+
+    @property
+    def extrapolated_clock(self):
+        return self.__extrapolated_clock
+
+    @property
+    def lap_count(self):
+        return self.__lap_count
+
+    @property
+    def position(self):
+        return self.__position
+
+    @property
+    def race_control_messages(self):
+        return self.__race_control_messages
+
+    @property
+    def session_data(self):
+        return self.__session_data
+
+    @property
+    def session_info(self):
+        return self.__session_info
+
+    @property
+    def session_status(self):
+        return self.__session_status
+
+    @property
+    def team_radio(self):
+        return self.__team_radio
+
+    @property
+    def timing_app_data(self):
+        return self.__timing_app_data
+
+    @property
+    def timing_data(self):
+        return self.__timing_data
+
+    @property
+    def timing_stats(self):
+        return self.__timing_stats
+
+    @property
+    def top_three(self):
+        return self.__top_three
+
+    @property
+    def track_status(self):
+        return self.__track_status
+
+    @property
+    def weather_data(self):
+        return self.__weather_data
+
+
 class F1TimingClient:
     """
     Timing client to handle streamed session data from F1 sessions.
