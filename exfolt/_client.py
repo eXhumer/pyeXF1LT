@@ -141,10 +141,10 @@ class NewF1TimingClient:
     def __init__(self):
         self.__archive_status: Optional[F1LTModel.ArchiveStatus] = None
         self.__audio_streams: Optional[List[F1LTModel.AudioStream]] = None
-        self.__car_data = None
+        self.__car_data: Optional[List[F1LTModel.CarDataEntry]] = None
         self.__content_streams: Optional[List[F1LTModel.ContentStream]] = None
         self.__current_tyres: Dict[str, F1LTModel.CurrentTyre] = None
-        self.__driver_list: Optional[List[F1LTModel.Driver]] = None
+        self.__driver_list: Optional[Dict[str, F1LTModel.Driver]] = None
         self.__extrapolated_clock: Optional[F1LTModel.ExtrapolatedClock] = None
         self.__lap_count: Optional[F1LTModel.LapCount] = None
         self.__position = None
@@ -179,7 +179,23 @@ class NewF1TimingClient:
                 )
 
         if F1LTType.StreamingTopic.CAR_DATA_Z in old_data:
-            pass
+            compressed_car_data: str = old_data[F1LTType.StreamingTopic.CAR_DATA_Z]
+            car_data: List[
+                Dict[
+                    str,
+                    Union[
+                        str,
+                        Dict[str, Dict[Literal["Channels"], Dict[F1LTType.CarData, int]]],
+                    ],
+                ],
+            ] = loads(decompress_zlib_data(compressed_car_data))["Entries"]
+            self.__car_data: List[F1LTModel.CarDataEntry] = []
+
+            for data in car_data:
+                self.__car_data += F1LTModel.CarDataEntry(
+                    data["Cars"],
+                    datetime_parser(data["Utc"]),
+                )
 
         if F1LTType.StreamingTopic.CONTENT_STREAMS in old_data:
             content_streams: List[Dict[str, str]] = \
@@ -675,18 +691,17 @@ class NewF1TimingClient:
 
     @property
     def audio_streams(self):
+        self.__audio_streams: Optional[List[F1LTModel.AudioStream]]
         return self.__audio_streams
 
     @property
     def car_data(self):
+        self.__car_data: Optional[List[F1LTModel.CarDataEntry]]
         return self.__car_data
 
     @property
-    def championship_prediction(self):
-        return self.__championship_prediction
-
-    @property
     def content_streams(self):
+        self.__content_streams: Optional[List[F1LTModel.ContentStream]]
         return self.__content_streams
 
     @property
@@ -711,6 +726,7 @@ class NewF1TimingClient:
 
     @property
     def race_control_messages(self):
+        self.__race_control_messages: Optional[List[F1LTModel.RaceControlMessage]]
         return self.__race_control_messages
 
     @property
@@ -727,6 +743,7 @@ class NewF1TimingClient:
 
     @property
     def team_radio(self):
+        self.__team_radio: Optional[List[F1LTModel.TeamRadio]]
         return self.__team_radio
 
     @property
@@ -740,10 +757,6 @@ class NewF1TimingClient:
     @property
     def timing_stats(self):
         return self.__timing_stats
-
-    @property
-    def top_three(self):
-        return self.__top_three
 
     @property
     def track_status(self):

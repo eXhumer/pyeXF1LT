@@ -25,6 +25,14 @@ class F1LTType:
         COMPLETE = "Complete"
         GENERATING = "Generating"
 
+    class CarData(str, Enum):
+        RPM = "0"
+        SPEED = "2"
+        NGEAR = "3"
+        THROTTLE = "4"
+        BRAKE = "5"
+        DRS = "45"
+
     class FlagStatus(str, Enum):
         BLACK = "BLACK"
         BLACK_AND_ORANGE = "BLACK AND ORANGE"

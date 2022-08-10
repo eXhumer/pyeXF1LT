@@ -100,30 +100,21 @@ class F1LTModel:
 
         def __init__(
             self,
-            entry_data: Dict[
-                str,
-                Dict[
-                    Literal["Channels"],
-                    Dict[
-                        Literal["0", "2", "3", "4", "5", "45"],
-                        int
-                    ]
-                ]
-            ],
+            entry_data: Dict[str, Dict[Literal["Channels"], Dict[F1LTType.CarData, int]]],
             timestamp: datetime,
         ):
             self.__timestamp = timestamp
             self.__channel_data: Dict[str, F1LTModel.CarDataEntry.ChannelData] = {}
 
-            for rn, data in entry_data.items():
+            for racing_number, data in entry_data.items():
                 self.__channel_data |= {
-                    rn: F1LTModel.CarDataEntry.ChannelData(
-                        data["Channels"]["0"],
-                        data["Channels"]["2"],
-                        data["Channels"]["3"],
-                        data["Channels"]["4"],
-                        data["Channels"]["5"],
-                        data["Channels"]["45"],
+                    racing_number: F1LTModel.CarDataEntry.ChannelData(
+                        data["Channels"][F1LTType.CarData.RPM],
+                        data["Channels"][F1LTType.CarData.SPEED],
+                        data["Channels"][F1LTType.CarData.NGEAR],
+                        data["Channels"][F1LTType.CarData.THROTTLE],
+                        data["Channels"][F1LTType.CarData.BRAKE],
+                        data["Channels"][F1LTType.CarData.DRS],
                     )
                 }
 
