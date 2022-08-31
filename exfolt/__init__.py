@@ -21,7 +21,5 @@ Unofficial F1 live timing client package
 from pkg_resources import require
 
 from ._client import F1LiveClient, F1ArchiveClient, F1TimingClient  # noqa: F401
-from ._type import F1LTType  # noqa: F401
-from ._model import F1LTModel  # noqa: F401
 
 __version__ = require(__package__)[0].version
