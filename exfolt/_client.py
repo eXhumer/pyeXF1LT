@@ -164,7 +164,19 @@ class F1LiveClient(SignalRClient):
     URL = "https://livetiming.formula1.com/signalr"
 
     def __init__(self, *topics: StreamingTopic, reconnect: bool = True):
-        super().__init__(F1LiveClient.URL, {Hub.STREAMING: topics}, reconnect=reconnect)
+        self.__topics = topics
+        super().__init__(F1LiveClient.URL, Hub.STREAMING, reconnect=reconnect)
+
+    def __enter__(self):
+        super().__enter__()
+        self.invoke(Hub.STREAMING, "Subscribe", self.__topics)
+        return self
+
+    def __exit__(self, *args):
+        if self.connected:
+            self.invoke(Hub.STREAMING, "Unsubscribe", self.__topics)
+
+        super().__exit__()
 
 
 class F1TimingClient:
@@ -312,7 +324,11 @@ class F1TimingClient:
 
             else:
                 for rn, driver_current_tyre in current_tyres["Tyres"].items():
-                    self.__current_tyres["Tyres"][rn] |= driver_current_tyre
+                    if rn in self.__current_tyres["Tyres"]:
+                        self.__current_tyres["Tyres"][rn] |= driver_current_tyre
+
+                    else:
+                        self.__current_tyres["Tyres"][rn] = driver_current_tyre
 
         elif topic == StreamingTopic.DRIVER_LIST:
             driver_list: Dict[str, Driver] = update_data
@@ -322,7 +338,11 @@ class F1TimingClient:
 
             else:
                 for rn, driver_data in driver_list.items():
-                    self.__driver_list[rn] |= driver_data
+                    if rn in self.__driver_list:
+                        self.__driver_list[rn] |= driver_data
+
+                    else:
+                        self.__driver_list[rn] = driver_data
 
         elif topic == StreamingTopic.EXTRAPOLATED_CLOCK:
             extrapolated_clock: ExtrapolatedClock = update_data
@@ -718,3 +738,41 @@ class F1TimingClient:
     @property
     def weather_data(self):
         return self.__weather_data
+
+
+class F1LiveTimingClient:
+    def __init__(self, *topics: StreamingTopic, reconnect: bool = True):
+        self.__lc = F1LiveClient(*topics, reconnect=reconnect)
+        self.__tc = F1TimingClient()
+
+    def __enter__(self):
+        self.__lc.__enter__()
+        return self
+
+    def __exit__(self, *args):
+        self.__lc.__exit__()
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        while self.__lc.connected:
+            _, message = next(self.__lc)
+
+            if "M" in message and len(message["M"]) > 0:
+                message_data = message["M"][0]["A"]
+                self.__tc.process_update(*message_data)
+                return message_data
+
+            if "R" in message:
+                self.__tc.process_replay(message["R"])
+
+        raise StopIteration
+
+    @property
+    def connected(self):
+        return self.__lc.connected
+
+    @property
+    def timing_client(self):
+        return self.__tc

@@ -3,16 +3,36 @@ from http.cookies import SimpleCookie
 from json import dumps, loads
 from logging import getLogger
 from random import randint
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, TypedDict
 from urllib.parse import quote, urlencode
 
 from requests import ConnectionError, HTTPError, Session
-from websocket import (
-    WebSocket,
-    WebSocketBadStatusException,
-    WebSocketConnectionClosedException,
-    WebSocketTimeoutException,
-)
+from websocket import WebSocket, WebSocketBadStatusException, WebSocketConnectionClosedException, \
+    WebSocketTimeoutException
+
+
+class SignalRNegotiationData(TypedDict):
+    """SignalR negotiation data"""
+
+    ConnectionId: str
+    ConnectionToken: str
+
+
+class SignalRInvokationData(TypedDict):
+    """SignalR hub method invokation data"""
+
+    H: str
+    M: str
+    A: List[Any]
+
+
+class SignalRData(TypedDict, total=False):
+    C: str
+    G: str
+    I: int
+    M: List[SignalRInvokationData]
+    R: Dict[str, Any]
+    S: int
 
 
 class SignalRClient:
@@ -27,18 +47,18 @@ class SignalRClient:
     __logger = getLogger("exfolt.SignalRClient")
     __ping_interval = timedelta(minutes=5)
 
-    def __init__(self, url: str, connection_data: Dict[str, List[str]], reconnect: bool = True):
+    def __init__(self, url: str, *hubs: str, reconnect: bool = True):
         self.__command_id = 0
-        self.__connection_data = connection_data
         self.__cookies: List[str] = []
-        self.__groups_token: Optional[str] = None
-        self.__id: Optional[str] = None
-        self.__last_ping_at: Optional[datetime] = None
-        self.__message_id: Optional[str] = None
-        self.__negotiated_at: Optional[int] = None
+        self.__groups_token: str | None = None
+        self.__hubs = hubs
+        self.__id: str | None = None
+        self.__last_ping_at: datetime | None = None
+        self.__message_id: str | None = None
+        self.__negotiated_at: int | None = None
         self.__reconnect = reconnect
         self.__rest_transport = Session()
-        self.__token: Optional[str] = None
+        self.__token: str | None = None
         self.__transport = WebSocket(skip_utf8_validation=True)
         self.__transport_type = "webSockets"
         self.__url = url
@@ -78,7 +98,7 @@ class SignalRClient:
     def __repr__(self):
         __data = ", ".join((
             f"url={self.__url}",
-            f"connection_data={self.__connection_data}",
+            f"hubs={self.__hubs}",
             f"id={self.__id}",
             f"token={self.__token}",
             f"message_id={self.__message_id}",
@@ -102,10 +122,8 @@ class SignalRClient:
                     "transport": self.__transport_type,
                     "connectionToken": self.__token,
                     "clientProtocol": SignalRClient.__client_protocol,
-                    "connectionData": dumps(
-                        [{"name": hub} for hub in self.__connection_data.keys()],
-                        separators=(',', ':'),
-                    ),
+                    "connectionData": dumps([{"name": hub} for hub in self.__hubs],
+                                            separators=(",", ":")),
                 },
                 json={},
             )
@@ -151,10 +169,8 @@ class SignalRClient:
                                 "messageId": self.__message_id,
                                 "clientProtocol": SignalRClient.__client_protocol,
                                 "connectionToken": self.__token,
-                                "connectionData": dumps(
-                                    [{"name": hub} for hub in self.__connection_data.keys()],
-                                    separators=(',', ':'),
-                                ),
+                                "connectionData": dumps([{"name": hub} for hub in self.__hubs],
+                                                        separators=(",", ":")),
                                 "tid": randint(0, 11),
                             },
                             quote_via=quote,
@@ -169,10 +185,8 @@ class SignalRClient:
                                 "transport": self.__transport_type,
                                 "clientProtocol": SignalRClient.__client_protocol,
                                 "connectionToken": self.__token,
-                                "connectionData": dumps(
-                                    [{"name": hub} for hub in self.__connection_data.keys()],
-                                    separators=(',', ':'),
-                                ),
+                                "connectionData": dumps([{"name": hub} for hub in self.__hubs],
+                                                        separators=(",", ":")),
                                 "tid": randint(0, 11),
                             },
                             quote_via=quote,
@@ -221,19 +235,15 @@ class SignalRClient:
             params={
                 "_": str(self.__negotiated_at),
                 "clientProtocol": SignalRClient.__client_protocol,
-                "connectionData": dumps(
-                    [{"name": hub} for hub in self.__connection_data.keys()],
-                    separators=(',', ':'),
-                ),
+                "connectionData": dumps([{"name": hub} for hub in self.__hubs],
+                                        separators=(",", ":")),
             },
         )
         r.raise_for_status()
 
-        r_json = r.json()
-        conn_token: str = r_json["ConnectionToken"]
-        conn_id: str = r_json["ConnectionId"]
-        self.__token = conn_token
-        self.__id = conn_id
+        r_json: SignalRNegotiationData = r.json()
+        self.__token = r_json["ConnectionToken"]
+        self.__id = r_json["ConnectionId"]
         self.__cookies = [f"{cookie.name}={cookie.value}" for cookie in r.cookies]
 
     def __ping(self):
@@ -267,8 +277,7 @@ class SignalRClient:
                 opcode, raw_data = self.__transport.recv_data()
                 opcode: int
                 raw_data: bytes
-                json_data = loads(raw_data)
-                json_data: Dict[str, Any]
+                json_data: SignalRData = loads(raw_data)
 
                 if len(json_data) == 0:
                     SignalRClient.__logger.info("KeepAlive packet received at " +
@@ -280,12 +289,10 @@ class SignalRClient:
                                                 f"ID {self.__id}!")
 
                 if "C" in json_data:
-                    message_id: str = json_data["C"]
-                    self.__message_id = message_id
+                    self.__message_id = json_data["C"]
 
                 if "G" in json_data:
-                    groups_token: str = json_data["G"]
-                    self.__groups_token = groups_token
+                    self.__groups_token = json_data["G"]
 
                 return opcode, json_data
 
@@ -304,10 +311,8 @@ class SignalRClient:
                 "transport": self.__transport_type,
                 "clientProtocol": SignalRClient.__client_protocol,
                 "connectionToken": self.__token,
-                "connectionData": dumps(
-                    [{"name": hub} for hub in self.__connection_data.keys()],
-                    separators=(',', ':'),
-                ),
+                "connectionData": dumps([{"name": hub} for hub in self.__hubs],
+                                        separators=(",", ":")),
                 "_": str(self.__negotiated_at),
             },
         )
@@ -315,45 +320,8 @@ class SignalRClient:
         response: str = r.json()["Response"]
         return response == "started"
 
-    def __subscribe(self):
-        for hub, topics in self.__connection_data.items():
-            SignalRClient.__logger.info(f"Subscribing SignalR connection with ID {self.__id} to " +
-                                        f"hub '{hub}' for topics {topics}!")
-            self.__transport.send(
-                dumps(
-                    {
-                        "H": hub,
-                        "M": "Subscribe",
-                        "A": [topics],
-                        "I": self.__command_id,
-                    },
-                    separators=(',', ':'),
-                ),
-            )
-            self.__command_id += 1
-
-    def __unsubscribe(self):
-        for hub, topics in self.__connection_data.items():
-            SignalRClient.__logger.info(f"Unsubscribing SignalR connection with ID {self.__id} " +
-                                        f"from hub '{hub}' for topics {topics}!")
-            self.__transport.send(
-                dumps(
-                    {
-                        "H": hub,
-                        "M": "Unsubscribe",
-                        "A": [topics],
-                        "I": self.__command_id,
-                    },
-                    separators=(',', ':'),
-                ),
-            )
-            self.__command_id += 1
-
     def close(self):
         if self.connected:
-            if self.__groups_token:
-                self.__unsubscribe()
-
             self.__close()
 
         self.__abort()
@@ -362,15 +330,23 @@ class SignalRClient:
     def connected(self):
         return self.__transport.connected
 
+    @property
+    def hubs(self):
+        return self.__hubs
+
+    def invoke(self, hub: str, method: str, *args):
+        assert hub in self.__hubs
+        data: SignalRInvokationData = {"H": hub, "M": method, "A": args}
+        data |= {"I": self.__command_id}
+        self.__transport.send(dumps(data, separators=(",", ":")))
+        self.__command_id += 1
+
     def open(self):
         if not self.__token:
             self.__negotiate()
 
         if not self.connected:
             self.__connect()
-
-        if not self.__groups_token:
-            self.__subscribe()
 
         self.__start()
 
