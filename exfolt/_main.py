@@ -86,11 +86,20 @@ def __parse_topics(args: Namespace):
     if args.driver_list:
         topics.append(StreamingTopic.DRIVER_LIST)
 
+    if args.driver_score:
+        topics.append(StreamingTopic.DRIVER_SCORE)
+
     if args.extrapolated_clock:
         topics.append(StreamingTopic.EXTRAPOLATED_CLOCK)
 
     if args.lap_count:
         topics.append(StreamingTopic.LAP_COUNT)
+
+    if args.lap_series:
+        topics.append(StreamingTopic.LAP_SERIES)
+
+    if args.pit_lane_time_collection:
+        topics.append(StreamingTopic.PIT_LANE_TIME_COLLECTION)
 
     if args.race_control_messages:
         topics.append(StreamingTopic.RACE_CONTROL_MESSAGES)
@@ -144,8 +153,11 @@ def __program_args():
     topics_parser.add_argument("--content-streams", action="store_true")
     topics_parser.add_argument("--current-tyres", action="store_true")
     topics_parser.add_argument("--driver-list", action="store_true")
+    topics_parser.add_argument("--driver-score", action="store_true")
     topics_parser.add_argument("--extrapolated-clock", action="store_true")
     topics_parser.add_argument("--lap-count", action="store_true")
+    topics_parser.add_argument("--lap-series", action="store_true")
+    topics_parser.add_argument("--pit-lane-time-collection", action="store_true")
     topics_parser.add_argument("--race-control-messages", action="store_true")
     topics_parser.add_argument("--session-data", action="store_true")
     topics_parser.add_argument("--session-info", action="store_true")
