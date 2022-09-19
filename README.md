@@ -3,7 +3,7 @@ Python unofficial F1 live timing client.
 
 ## Package Installation Guide
 ### Requires
-* Python 3.9+
+* Python 3.11+
 * pip package manager
 
 ### Install from source
