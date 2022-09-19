@@ -29,6 +29,32 @@ try:
 except ImportError:
     exdc_available = False
 
+__logo__ = """
+     _______  __   __  _______  ____  ___    _______
+    |       ||  |_|  ||       ||    ||   |  |       |
+    |    ___||       ||    ___| |   ||   |  |_     _|
+    |   |___ |       ||   |___  |   ||   |    |   |
+    |    ___| |     | |    ___| |   ||   |___ |   |
+    |   |___ |   _   ||   |     |   ||       ||   |
+    |_______||__| |__||___|     |___||_______||___|
+"""
+__license__ = """
+    eXF1LT - Unofficial F1 live timing client
+    Copyright (C) 2022  eXhumer
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as
+    published by the Free Software Foundation, version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
 __project_url__ = "https://github.com/eXhumer/pyeXF1LT"
 __version__ = require(__package__)[0].version
 
@@ -100,6 +126,8 @@ def __parse_topics(args: Namespace):
 
 
 def __program_args():
+    print(__logo__)
+
     parser = ArgumentParser(prog="eXF1LT", description="unofficial F1 live timing client")
 
     parser.add_argument("--license", "-L", action="store_true", help="prints the project license")
@@ -134,12 +162,20 @@ def __program_args():
     action_subparser = parser.add_subparsers(dest="action", title="actions", metavar="action",
                                              description="list of supported command line actions")
 
-    live_message_log_parser = action_subparser.add_parser("live-message-logger",
-                                                          help="log incoming messages to file",
-                                                          description="log incoming messages to " +
-                                                          "file")
-    live_message_log_parser.add_argument("live_message_log_path", type=Path,
-                                         help="file path to store logged messaged in")
+    if exdc_available:
+        live_discord_bot_parser = action_subparser.add_parser(
+            "live-discord-bot",
+            help="output incoming messages as Discord messages",
+            description="output incoming messages as Discord messages")
+        live_discord_bot_parser.add_argument(
+            "--env-path", "-e", type=Path, default=Path.home().joinpath(".exfolt_discord_env"),
+            help="file to load Discord environment variables from")
+
+    live_message_log_parser = action_subparser.add_parser(
+        "live-message-logger", help="log incoming messages to file",
+        description="log incoming messages to file")
+    live_message_log_parser.add_argument(
+        "live_message_log_path", type=Path, help="file path to store logged messaged in")
 
     return parser.parse_args()
 
@@ -171,31 +207,40 @@ def __program_main():
     args = __program_args()
     logger = __program_logger(args)
     topics = __parse_topics(args)
+    live_streaming_status = F1LiveClient.streaming_status()
 
     if args.license:
-        print("TODO: Print project license")
+        logger.info("Printing project license")
+        print(__license__)
+
+    if exdc_available and args.action == "live-discord-bot":
+        if live_streaming_status == "Offline":
+            logger.warning("F1 Live Timing API Streaming Status: Offline!")
 
     if args.action == "live-message-logger":
-        logger.debug("Logging live incoming messages from F1 Live Timing API!")
+        if live_streaming_status == "Offline":
+            logger.warning("F1 Live Timing API Streaming Status: Offline!")
+
         message_logger = __message_logger(args.live_message_log_path)
 
         try:
             with F1LiveClient(*topics) as live_client:
+                logger.info("F1 Live Timing streaming feed logger started!")
+
                 for _, message in live_client:
                     if len(message) == 0:
+                        logger.info("KeepAlive packet received from 'streaming' hub!")
                         continue
 
                     if "R" in message:
-                        logger.debug(message)
-                        logger.info("Logged 'R' value from 'streaming' hub!")
+                        logger.info("Logged return value from 'streaming' hub!")
                         message_logger.info(message["R"])
 
                     if "M" in message and len(message["M"]) != 0:
                         for invokation in message["M"]:
                             assert invokation["H"] == "streaming" and invokation["M"] == "feed"
-                            logger.info("Logged invokation arguments from F1 Live Timing API's " +
-                                        "'streaming' hub for 'feed' method!")
+                            logger.info("Logged 'feed' invokation arguments from 'streaming' hub!")
                             message_logger.info(invokation["A"])
 
         except KeyboardInterrupt:
-            pass
+            logger.info("F1 Live Timing streaming feed logger stopped!")
