@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import List
 from pkg_resources import require
 
-from exfolt._client import F1LiveClient
+from exfolt._client import F1LiveClient, F1LiveTimingClient
 from exfolt._type import StreamingTopic
 
 try:
@@ -126,8 +126,6 @@ def __parse_topics(args: Namespace):
 
 
 def __program_args():
-    print(__logo__)
-
     parser = ArgumentParser(prog="eXF1LT", description="unofficial F1 live timing client")
 
     parser.add_argument("--license", "-L", action="store_true", help="prints the project license")
@@ -204,6 +202,7 @@ def __program_logger(args: Namespace):
 
 
 def __program_main():
+    print(__logo__)
     args = __program_args()
     logger = __program_logger(args)
     topics = __parse_topics(args)
@@ -217,6 +216,17 @@ def __program_main():
         if live_streaming_status == "Offline":
             logger.warning("F1 Live Timing API Streaming Status: Offline!")
 
+        try:
+            with F1LiveTimingClient(*topics) as lt_client:
+                logger.info("F1 Live Timing streaming feed Discord bot started!")
+
+                for invokations in lt_client:
+                    for invokation in invokations:
+                        pass
+
+        except KeyboardInterrupt:
+            logger.info("F1 Live Timing streaming feed Discord bot stopped!")
+
     if args.action == "live-message-logger":
         if live_streaming_status == "Offline":
             logger.warning("F1 Live Timing API Streaming Status: Offline!")
@@ -229,7 +239,6 @@ def __program_main():
 
                 for _, message in live_client:
                     if len(message) == 0:
-                        logger.info("KeepAlive packet received from 'streaming' hub!")
                         continue
 
                     if "R" in message:
