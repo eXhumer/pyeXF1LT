@@ -1,12 +1,13 @@
 from collections.abc import Mapping, Sequence
 from datetime import date, datetime, timedelta
 from json import loads
+from logging import getLogger
 from queue import Queue
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Literal, Tuple
 
 from requests import Session
 
-from ._signalr import SignalRClient
+from ._signalr import SignalRClient, SignalRInvokation
 from ._utils import decompress_zlib_data, timedelta_parser
 from ._type import (
     ArchiveStatus,
@@ -41,6 +42,12 @@ from ._type import (
     TrackStatus,
     WeatherData,
 )
+
+
+class F1LTStreamingFeedInvokation(SignalRInvokation):
+    H: Literal["streaming"]
+    M: Literal["feed"]
+    A: List[Tuple[StreamingTopic, Dict[str, Any], str]]
 
 
 class F1ArchiveClient:
@@ -162,6 +169,7 @@ class F1LiveClient(SignalRClient):
     F1 client to receive SignalR messages from a live session
     """
 
+    __logger = getLogger("eXF1LT.F1LiveClient")
     URL = "https://livetiming.formula1.com/signalr"
 
     def __init__(self, *topics: StreamingTopic, reconnect: bool = True):
@@ -170,11 +178,15 @@ class F1LiveClient(SignalRClient):
 
     def __enter__(self):
         super().__enter__()
+        F1LiveClient.__logger.info("Invoking 'Subscribe' method on 'streaming' hub with" +
+                                   f" topics {self.__topics}")
         self.invoke(Hub.STREAMING, "Subscribe", self.__topics)
         return self
 
     def __exit__(self, *args):
         if self.connected:
+            F1LiveClient.__logger.info("Invoking 'Unsubscribe' method on 'streaming' hub with" +
+                                       f" topics {self.__topics}")
             self.invoke(Hub.STREAMING, "Unsubscribe", self.__topics)
 
         super().__exit__()
@@ -209,7 +221,7 @@ class F1TimingClient:
         self.__track_status: TrackStatus | None = None
         self.__weather_data: WeatherData | None = None
 
-    def process_replay(self, old_data: Dict[StreamingTopic, Any]):
+    def process_reply(self, old_data: Dict[StreamingTopic, Any]):
         if StreamingTopic.ARCHIVE_STATUS in old_data:
             archive_status: ArchiveStatus = old_data[StreamingTopic.ARCHIVE_STATUS]
             self.__archive_status = archive_status
@@ -287,7 +299,7 @@ class F1TimingClient:
             self.__weather_data = weather_data
 
     def process_update(self, topic: StreamingTopic, update_data: dict,
-                       timestamp: Union[datetime, timedelta]):
+                       timestamp: datetime | timedelta | str):
         if topic == StreamingTopic.ARCHIVE_STATUS:
             archive_status: ArchiveStatus = update_data
 
@@ -768,12 +780,15 @@ class F1LiveTimingClient:
             _, message = next(self.__lc)
 
             if "M" in message and len(message["M"]) > 0:
-                message_data = message["M"][0]["A"]
-                self.__tc.process_update(*message_data)
-                return message_data
+                invokations: List[F1LTStreamingFeedInvokation] = message["M"]
+
+                for invokation in invokations:
+                    self.__tc.process_update(*invokation["A"])
+
+                return invokations
 
             if "R" in message:
-                self.__tc.process_replay(message["R"])
+                self.__tc.process_reply(message["R"])
 
         raise StopIteration
 
