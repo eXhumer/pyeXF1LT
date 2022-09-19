@@ -24,6 +24,7 @@ from ._type import (
     SessionData,
     SessionInfo,
     SessionStatus,
+    StreamingStatus,
     StreamingTopic,
     TeamRadio,
     TimingAppData,
@@ -177,6 +178,13 @@ class F1LiveClient(SignalRClient):
             self.invoke(Hub.STREAMING, "Unsubscribe", self.__topics)
 
         super().__exit__()
+
+    @staticmethod
+    def streaming_status():
+        res = Session().get(f"{F1ArchiveClient.STATIC_URL}/StreamingStatus.json")
+        res.raise_for_status()
+        data: StreamingStatus = loads(res.content.decode("utf-8-sig"))
+        return data["Status"]
 
 
 class F1TimingClient:

@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from __future__ import annotations
 from enum import StrEnum
 from typing import Dict, List, Literal, NotRequired, Required, TypedDict
 
@@ -232,6 +233,10 @@ class SessionStatusEnum(StrEnum):
 
 class SessionStatus(TypedDict, total=False):
     Status: SessionStatusEnum
+
+
+class StreamingStatus(TypedDict):
+    Status: Literal["Available", "Offline"]
 
 
 class StreamingTopic(StrEnum):
