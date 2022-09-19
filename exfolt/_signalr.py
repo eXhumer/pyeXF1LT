@@ -3,7 +3,7 @@ from http.cookies import SimpleCookie
 from json import dumps, loads
 from logging import getLogger
 from random import randint
-from typing import Any, Dict, List, TypedDict
+from typing import Any, List, TypedDict
 from urllib.parse import quote, urlencode
 
 from requests import ConnectionError, HTTPError, Session
@@ -18,7 +18,7 @@ class SignalRNegotiationData(TypedDict):
     ConnectionToken: str
 
 
-class SignalRInvokationData(TypedDict):
+class SignalRInvokation(TypedDict):
     """SignalR hub method invokation data"""
 
     H: str
@@ -30,8 +30,8 @@ class SignalRData(TypedDict, total=False):
     C: str
     G: str
     I: int
-    M: List[SignalRInvokationData]
-    R: Dict[str, Any]
+    M: List[SignalRInvokation]
+    R: Any
     S: int
 
 
@@ -44,7 +44,7 @@ class SignalRClient:
     """
 
     __client_protocol = "1.5"
-    __logger = getLogger("exfolt.SignalRClient")
+    __logger = getLogger("eXF1LT.SignalRClient")
     __ping_interval = timedelta(minutes=5)
 
     def __init__(self, url: str, *hubs: str, reconnect: bool = True):
@@ -336,7 +336,7 @@ class SignalRClient:
 
     def invoke(self, hub: str, method: str, *args):
         assert hub in self.__hubs
-        data: SignalRInvokationData = {"H": hub, "M": method, "A": args}
+        data: SignalRInvokation = {"H": hub, "M": method, "A": args}
         data |= {"I": self.__command_id}
         self.__transport.send(dumps(data, separators=(",", ":")))
         self.__command_id += 1
