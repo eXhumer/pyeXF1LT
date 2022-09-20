@@ -422,3 +422,31 @@ class WeatherData(TypedDict):
     TrackTemp: str
     WindDirection: str
     WindSpeed: str
+
+
+class YearIndex(TypedDict):
+    Year: int
+    Meetings: List[YearMeetingIndex]
+
+
+class YearMeetingIndex(TypedDict):
+    Sessions: List[YearSessionIndex]
+    Key: int
+    Code: str
+    Number: int
+    Location: str
+    OfficialName: str
+    Name: str
+    Country: SessionInfoMeetingCountry
+    Circuit: SessionInfoMeetingCircuit
+
+
+class YearSessionIndex(TypedDict):
+    Key: int
+    Type: str
+    Number: NotRequired[int]
+    Name: str
+    StartDate: str
+    EndDate: str
+    GmtOffset: str
+    Path: NotRequired[str]

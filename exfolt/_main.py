@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import List
 from pkg_resources import require
 
-from exfolt._client import F1LiveClient, F1LiveTimingClient
+from exfolt._client import F1ArchiveClient, F1LiveClient, F1LiveTimingClient
 from exfolt._type import StreamingTopic
 
 try:
@@ -172,20 +172,35 @@ def __program_args():
     action_subparser = parser.add_subparsers(dest="action", title="actions", metavar="action",
                                              description="list of supported command line actions")
 
+    archive_message_log_parser = action_subparser.add_parser(
+        "archived-message-logger", help="log archived session messages to file",
+        description="log archived session messages to file")
+    archive_message_log_parser.add_argument(
+        "archived_message_log_path", type=Path, help="file path to store logged messaged in")
+    session_info_group = archive_message_log_parser.add_mutually_exclusive_group(required=True)
+    session_info_group.add_argument("--by-path", help="retrieve archived session by path",
+                                    type=str, dest="archive_path")
+    session_info_group.add_argument(
+        "--by-session-info", nargs=3, dest="archive_session_info", type=int,
+        metavar=("YEAR", "EVENT_NUMBER", "SESSION_NUMBER"),
+        help="retrieve archived session by year, event and session numbers")
+    session_info_group.add_argument("--last-session", action="store_true",
+                                    dest="archive_last_session",
+                                    help="retrieve last archived session")
+
+    live_message_log_parser = action_subparser.add_parser(
+        "live-message-logger", help="log live session messages to file",
+        description="log live session messages to file")
+    live_message_log_parser.add_argument(
+        "live_message_log_path", type=Path, help="file path to store logged messaged in")
+
     if exdc_available:
         live_discord_bot_parser = action_subparser.add_parser(
-            "live-discord-bot",
-            help="output incoming messages as Discord messages",
+            "live-discord-bot", help="output incoming messages as Discord messages",
             description="output incoming messages as Discord messages")
         live_discord_bot_parser.add_argument(
             "--env-path", "-e", type=Path, default=Path.home().joinpath(".exfolt_discord_env"),
             help="file to load Discord environment variables from")
-
-    live_message_log_parser = action_subparser.add_parser(
-        "live-message-logger", help="log incoming messages to file",
-        description="log incoming messages to file")
-    live_message_log_parser.add_argument(
-        "live_message_log_path", type=Path, help="file path to store logged messaged in")
 
     return parser.parse_args()
 
@@ -224,20 +239,31 @@ def __program_main():
         logger.info("Printing project license")
         print(__license__)
 
-    if exdc_available and args.action == "live-discord-bot":
-        if live_streaming_status == "Offline":
-            logger.warning("F1 Live Timing API Streaming Status: Offline!")
+    if args.action == "archived-message-logger":
+        message_logger = __message_logger(args.archived_message_log_path)
+        logger.info("F1 Live Timing archived feed logger started!")
 
-        try:
-            with F1LiveTimingClient(*topics) as lt_client:
-                logger.info("F1 Live Timing streaming feed Discord bot started!")
+        if args.archive_path:
+            logger.info("Retrieving archived feed by path!")
+            archive_client = F1ArchiveClient(args.archive_path, *topics)
 
-                for invokations in lt_client:
-                    for invokation in invokations:
-                        pass
+        elif args.archive_session_info:
+            logger.info("Retrieving archived feed by session information!")
+            archive_client = F1ArchiveClient.get_by_session_info(*args.archive_session_info,
+                                                                 *topics)
 
-        except KeyboardInterrupt:
-            logger.info("F1 Live Timing streaming feed Discord bot stopped!")
+        elif args.archive_last_session:
+            logger.info("Retrieving last archived feed!")
+            archive_client = F1ArchiveClient.get_last_session(*topics)
+
+        else:
+            assert False, "Unreachable as one of the above condition is required!"
+
+        for message in archive_client:
+            logger.info("Logged session feed message!")
+            message_logger.info([*message])
+
+        logger.info("F1 Live Timing archived feed logger stopped!")
 
     if args.action == "live-message-logger":
         if live_streaming_status == "Offline":
@@ -265,3 +291,18 @@ def __program_main():
 
         except KeyboardInterrupt:
             logger.info("F1 Live Timing streaming feed logger stopped!")
+
+    if exdc_available and args.action == "live-discord-bot":
+        if live_streaming_status == "Offline":
+            logger.warning("F1 Live Timing API Streaming Status: Offline!")
+
+        try:
+            with F1LiveTimingClient(*topics) as lt_client:
+                logger.info("F1 Live Timing streaming feed Discord bot started!")
+
+                for invokations in lt_client:
+                    for invokation in invokations:
+                        pass
+
+        except KeyboardInterrupt:
+            logger.info("F1 Live Timing streaming feed Discord bot stopped!")

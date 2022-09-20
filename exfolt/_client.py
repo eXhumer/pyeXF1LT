@@ -1,5 +1,5 @@
 from collections.abc import Mapping, Sequence
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from json import loads
 from logging import getLogger
 from queue import Queue
@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Literal, Tuple
 from requests import Session
 
 from ._signalr import SignalRClient, SignalRInvokation
-from ._utils import decompress_zlib_data, timedelta_parser
+from ._utils import decompress_zlib_data
 from ._type import (
     ArchiveStatus,
     AudioStreams,
@@ -41,6 +41,7 @@ from ._type import (
     TimingStint,
     TrackStatus,
     WeatherData,
+    YearIndex,
 )
 
 
@@ -71,7 +72,7 @@ class F1ArchiveClient:
         self.__path = path
         self.__topics = topics
         self.__session = session
-        self.__data_queue: Queue[Tuple[StreamingTopic, Dict[str, Any], timedelta]] = Queue()
+        self.__data_queue: Queue[Tuple[str, Dict[str, Any], str]] = Queue()
         self.__load_data()
 
     def __iter__(self):
@@ -84,7 +85,7 @@ class F1ArchiveClient:
         return self.__data_queue.get()
 
     def __load_data(self):
-        data_entries: List[Tuple[StreamingTopic, Dict[str, Any], timedelta]] = []
+        data_entries: List[Tuple[str, Dict[str, Any], str]] = []
 
         for topic in self.__topics:
             res = self.__session.get(
@@ -97,7 +98,7 @@ class F1ArchiveClient:
 
             if not topic.endswith(".z"):
                 data_entries.extend([
-                    (topic, loads(data_entry[12:]), timedelta_parser(data_entry[:12]))
+                    (str(topic), loads(data_entry[12:]), data_entry[:12])
                     for data_entry
                     in res.content.decode(encoding="utf-8-sig").replace("\r", "").split("\n")
                     if len(data_entry) > 0
@@ -106,9 +107,9 @@ class F1ArchiveClient:
             else:
                 data_entries.extend([
                     (
-                        topic,
+                        str(topic),
                         loads(decompress_zlib_data(data_entry[13:-1])),
-                        timedelta_parser(data_entry[:12])
+                        data_entry[:12]
                     )
                     for data_entry
                     in res.content.decode(encoding="utf-8-sig").replace("\r", "").split("\n")
@@ -121,31 +122,46 @@ class F1ArchiveClient:
             self.__data_queue.put(data_entry)
 
     @classmethod
-    def get_session(
-        cls,
-        event_name: str,
-        event_date: date,
-        session_name: str,
-        session_date: date,
-        *topics: StreamingTopic,
-        session: Session | None = None,
-    ):
+    def get_by_session_info(cls, year: int, meeting_number: int, session_number: int,
+                            *topics: StreamingTopic, session: Session | None = None):
+        assert year >= 2018, \
+            "Requested session earlier than 2018! Sessions before 2018 not available!"
+        assert meeting_number >= 1, "Meeting number can't be below 0!"
+        assert session_number >= 1, "Session number can't be below 0!"
+
         if not session:
             session = Session()
 
-        path = "/".join((
-            str(event_date.year),
-            "_".join((
-                event_date.strftime("%Y-%m-%d"),
-                event_name.replace(" ", "_"),
-            )),
-            "_".join((
-                session_date.strftime("%Y-%m-%d"),
-                session_name.replace(" ", "_"),
-            )),
-        )) + "/"
+        r = session.get(f"{F1ArchiveClient.STATIC_URL}/{year}/Index.json")
+        r.raise_for_status()
 
-        return cls(path, *topics, session=session)
+        year_index: YearIndex = loads(r.content.decode("utf-8-sig"))
+
+        meetings = year_index["Meetings"]
+        assert meeting_number <= len(meetings), \
+            f"Meeting number ({meeting_number}) more than total number of meetings " + \
+            f"({len(meetings)}) from {year}!"
+
+        meeting = year_index["Meetings"][meeting_number - 1]
+        meeting_sessions = meeting["Sessions"]
+        assert session_number <= len(meeting_sessions), \
+            f"Session number ({session_number}) more than total number of sessions " + \
+            f"({len(meeting_sessions)}) in meeting {meeting_number} ({meeting['Name']}) from " + \
+            f"{year}!"
+        meeting_session = meeting_sessions[session_number - 1]
+
+        if "Path" in meeting_session:
+            return cls(meeting_session["Path"], *topics, session=session)
+
+        else:
+            meeting_date = meeting_sessions[-1]["StartDate"].split("T")[0]
+            meeting_name = meeting["Name"]
+            session_date = meeting_session["StartDate"].split("T")[0]
+            session_name = meeting_session["Name"]
+
+            return cls("/".join([str(year), f"{meeting_date} {meeting_name}",
+                                 f"{session_date} {session_name}", ""])
+                       .replace(" ", "_"), *topics, session=session)
 
     @classmethod
     def get_last_session(cls, *topics: StreamingTopic, session: Session | None = None):
@@ -154,12 +170,12 @@ class F1ArchiveClient:
 
         res = session.get(f"{F1ArchiveClient.STATIC_URL}/StreamingStatus.json")
         res.raise_for_status()
-        streaming_status = loads(res.content.decode("utf-8-sig"))
-        assert streaming_status["Status"] == "Offline", "Use F1LiveClient class for live sessions!"
+        streaming_status: StreamingStatus = loads(res.content.decode("utf-8-sig"))
+        assert streaming_status["Status"] == "Offline", "Last session currently live streaming!"
 
         res = session.get(f"{F1ArchiveClient.STATIC_URL}/SessionInfo.json")
         res.raise_for_status()
-        session_info = loads(res.content.decode("utf-8-sig"))
+        session_info: SessionInfo = loads(res.content.decode("utf-8-sig"))
 
         return cls(session_info["Path"], *topics, session=session)
 
