@@ -20,8 +20,8 @@ from pathlib import Path
 from typing import List
 from pkg_resources import require
 
-from exfolt._client import F1ArchiveClient, F1LiveClient, F1LiveTimingClient
-from exfolt._type import StreamingTopic
+from ._client import F1ArchiveClient, F1LiveClient, F1LiveTimingClient
+from ._type import StreamingTopic
 
 try:
     exdc_available = True
@@ -182,8 +182,8 @@ def __program_args():
                                     type=str, dest="archive_path")
     session_info_group.add_argument(
         "--by-session-info", nargs=3, dest="archive_session_info", type=int,
-        metavar=("YEAR", "EVENT_NUMBER", "SESSION_NUMBER"),
-        help="retrieve archived session by year, event and session numbers")
+        metavar=("YEAR", "MEETING_NUMBER", "SESSION_NUMBER"),
+        help="retrieve archived session by year, meeting and session numbers")
     session_info_group.add_argument("--last-session", action="store_true",
                                     dest="archive_last_session",
                                     help="retrieve last archived session")
@@ -244,11 +244,14 @@ def __program_main():
         logger.info("F1 Live Timing archived feed logger started!")
 
         if args.archive_path:
-            logger.info("Retrieving archived feed by path!")
+            logger.info(f"Retrieving archived feed by path ({args.archive_path})!")
             archive_client = F1ArchiveClient(args.archive_path, *topics)
 
         elif args.archive_session_info:
-            logger.info("Retrieving archived feed by session information!")
+            logger.info("Retrieving archived feed by session information (Year: " +
+                        f"{args.archive_session_info[0]}, Meeting: " +
+                        f"{args.archive_session_info[1]}, Session: " +
+                        f"{args.archive_session_info[2]})!")
             archive_client = F1ArchiveClient.get_by_session_info(*args.archive_session_info,
                                                                  *topics)
 
