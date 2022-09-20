@@ -61,7 +61,7 @@ __version__ = require(__package__)[0].version
 
 def __message_logger(log_path: Path):
     file_handler = FileHandler(str(log_path.resolve()), mode="w")
-    file_handler.setFormatter(Formatter("%(message)s\n"))
+    file_handler.setFormatter(Formatter("%(message)s"))
     logger = getLogger("message_logger")
     logger.addHandler(file_handler)
     logger.setLevel(INFO)
