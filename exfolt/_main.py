@@ -15,6 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from argparse import ArgumentParser, Namespace
+from json import loads
 from logging import DEBUG, FileHandler, Formatter, getLogger, INFO, StreamHandler
 from pathlib import Path
 from typing import List
@@ -22,6 +23,7 @@ from pkg_resources import require
 
 from ._client import F1ArchiveClient, F1LiveClient, F1LiveTimingClient
 from ._type import StreamingTopic
+from ._utils import decompress_zlib_data
 
 try:
     exdc_available = True
@@ -77,6 +79,9 @@ def __parse_topics(args: Namespace):
     if args.audio_streams:
         topics.append(StreamingTopic.AUDIO_STREAMS)
 
+    if args.car_data:
+        topics.append(StreamingTopic.CAR_DATA_Z)
+
     if args.content_streams:
         topics.append(StreamingTopic.CONTENT_STREAMS)
 
@@ -100,6 +105,9 @@ def __parse_topics(args: Namespace):
 
     if args.pit_lane_time_collection:
         topics.append(StreamingTopic.PIT_LANE_TIME_COLLECTION)
+
+    if args.position:
+        topics.append(StreamingTopic.POSITION_Z)
 
     if args.race_control_messages:
         topics.append(StreamingTopic.RACE_CONTROL_MESSAGES)
@@ -150,6 +158,7 @@ def __program_args():
     topics_parser = parser.add_argument_group(title="streaming topics")
     topics_parser.add_argument("--archive-status", action="store_true")
     topics_parser.add_argument("--audio-streams", action="store_true")
+    topics_parser.add_argument("--car-data", action="store_true")
     topics_parser.add_argument("--content-streams", action="store_true")
     topics_parser.add_argument("--current-tyres", action="store_true")
     topics_parser.add_argument("--driver-list", action="store_true")
@@ -158,6 +167,7 @@ def __program_args():
     topics_parser.add_argument("--lap-count", action="store_true")
     topics_parser.add_argument("--lap-series", action="store_true")
     topics_parser.add_argument("--pit-lane-time-collection", action="store_true")
+    topics_parser.add_argument("--position", action="store_true")
     topics_parser.add_argument("--race-control-messages", action="store_true")
     topics_parser.add_argument("--session-data", action="store_true")
     topics_parser.add_argument("--session-info", action="store_true")
@@ -177,6 +187,9 @@ def __program_args():
         description="log archived session messages to file")
     archive_message_log_parser.add_argument(
         "archived_message_log_path", type=Path, help="file path to store logged messaged in")
+    archive_message_log_parser.add_argument("--disable-b64-zlib-decode", action="store_false",
+                                            dest="archived_b64_zlib_decode",
+                                            help="disables decoding of base64/zlib encoded data")
     session_info_group = archive_message_log_parser.add_mutually_exclusive_group(required=True)
     session_info_group.add_argument("--by-path", help="retrieve archived session by path",
                                     type=str, dest="archive_path")
@@ -193,6 +206,9 @@ def __program_args():
         description="log live session messages to file")
     live_message_log_parser.add_argument(
         "live_message_log_path", type=Path, help="file path to store logged messaged in")
+    live_message_log_parser.add_argument("--disable-b64-zlib-decode", action="store_false",
+                                         dest="live_b64_zlib_decode",
+                                         help="disables decoding of base64/zlib encoded data")
 
     if exdc_available:
         live_discord_bot_parser = action_subparser.add_parser(
@@ -256,15 +272,22 @@ def __program_main():
                                                                  *topics)
 
         elif args.archive_last_session:
-            logger.info("Retrieving last archived feed!")
+            logger.info("Retrieving last archived session messages!")
             archive_client = F1ArchiveClient.get_last_session(*topics)
 
         else:
             assert False, "Unreachable as one of the above condition is required!"
 
+        logger.info("Logging all archived session messages!")
+
         for message in archive_client:
-            logger.info("Logged session feed message!")
-            message_logger.info([*message])
+            if message[0] in [StreamingTopic.CAR_DATA_Z, StreamingTopic.POSITION_Z] and \
+                    args.archived_b64_zlib_decode:
+                message_logger.info([message[0],
+                                     loads(decompress_zlib_data(message[1])), message[2]])
+
+            else:
+                message_logger.info([*message])
 
         logger.info("F1 Live Timing archived feed logger stopped!")
 
@@ -290,7 +313,18 @@ def __program_main():
                         for invokation in message["M"]:
                             assert invokation["H"] == "streaming" and invokation["M"] == "feed"
                             logger.info("Logged 'feed' invokation arguments from 'streaming' hub!")
-                            message_logger.info(invokation["A"])
+
+                            if message[0] in [
+                                StreamingTopic.CAR_DATA_Z,
+                                StreamingTopic.POSITION_Z,
+                            ] and args.live_b64_zlib_decode:
+                                message_logger.info([
+                                    invokation["A"][0],
+                                    loads(decompress_zlib_data(invokation["A"][1])),
+                                    invokation["A"][2]])
+
+                            else:
+                                message_logger.info(invokation["A"])
 
         except KeyboardInterrupt:
             logger.info("F1 Live Timing streaming feed logger stopped!")

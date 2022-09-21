@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Literal, Tuple
 from requests import Session
 
 from ._signalr import SignalRClient, SignalRInvokation
-from ._utils import decompress_zlib_data
 from ._type import (
     ArchiveStatus,
     AudioStreams,
@@ -56,12 +55,14 @@ class F1ArchiveClient:
     F1 client to receive SignalR messages from an archived session
     """
 
+    __logger = getLogger("eXF1LT.F1ArchiveClient")
     STATIC_URL = "https://livetiming.formula1.com/static"
 
     def __init__(self, path: str, *topics: StreamingTopic, session: Session | None = None):
         if not session:
             session = Session()
 
+        self.__logger.info(f"Requesting F1 Live Timing archived session status with path {path}!")
         res = session.get(f"{F1ArchiveClient.STATIC_URL}/{path}ArchiveStatus.json")
         res.raise_for_status()
 
@@ -88,12 +89,16 @@ class F1ArchiveClient:
         data_entries: List[Tuple[str, Dict[str, Any], str]] = []
 
         for topic in self.__topics:
+            self.__logger.info(f"Requesting F1 Live Timing archived topic {topic} data for " +
+                               f"session with path {self.__path}!")
             res = self.__session.get(
-                "".join((
-                    f"{F1ArchiveClient.STATIC_URL}/{self.__path}",
-                    f"{str(topic)}.jsonStream",
-                )),
-            )
+                f"{F1ArchiveClient.STATIC_URL}/{self.__path}{str(topic)}.jsonStream")
+
+            if res.status_code == 404:
+                self.__logger.warn(f"{topic} not available for archived session with path " +
+                                   f"{self.__path}!")
+                continue
+
             res.raise_for_status()
 
             if not topic.endswith(".z"):
@@ -106,11 +111,7 @@ class F1ArchiveClient:
 
             else:
                 data_entries.extend([
-                    (
-                        str(topic),
-                        loads(decompress_zlib_data(data_entry[13:-1])),
-                        data_entry[:12]
-                    )
+                    (str(topic), data_entry[13:-1], data_entry[:12])
                     for data_entry
                     in res.content.decode(encoding="utf-8-sig").replace("\r", "").split("\n")
                     if len(data_entry) > 0
@@ -132,6 +133,9 @@ class F1ArchiveClient:
         if not session:
             session = Session()
 
+        F1ArchiveClient.__logger.info(
+            f"Requesting F1 Live Timing API's year {year} archive index!")
+
         r = session.get(f"{F1ArchiveClient.STATIC_URL}/{year}/Index.json")
         r.raise_for_status()
 
@@ -140,15 +144,22 @@ class F1ArchiveClient:
         meetings = year_index["Meetings"]
         assert meeting_number <= len(meetings), \
             f"Meeting number ({meeting_number}) more than total number of meetings " + \
-            f"({len(meetings)}) from {year}!"
+            f"({len(meetings)}) from year {year}!"
 
         meeting = year_index["Meetings"][meeting_number - 1]
+        F1ArchiveClient.__logger.info(
+            f"Found meeting {meeting_number} ({meeting['Name']}) from year {year}!")
+
         meeting_sessions = meeting["Sessions"]
         assert session_number <= len(meeting_sessions), \
             f"Session number ({session_number}) more than total number of sessions " + \
             f"({len(meeting_sessions)}) in meeting {meeting_number} ({meeting['Name']}) from " + \
-            f"{year}!"
+            f"year {year}!"
+
         meeting_session = meeting_sessions[session_number - 1]
+        F1ArchiveClient.__logger.info(
+            f"Found session {session_number} ({meeting_session['Name']}) from meeting " +
+            f"{meeting_number} ({meeting['Name']}) from year {year}!")
 
         if "Path" in meeting_session:
             return cls(meeting_session["Path"], *topics, session=session)
@@ -168,15 +179,18 @@ class F1ArchiveClient:
         if not session:
             session = Session()
 
+        F1ArchiveClient.__logger.info("Checking current F1 Live Timing streaming status!")
         res = session.get(f"{F1ArchiveClient.STATIC_URL}/StreamingStatus.json")
         res.raise_for_status()
-        streaming_status: StreamingStatus = loads(res.content.decode("utf-8-sig"))
-        assert streaming_status["Status"] == "Offline", "Last session currently live streaming!"
 
+        streaming_status: StreamingStatus = loads(res.content.decode("utf-8-sig"))
+        assert streaming_status["Status"] == "Offline", "F1 Live Timing currently streaming!"
+
+        F1ArchiveClient.__logger.info("Requesting last F1 Live Timing session information!")
         res = session.get(f"{F1ArchiveClient.STATIC_URL}/SessionInfo.json")
         res.raise_for_status()
-        session_info: SessionInfo = loads(res.content.decode("utf-8-sig"))
 
+        session_info: SessionInfo = loads(res.content.decode("utf-8-sig"))
         return cls(session_info["Path"], *topics, session=session)
 
 
