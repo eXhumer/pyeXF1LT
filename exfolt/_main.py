@@ -14,12 +14,14 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from argparse import ArgumentParser, Namespace
+from __future__ import annotations
+from argparse import ArgumentParser
+from enum import StrEnum
 from json import loads
 from logging import DEBUG, FileHandler, Formatter, getLogger, INFO, StreamHandler
 from pathlib import Path
-from typing import List
 from pkg_resources import require
+from typing import List
 
 from ._client import F1ArchiveClient, F1LiveClient, F1LiveTimingClient
 from ._type import StreamingTopic
@@ -61,6 +63,57 @@ __project_url__ = "https://github.com/eXhumer/pyeXF1LT"
 __version__ = require(__package__)[0].version
 
 
+class _ProgramAction(StrEnum):
+    ARCHIVED_MESSAGE_LOGGER = "archived-message-logger"
+    LIVE_DISCORD_BOT = "live-discord-bot"
+    LIVE_MESSAGE_LOGGER = "live-message-logger"
+
+
+class __ProgramNamespace:
+    action: _ProgramAction
+    archive_last_session: bool
+    archive_path: str
+    archive_session_info: List[str]
+    archive_status: bool
+    archived_message_log_path: Path
+    audio_streams: bool
+    car_data: bool
+    championship_prediction: bool
+    content_streams: bool
+    current_tyres: bool
+    driver_list: bool
+    driver_race_info: bool
+    driver_score: bool
+    extrapolated_clock: bool
+    heartbeat: bool
+    lap_count: bool
+    lap_series: bool
+    license: bool
+    live_b64_zlib_decode: bool
+    live_message_log_path: Path
+    log_console: bool
+    log_level: int
+    log_path: Path
+    pit_lane_time_collection: bool
+    position: bool
+    race_control_messages: bool
+    session_data: bool
+    session_info: bool
+    session_status: bool
+    sp_feed: bool
+    team_radio: bool
+    timing_app_data: bool
+    timing_data_f1: bool
+    timing_data: bool
+    timing_stats: bool
+    tla_rcm: bool
+    top_three: bool
+    track_status: bool
+    tyre_stint_series: bool
+    weather_data: bool
+    weather_data_series: bool
+
+
 def __message_logger(log_path: Path):
     file_handler = FileHandler(str(log_path.resolve()), mode="w")
     file_handler.setFormatter(Formatter("%(message)s"))
@@ -70,7 +123,7 @@ def __message_logger(log_path: Path):
     return logger
 
 
-def __parse_topics(args: Namespace):
+def __parse_topics(args: __ProgramNamespace):
     topics: List[StreamingTopic] = []
 
     if args.archive_status:
@@ -163,13 +216,13 @@ def __parse_topics(args: Namespace):
     if args.weather_data:
         topics.append(StreamingTopic.WEATHER_DATA)
 
-    if args.weather_series_data:
+    if args.weather_data_series:
         topics.append(StreamingTopic.WEATHER_DATA_SERIES)
 
     return topics
 
 
-def __program_args():
+def __program_args() -> __ProgramNamespace:
     parser = ArgumentParser(prog="eXF1LT", description="unofficial F1 live timing client")
 
     parser.add_argument("--license", "-L", action="store_true", help="prints the project license")
@@ -230,9 +283,9 @@ def __program_args():
     session_info_group.add_argument("--by-path", help="retrieve archived session by path",
                                     type=str, dest="archive_path")
     session_info_group.add_argument(
-        "--by-session-info", nargs=3, dest="archive_session_info", type=int,
-        metavar=("YEAR", "MEETING_NUMBER", "SESSION_NUMBER"),
-        help="retrieve archived session by year, meeting and session numbers")
+        "--by-session-info", nargs=3, dest="archive_session_info", type=str,
+        metavar=("YEAR", "MEETING", "SESSION"),
+        help="retrieve archived session by year, meeting and session")
     session_info_group.add_argument("--last-session", action="store_true",
                                     dest="archive_last_session",
                                     help="retrieve last archived session")
@@ -257,7 +310,7 @@ def __program_args():
     return parser.parse_args()
 
 
-def __program_logger(args: Namespace):
+def __program_logger(args: __ProgramNamespace):
     formatter = Formatter("[%(asctime)s][%(name)s][%(levelname)s]\t%(message)s")
     logger = getLogger("eXF1LT")
 
@@ -291,7 +344,7 @@ def __program_main():
         logger.info("Printing project license")
         print(__license__)
 
-    if args.action == "archived-message-logger":
+    if args.action == _ProgramAction.ARCHIVED_MESSAGE_LOGGER:
         message_logger = __message_logger(args.archived_message_log_path)
         logger.info("F1 Live Timing archived feed logger started!")
 
@@ -300,12 +353,13 @@ def __program_main():
             archive_client = F1ArchiveClient(args.archive_path, *topics)
 
         elif args.archive_session_info:
-            logger.info("Retrieving archived feed by session information (Year: " +
-                        f"{args.archive_session_info[0]}, Meeting: " +
-                        f"{args.archive_session_info[1]}, Session: " +
-                        f"{args.archive_session_info[2]})!")
-            archive_client = F1ArchiveClient.get_by_session_info(*args.archive_session_info,
-                                                                 *topics)
+            year = int(args.archive_session_info[0])
+            meeting = args.archive_session_info[1]
+            session = args.archive_session_info[2]
+
+            logger.info(f"Retrieving archived feed by session information (Year: {year}, " +
+                        f"Meeting: {meeting}, Session: {session})!")
+            archive_client = F1ArchiveClient.get_by_session_info(year, meeting, session, *topics)
 
         elif args.archive_last_session:
             logger.info("Retrieving last archived session messages!")
@@ -327,7 +381,7 @@ def __program_main():
 
         logger.info("F1 Live Timing archived feed logger stopped!")
 
-    if args.action == "live-message-logger":
+    if args.action == _ProgramAction.LIVE_MESSAGE_LOGGER:
         if live_streaming_status == "Offline":
             logger.warning("F1 Live Timing API Streaming Status: Offline!")
 
@@ -365,7 +419,7 @@ def __program_main():
         except KeyboardInterrupt:
             logger.info("F1 Live Timing streaming feed logger stopped!")
 
-    if exdc_available and args.action == "live-discord-bot":
+    if exdc_available and args.action == _ProgramAction.LIVE_DISCORD_BOT:
         if live_streaming_status == "Offline":
             logger.warning("F1 Live Timing API Streaming Status: Offline!")
 

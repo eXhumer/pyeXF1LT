@@ -123,56 +123,84 @@ class F1ArchiveClient:
             self.__data_queue.put(data_entry)
 
     @classmethod
-    def get_by_session_info(cls, year: int, meeting_number: int, session_number: int,
-                            *topics: StreamingTopic, session: Session | None = None):
+    def get_by_session_info(cls, year: int, meeting: str, session: str, *topics: StreamingTopic,
+                            rest_session: Session | None = None):
         assert year >= 2018, \
             "Requested session earlier than 2018! Sessions before 2018 not available!"
-        assert meeting_number >= 1, "Meeting number can't be below 0!"
-        assert session_number >= 1, "Session number can't be below 0!"
 
-        if not session:
-            session = Session()
+        if not rest_session:
+            rest_session = Session()
 
         F1ArchiveClient.__logger.info(
             f"Requesting F1 Live Timing API's year {year} archive index!")
 
-        r = session.get(f"{F1ArchiveClient.STATIC_URL}/{year}/Index.json")
+        r = rest_session.get(f"{F1ArchiveClient.STATIC_URL}/{year}/Index.json")
         r.raise_for_status()
 
         year_index: YearIndex = loads(r.content.decode("utf-8-sig"))
 
         meetings = year_index["Meetings"]
-        assert meeting_number <= len(meetings), \
-            f"Meeting number ({meeting_number}) more than total number of meetings " + \
-            f"({len(meetings)}) from year {year}!"
 
-        meeting = year_index["Meetings"][meeting_number - 1]
-        F1ArchiveClient.__logger.info(
-            f"Found meeting {meeting_number} ({meeting['Name']}) from year {year}!")
+        try:
+            meeting_number = int(meeting)
+            assert meeting <= len(meetings), \
+                f"Meeting number ({meeting_number}) more than total number of meetings " + \
+                f"({len(meetings)}) from year {year}!"
+            meeting_data = year_index["Meetings"][meeting_number - 1]
+            F1ArchiveClient.__logger.info(
+                f"Found meeting {meeting_number} ({meeting_data['Name']}) from year {year}!")
 
-        meeting_sessions = meeting["Sessions"]
-        assert session_number <= len(meeting_sessions), \
-            f"Session number ({session_number}) more than total number of sessions " + \
-            f"({len(meeting_sessions)}) in meeting {meeting_number} ({meeting['Name']}) from " + \
-            f"year {year}!"
+        except ValueError:
+            meeting_data = None
 
-        meeting_session = meeting_sessions[session_number - 1]
-        F1ArchiveClient.__logger.info(
-            f"Found session {session_number} ({meeting_session['Name']}) from meeting " +
-            f"{meeting_number} ({meeting['Name']}) from year {year}!")
+            for year_meeting in meetings:
+                if year_meeting["Name"] == meeting:
+                    meeting_data = year_meeting
+                    break
+
+            if meeting_data is None:
+                raise ValueError("Invalid meeting name specified, no meeting found with name " +
+                                 "specified!")
+
+        meeting_sessions = meeting_data["Sessions"]
+
+        try:
+            session_number = int(session)
+            assert session_number >= 1, "Session number can't be below 0!"
+            assert session_number <= len(meeting_sessions), \
+                f"Session number ({session_number}) more than total number of sessions " + \
+                f"({len(meeting_sessions)}) in meeting {meeting_number} " + \
+                f"({meeting_data['Name']}) from year {year}!"
+
+            meeting_session = meeting_sessions[session_number - 1]
+            F1ArchiveClient.__logger.info(
+                f"Found session {session_number} ({meeting_session['Name']}) from meeting " +
+                f"{meeting_number} ({meeting_data['Name']}) from year {year}!")
+
+        except ValueError:
+            meeting_session = None
+
+            for year_session in meeting_sessions:
+                if year_session["Name"] == meeting:
+                    meeting_session = year_meeting
+                    break
+
+            if meeting_session is None:
+                raise ValueError("Invalid session name specified, no session found with name " +
+                                 "specified!")
 
         if "Path" in meeting_session:
-            return cls(meeting_session["Path"], *topics, session=session)
+            return cls(meeting_session["Path"], *topics, session=rest_session)
 
         else:
             meeting_date = meeting_sessions[-1]["StartDate"].split("T")[0]
-            meeting_name = meeting["Name"]
+            meeting_name = meeting_data["Name"]
             session_date = meeting_session["StartDate"].split("T")[0]
             session_name = meeting_session["Name"]
 
             return cls("/".join([str(year), f"{meeting_date} {meeting_name}",
                                  f"{session_date} {session_name}", ""])
-                       .replace(" ", "_"), *topics, session=session)
+                       .replace(" ", "_"), *topics, session=rest_session)
 
     @classmethod
     def get_last_session(cls, *topics: StreamingTopic, session: Session | None = None):
