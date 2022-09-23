@@ -65,6 +65,8 @@ __version__ = require(__package__)[0].version
 
 class _ProgramAction(StrEnum):
     ARCHIVED_MESSAGE_LOGGER = "archived-message-logger"
+    LIST_ARCHIVED_MEETINGS = "list-archived-meetings"
+    LIST_ARCHIVED_SESSIONS = "list-archived-sessions"
     LIVE_DISCORD_BOT = "live-discord-bot"
     LIVE_MESSAGE_LOGGER = "live-message-logger"
 
@@ -89,6 +91,9 @@ class __ProgramNamespace:
     lap_count: bool
     lap_series: bool
     license: bool
+    list_archived_meetings_year: int
+    list_archived_sessions_meeting: int
+    list_archived_sessions_year: int
     live_b64_zlib_decode: bool
     live_message_log_path: Path
     log_console: bool
@@ -283,21 +288,32 @@ def __program_args() -> __ProgramNamespace:
     session_info_group.add_argument("--by-path", help="retrieve archived session by path",
                                     type=str, dest="archive_path")
     session_info_group.add_argument(
-        "--by-session-info", nargs=3, dest="archive_session_info", type=str,
+        "--by-session-info", nargs=3, dest="archive_session_info", type=int,
         metavar=("YEAR", "MEETING", "SESSION"),
         help="retrieve archived session by year, meeting and session")
     session_info_group.add_argument("--last-session", action="store_true",
                                     dest="archive_last_session",
                                     help="retrieve last archived session")
 
+    list_archived_meetings_parser = action_subparser.add_parser(
+        "list-archived-meetings", help="display all the meetings from year index",
+        description="display all the meetings from a year index")
+    list_archived_meetings_parser.add_argument("list_archived_meetings_year", type=int)
+
+    list_archived_sessions_parser = action_subparser.add_parser(
+        "list-archived-sessions", help="display all the sessions from meeting index",
+        description="display all the meetings from a year index")
+    list_archived_sessions_parser.add_argument("list_archived_sessions_year", type=int)
+    list_archived_sessions_parser.add_argument("list_archived_sessions_meeting", type=int)
+
     live_message_log_parser = action_subparser.add_parser(
         "live-message-logger", help="log live session messages to file",
         description="log live session messages to file")
     live_message_log_parser.add_argument(
         "live_message_log_path", type=Path, help="file path to store logged messaged in")
-    live_message_log_parser.add_argument("--disable-b64-zlib-decode", action="store_false",
-                                         dest="live_b64_zlib_decode",
-                                         help="disables decoding of base64/zlib encoded data")
+    live_message_log_parser.add_argument(
+        "--disable-b64-zlib-decode", action="store_false", dest="live_b64_zlib_decode",
+        help="disables decoding of base64/zlib encoded data")
 
     if exdc_available:
         live_discord_bot_parser = action_subparser.add_parser(
@@ -380,6 +396,32 @@ def __program_main():
                 message_logger.info([*message])
 
         logger.info("F1 Live Timing archived feed logger stopped!")
+
+    if args.action == _ProgramAction.LIST_ARCHIVED_MEETINGS:
+        year = args.list_archived_meetings_year
+        meetings = F1ArchiveClient.year_index(year)["Meetings"]
+
+        logger.info(f"Meetings list for {args.list_archived_meetings_year}")
+        logger.info("----------------------")
+
+        for i, index in enumerate(meetings):
+            logger.info(f"{i + 1} - {index['Name']}")
+
+    if args.action == _ProgramAction.LIST_ARCHIVED_SESSIONS:
+        year = args.list_archived_sessions_year
+        meetings = F1ArchiveClient.year_index(year)["Meetings"]
+        meeting = args.list_archived_sessions_meeting
+        assert meeting <= len(meetings), \
+            f"Meeting number ({meeting}) more than total number of meetings ({len(meetings)}) " + \
+            f"from year {year}!"
+
+        meeting_data = meetings[meeting - 1]
+
+        logger.info(f"Session list for meeting {meeting_data['Name']} in {year}")
+        logger.info("--------------------------------")
+
+        for i, index in enumerate(meeting_data["Sessions"]):
+            logger.info(f"{i + 1} - {index['Name']}")
 
     if args.action == _ProgramAction.LIVE_MESSAGE_LOGGER:
         if live_streaming_status == "Offline":

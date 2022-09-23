@@ -53,6 +53,24 @@ class F1LTStreamingFeedInvokation(SignalRInvokation):
 class F1ArchiveClient:
     """
     F1 client to receive SignalR messages from an archived session
+
+    Known testing session paths (not available via year index)
+    ----------------------------------------------------------
+    * 2020/2020-02-21_Pre-Season_Test_1/2020-02-19_Practice_1/
+    * 2020/2020-02-21_Pre-Season_Test_1/2020-02-20_Practice_2/
+    * 2020/2020-02-21_Pre-Season_Test_1/2020-02-21_Practice_3/
+
+    * 2020/2020-02-28_Pre-Season_Test_2/2020-02-26_Practice_1/
+    * 2020/2020-02-28_Pre-Season_Test_2/2020-02-27_Practice_2/
+    * 2020/2020-02-28_Pre-Season_Test_2/2020-02-28_Practice_3/
+
+    * 2021/2021-03-14_Pre-Season_Test/2021-02-12_Practice_1/
+    * 2021/2021-03-14_Pre-Season_Test/2021-02-13_Practice_2/
+    * 2021/2021-03-14_Pre-Season_Test/2021-03-14_Practice_3/
+
+    * 2022/2022-02-25_Pre-Season_Track_Session/2022-02-23_Practice_1/
+    * 2022/2022-02-25_Pre-Season_Track_Session/2022-02-24_Practice_2/
+    * 2022/2022-02-25_Pre-Season_Track_Session/2022-02-25_Practice_3/
     """
 
     __logger = getLogger("eXF1LT.F1ArchiveClient")
@@ -123,80 +141,43 @@ class F1ArchiveClient:
             self.__data_queue.put(data_entry)
 
     @classmethod
-    def get_by_session_info(cls, year: int, meeting: str, session: str, *topics: StreamingTopic,
+    def get_by_session_info(cls, year: int, meeting: int, session: int, *topics: StreamingTopic,
                             rest_session: Session | None = None):
-        assert year >= 2018, \
-            "Requested session earlier than 2018! Sessions before 2018 not available!"
+
+        assert meeting >= 1, "Meeting number can't be below 0!"
+        assert session >= 1, "Session number can't be below 0!"
 
         if not rest_session:
             rest_session = Session()
 
+        meetings = F1ArchiveClient.year_index(year, session=rest_session)["Meetings"]
+        assert meeting <= len(meetings), \
+            f"Meeting number ({meeting}) more than total number of meetings ({len(meetings)}) " + \
+            f"from year {year}!"
+
+        meeting_data = meetings[meeting - 1]
         F1ArchiveClient.__logger.info(
-            f"Requesting F1 Live Timing API's year {year} archive index!")
-
-        r = rest_session.get(f"{F1ArchiveClient.STATIC_URL}/{year}/Index.json")
-        r.raise_for_status()
-
-        year_index: YearIndex = loads(r.content.decode("utf-8-sig"))
-
-        meetings = year_index["Meetings"]
-
-        try:
-            meeting_number = int(meeting)
-            assert meeting <= len(meetings), \
-                f"Meeting number ({meeting_number}) more than total number of meetings " + \
-                f"({len(meetings)}) from year {year}!"
-            meeting_data = year_index["Meetings"][meeting_number - 1]
-            F1ArchiveClient.__logger.info(
-                f"Found meeting {meeting_number} ({meeting_data['Name']}) from year {year}!")
-
-        except ValueError:
-            meeting_data = None
-
-            for year_meeting in meetings:
-                if year_meeting["Name"] == meeting:
-                    meeting_data = year_meeting
-                    break
-
-            if meeting_data is None:
-                raise ValueError("Invalid meeting name specified, no meeting found with name " +
-                                 "specified!")
+            f"Found meeting {meeting} ({meeting_data['Name']}) from year {year}!")
 
         meeting_sessions = meeting_data["Sessions"]
+        assert session <= len(meeting_sessions), \
+            f"Session number ({session}) more than total number of sessions " + \
+            f"({len(meeting_sessions)}) in meeting {meeting} " + \
+            f"({meeting_data['Name']}) from year {year}!"
 
-        try:
-            session_number = int(session)
-            assert session_number >= 1, "Session number can't be below 0!"
-            assert session_number <= len(meeting_sessions), \
-                f"Session number ({session_number}) more than total number of sessions " + \
-                f"({len(meeting_sessions)}) in meeting {meeting_number} " + \
-                f"({meeting_data['Name']}) from year {year}!"
+        meeting_session_data = meeting_sessions[session - 1]
+        F1ArchiveClient.__logger.info(
+            f"Found session {session} ({meeting_session_data['Name']}) from meeting " +
+            f"{meeting_data['Name']} from year {year}!")
 
-            meeting_session = meeting_sessions[session_number - 1]
-            F1ArchiveClient.__logger.info(
-                f"Found session {session_number} ({meeting_session['Name']}) from meeting " +
-                f"{meeting_number} ({meeting_data['Name']}) from year {year}!")
-
-        except ValueError:
-            meeting_session = None
-
-            for year_session in meeting_sessions:
-                if year_session["Name"] == meeting:
-                    meeting_session = year_meeting
-                    break
-
-            if meeting_session is None:
-                raise ValueError("Invalid session name specified, no session found with name " +
-                                 "specified!")
-
-        if "Path" in meeting_session:
-            return cls(meeting_session["Path"], *topics, session=rest_session)
+        if "Path" in meeting_session_data:
+            return cls(meeting_session_data["Path"], *topics, session=rest_session)
 
         else:
             meeting_date = meeting_sessions[-1]["StartDate"].split("T")[0]
             meeting_name = meeting_data["Name"]
-            session_date = meeting_session["StartDate"].split("T")[0]
-            session_name = meeting_session["Name"]
+            session_date = meeting_session_data["StartDate"].split("T")[0]
+            session_name = meeting_session_data["Name"]
 
             return cls("/".join([str(year), f"{meeting_date} {meeting_name}",
                                  f"{session_date} {session_name}", ""])
@@ -220,6 +201,23 @@ class F1ArchiveClient:
 
         session_info: SessionInfo = loads(res.content.decode("utf-8-sig"))
         return cls(session_info["Path"], *topics, session=session)
+
+    @staticmethod
+    def year_index(year: int, session: Session | None = None):
+        assert year >= 2018, \
+            "Requested session earlier than 2018! Sessions before 2018 not available!"
+
+        if session is None:
+            session = Session()
+
+        F1ArchiveClient.__logger.info(
+            f"Requesting F1 Live Timing API's year {year} archive index!")
+
+        r = session.get(f"{F1ArchiveClient.STATIC_URL}/{year}/Index.json")
+        r.raise_for_status()
+
+        year_index: YearIndex = loads(r.content.decode("utf-8-sig"))
+        return year_index
 
 
 class F1LiveClient(SignalRClient):
