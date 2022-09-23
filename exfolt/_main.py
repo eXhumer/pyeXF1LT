@@ -82,6 +82,9 @@ def __parse_topics(args: Namespace):
     if args.car_data:
         topics.append(StreamingTopic.CAR_DATA_Z)
 
+    if args.championship_prediction:
+        topics.append(StreamingTopic.CHAMPIONSHIP_PREDICTION)
+
     if args.content_streams:
         topics.append(StreamingTopic.CONTENT_STREAMS)
 
@@ -91,11 +94,17 @@ def __parse_topics(args: Namespace):
     if args.driver_list:
         topics.append(StreamingTopic.DRIVER_LIST)
 
+    if args.driver_race_info:
+        topics.append(StreamingTopic.DRIVER_RACE_INFO)
+
     if args.driver_score:
         topics.append(StreamingTopic.DRIVER_SCORE)
 
     if args.extrapolated_clock:
         topics.append(StreamingTopic.EXTRAPOLATED_CLOCK)
+
+    if args.heartbeat:
+        topics.append(StreamingTopic.HEARTBEAT)
 
     if args.lap_count:
         topics.append(StreamingTopic.LAP_COUNT)
@@ -121,6 +130,9 @@ def __parse_topics(args: Namespace):
     if args.session_status:
         topics.append(StreamingTopic.SESSION_STATUS)
 
+    if args.sp_feed:
+        topics.append(StreamingTopic.SP_FEED)
+
     if args.team_radio:
         topics.append(StreamingTopic.TEAM_RADIO)
 
@@ -130,14 +142,29 @@ def __parse_topics(args: Namespace):
     if args.timing_data:
         topics.append(StreamingTopic.TIMING_DATA)
 
+    if args.timing_data_f1:
+        topics.append(StreamingTopic.TIMING_DATA_F1)
+
     if args.timing_stats:
         topics.append(StreamingTopic.TIMING_STATS)
+
+    if args.tla_rcm:
+        topics.append(StreamingTopic.TLA_RCM)
+
+    if args.top_three:
+        topics.append(StreamingTopic.TOP_THREE)
 
     if args.track_status:
         topics.append(StreamingTopic.TRACK_STATUS)
 
+    if args.tyre_stint_series:
+        topics.append(StreamingTopic.TYRE_STINT_SERIES)
+
     if args.weather_data:
         topics.append(StreamingTopic.WEATHER_DATA)
+
+    if args.weather_series_data:
+        topics.append(StreamingTopic.WEATHER_DATA_SERIES)
 
     return topics
 
@@ -159,11 +186,14 @@ def __program_args():
     topics_parser.add_argument("--archive-status", action="store_true")
     topics_parser.add_argument("--audio-streams", action="store_true")
     topics_parser.add_argument("--car-data", action="store_true")
+    topics_parser.add_argument("--championship-prediction", action="store_true")
     topics_parser.add_argument("--content-streams", action="store_true")
     topics_parser.add_argument("--current-tyres", action="store_true")
     topics_parser.add_argument("--driver-list", action="store_true")
+    topics_parser.add_argument("--driver-race-info", action="store_true")
     topics_parser.add_argument("--driver-score", action="store_true")
     topics_parser.add_argument("--extrapolated-clock", action="store_true")
+    topics_parser.add_argument("--heartbeat", action="store_true")
     topics_parser.add_argument("--lap-count", action="store_true")
     topics_parser.add_argument("--lap-series", action="store_true")
     topics_parser.add_argument("--pit-lane-time-collection", action="store_true")
@@ -172,12 +202,18 @@ def __program_args():
     topics_parser.add_argument("--session-data", action="store_true")
     topics_parser.add_argument("--session-info", action="store_true")
     topics_parser.add_argument("--session-status", action="store_true")
+    topics_parser.add_argument("--sp-feed", action="store_true")
     topics_parser.add_argument("--team-radio", action="store_true")
     topics_parser.add_argument("--timing-app-data", action="store_true")
     topics_parser.add_argument("--timing-data", action="store_true")
+    topics_parser.add_argument("--timing-data-f1", action="store_true")
     topics_parser.add_argument("--timing-stats", action="store_true")
+    topics_parser.add_argument("--tla-rcm", action="store_true")
+    topics_parser.add_argument("--top-three", action="store_true")
     topics_parser.add_argument("--track-status", action="store_true")
+    topics_parser.add_argument("--tyre-stint-series", action="store_true")
     topics_parser.add_argument("--weather-data", action="store_true")
+    topics_parser.add_argument("--weather-data-series", action="store_true")
 
     action_subparser = parser.add_subparsers(dest="action", title="actions", metavar="action",
                                              description="list of supported command line actions")
@@ -314,7 +350,7 @@ def __program_main():
                             assert invokation["H"] == "streaming" and invokation["M"] == "feed"
                             logger.info("Logged 'feed' invokation arguments from 'streaming' hub!")
 
-                            if message[0] in [
+                            if invokation["A"][0] in [
                                 StreamingTopic.CAR_DATA_Z,
                                 StreamingTopic.POSITION_Z,
                             ] and args.live_b64_zlib_decode:

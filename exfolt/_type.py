@@ -19,15 +19,6 @@ from enum import StrEnum
 from typing import Dict, List, Literal, NotRequired, Required, TypedDict
 
 
-# class TimingDataStatus(IntEnum):
-#     YELLOW = 2048
-#     GREEN = 2049
-#     PURPLE = 2051
-#     STOPPED = 2052
-#     PITTED = 2064
-#     PIT_ISSUE = 2068
-
-
 class ArchiveStatus(TypedDict, total=False):
     Status: Literal["Complete", "Generating"]
 
@@ -44,6 +35,27 @@ class AudioStreams(TypedDict, total=False):
     Streams: Dict[str, AudioStream] | List[AudioStream]
 
 
+class BestSector(TypedDict, total=False):
+    Position: int
+    Value: str
+
+
+class BestSpeed(TypedDict, total=False):
+    Position: int
+    Value: str
+
+
+class BestSpeeds(TypedDict, total=False):
+    I1: BestSpeed
+    I2: BestSpeed
+    FL: BestSpeed
+    ST: BestSpeed
+
+
+class CarData(TypedDict):
+    Entries: List[CarDataEntry]
+
+
 class CarDataChannel(StrEnum):
     RPM = "0"
     SPEED = "2"
@@ -58,17 +70,21 @@ class CarDataEntry(TypedDict):
     Utc: str
 
 
-class CarData(TypedDict):
-    Entries: List[CarDataEntry]
+class ChampionshipPrediction(TypedDict, total=False):
+    Drivers: Dict[str, DriverChampionshipPrediction]
+    Teams: Dict[str, TeamChampionshipPrediction]
 
 
 class Compound(StrEnum):
     SOFT = "SOFT"
+    SUPERSOFT = "SUPERSOFT"
     MEDIUM = "MEDIUM"
     HARD = "HARD"
+    HYPERSOFT = "HYPERSOFT"
     INTERMEDIATE = "INTERMEDIATE"
     TEST_UNKNOWN = "TEST_UNKNOWN"
     WET = "WET"
+    ULTRASOFT = "ULTRASOFT"
     UNKNOWN = "UNKNOWN"
 
 
@@ -109,6 +125,14 @@ class Driver(TypedDict, total=False):
     CountryCode: str
 
 
+class DriverChampionshipPrediction(TypedDict, total=False):
+    RacingNumber: str
+    CurrentPosition: int
+    PredictedPosition: int
+    CurrentPoints: int
+    PredictedPoints: int
+
+
 class ExtrapolatedClock(TypedDict, total=False):
     Utc: str
     Remaining: str
@@ -137,24 +161,36 @@ class LapCount(TypedDict, total=False):
     TotalLaps: int
 
 
-class TrackStatusStatus(StrEnum):
-    ALL_CLEAR = "1"
-    YELLOW = "2"
-    GREEN = "3"
-    SC_DEPLOYED = "4"
-    RED = "5"
-    VSC_DEPLOYED = "6"
-    VSC_ENDING = "7"
+class PersonalBestLapTime(TypedDict, total=False):
+    Lap: int
+    Position: int
+    Value: str
 
 
-class TrackStatusMessage(StrEnum):
-    ALL_CLEAR = "AllClear"
-    YELLOW = "Yellow"
-    GREEN = "Green"
-    SC_DEPLOYED = "SCDeployed"
-    RED = "Red"
-    VSC_DEPLOYED = "VSCDeployed"
-    VSC_ENDING = "VSCEnding"
+class PitLaneTimeCollection(TypedDict):
+    PitTimes: Dict[str, PitTime]
+
+
+class PitTime(TypedDict):
+    RacingNumber: str
+    Duration: str
+    Lap: str
+
+
+class Position(TypedDict):
+    Position: List[PositionData]
+
+
+class PositionData(TypedDict):
+    Timestamp: str
+    Entries: Dict[str, PositionEntry]
+
+
+class PositionEntry(TypedDict):
+    Status: str
+    X: int
+    Y: int
+    Z: int
 
 
 class RaceControlMessage(TypedDict, total=False):
@@ -173,41 +209,9 @@ class RaceControlMessages(TypedDict, total=False):
     Messages: Dict[str, RaceControlMessage] | List[RaceControlMessage]
 
 
-class SessionSeries(TypedDict, total=False):
-    Utc: Required[str]
-    Lap: int
-    QualifyingPart: int
-
-
-class SessionStatusSeries(TypedDict, total=False):
-    Utc: Required[str]
-    TrackStatus: str
-    SessionStatus: str
-
-
 class SessionData(TypedDict, total=False):
     Series: Dict[str, SessionSeries] | List[SessionSeries]
     StatusSeries: Dict[str, SessionStatusSeries] | List[SessionStatusSeries]
-
-
-class SessionInfoMeetingCountry(TypedDict):
-    Key: int
-    Code: str
-    Name: str
-
-
-class SessionInfoMeetingCircuit(TypedDict):
-    Key: int
-    ShortName: str
-
-
-class SessionInfoMeeting(TypedDict):
-    Key: int
-    Name: str
-    OfficialName: str
-    Location: str
-    Country: SessionInfoMeetingCountry
-    Circuit: SessionInfoMeetingCircuit
 
 
 class SessionInfo(TypedDict, total=False):
@@ -222,6 +226,36 @@ class SessionInfo(TypedDict, total=False):
     Path: str
 
 
+class SessionInfoMeeting(TypedDict):
+    Key: int
+    Name: str
+    OfficialName: str
+    Location: str
+    Country: SessionInfoMeetingCountry
+    Circuit: SessionInfoMeetingCircuit
+
+
+class SessionInfoMeetingCircuit(TypedDict):
+    Key: int
+    ShortName: str
+
+
+class SessionInfoMeetingCountry(TypedDict):
+    Key: int
+    Code: str
+    Name: str
+
+
+class SessionSeries(TypedDict, total=False):
+    Utc: Required[str]
+    Lap: int
+    QualifyingPart: int
+
+
+class SessionStatus(TypedDict, total=False):
+    Status: SessionStatusEnum
+
+
 class SessionStatusEnum(StrEnum):
     INACTIVE = "Inactive"
     STARTED = "Started"
@@ -231,8 +265,10 @@ class SessionStatusEnum(StrEnum):
     ENDS = "Ends"
 
 
-class SessionStatus(TypedDict, total=False):
-    Status: SessionStatusEnum
+class SessionStatusSeries(TypedDict, total=False):
+    Utc: Required[str]
+    TrackStatus: str
+    SessionStatus: str
 
 
 class StreamingStatus(TypedDict):
@@ -251,6 +287,7 @@ class StreamingTopic(StrEnum):
     CONTENT_STREAMS = "ContentStreams"
     CURRENT_TYRES = "CurrentTyres"
     DRIVER_LIST = "DriverList"
+    DRIVER_RACE_INFO = "DriverRaceInfo"
     DRIVER_SCORE = "DriverScore"
     EXTRAPOLATED_CLOCK = "ExtrapolatedClock"
     HEARTBEAT = "Heartbeat"
@@ -262,13 +299,30 @@ class StreamingTopic(StrEnum):
     SESSION_DATA = "SessionData"
     SESSION_INFO = "SessionInfo"
     SESSION_STATUS = "SessionStatus"
+    SP_FEED = "SPFeed"
     TEAM_RADIO = "TeamRadio"
     TIMING_APP_DATA = "TimingAppData"
     TIMING_DATA = "TimingData"
+    TIMING_DATA_F1 = "TimingDataF1"
     TIMING_STATS = "TimingStats"
+    TLA_RCM = "TlaRcm"
     TOP_THREE = "TopThree"
     TRACK_STATUS = "TrackStatus"
+    TYRE_STINT_SERIES = "TyreStintSeries"
     WEATHER_DATA = "WeatherData"
+    WEATHER_DATA_SERIES = "WeatherDataSeries"
+
+
+class TeamChampionshipPrediction(TypedDict, total=False):
+    TeamName: str
+    CurrentPosition: int
+    PredictedPosition: int
+    CurrentPoints: int
+    PredictedPoints: int
+
+
+class TeamRadio(TypedDict, total=False):
+    Captures: Dict[str, TeamRadioCapture] | List[TeamRadioCapture]
 
 
 class TeamRadioCapture(TypedDict):
@@ -277,63 +331,8 @@ class TeamRadioCapture(TypedDict):
     Path: str
 
 
-class TeamRadio(TypedDict, total=False):
-    Captures: Dict[str, TeamRadioCapture] | List[TeamRadioCapture]
-
-
-class TimingStint(TypedDict, total=False):
-    LapTime: str
-    LapNumber: int
-    LapFlags: int
-    Compound: Compound
-    New: Literal["true", "false"]
-    TyresNotChanged: str
-    TotalLaps: int
-    StartLaps: int
-
-
-class TimingDriverAppData(TypedDict, total=False):
-    RacingNumber: str
-    Line: int
-    GridPos: str
-    Stints: Dict[str, TimingStint] | List[TimingStint]
-
-
 class TimingAppData(TypedDict, total=False):
     Lines: Dict[str, TimingDriverAppData]
-
-
-class TimingIntervalData(TypedDict, total=False):
-    Value: str
-    Catching: bool
-
-
-class TimingSegment(TypedDict, total=False):
-    Status: int
-
-
-class TimingSector(TypedDict, total=False):
-    Stopped: bool
-    PreviousValue: str
-    Segments: List[TimingSegment]
-    Value: str
-    Status: int
-    OverallFastest: bool
-    PersonalFastest: bool
-
-
-class TimingSpeed(TypedDict, total=False):
-    Value: str
-    Status: int
-    OverallFastest: bool
-    PersonalFastest: bool
-
-
-class TimingSpeeds(TypedDict, total=False):
-    I1: TimingSpeed
-    I2: TimingSpeed
-    FL: TimingSpeed
-    ST: TimingSpeed
 
 
 class TimingBestLapTime(TypedDict, total=False):
@@ -341,11 +340,15 @@ class TimingBestLapTime(TypedDict, total=False):
     Lap: int
 
 
-class TimingLastLapTime(TypedDict, total=False):
-    Value: str
-    Status: int
-    OverallFastest: bool
-    PersonalFastest: bool
+class TimingData(TypedDict, total=False):
+    Lines: Dict[str, TimingDriverData]
+
+
+class TimingDriverAppData(TypedDict, total=False):
+    RacingNumber: str
+    Line: int
+    GridPos: str
+    Stints: Dict[str, TimingStint] | List[TimingStint]
 
 
 class TimingDriverData(TypedDict, total=False):
@@ -368,31 +371,50 @@ class TimingDriverData(TypedDict, total=False):
     LastLapTime: TimingLastLapTime
 
 
-class TimingData(TypedDict, total=False):
-    Lines: Dict[str, TimingDriverData]
-
-
-class PersonalBestLapTime(TypedDict, total=False):
-    Lap: int
-    Position: int
+class TimingIntervalData(TypedDict, total=False):
     Value: str
+    Catching: bool
 
 
-class BestSector(TypedDict, total=False):
-    Position: int
+class TimingLastLapTime(TypedDict, total=False):
     Value: str
+    Status: int
+    OverallFastest: bool
+    PersonalFastest: bool
 
 
-class BestSpeed(TypedDict, total=False):
-    Position: int
+class TimingSector(TypedDict, total=False):
+    Stopped: bool
+    PreviousValue: str
+    Segments: List[TimingSegment]
     Value: str
+    Status: int
+    OverallFastest: bool
+    PersonalFastest: bool
 
 
-class BestSpeeds(TypedDict, total=False):
-    I1: BestSpeed
-    I2: BestSpeed
-    FL: BestSpeed
-    ST: BestSpeed
+class TimingSegment(TypedDict, total=False):
+    Status: int
+
+
+class TimingSpeed(TypedDict, total=False):
+    Value: str
+    Status: int
+    OverallFastest: bool
+    PersonalFastest: bool
+
+
+class TimingSpeeds(TypedDict, total=False):
+    I1: TimingSpeed
+    I2: TimingSpeed
+    FL: TimingSpeed
+    ST: TimingSpeed
+
+
+class TimingStats(TypedDict, total=False):
+    Withheld: bool
+    Lines: Dict[str, TimingStatsLine]
+    SessionType: Literal["Race", "Qualifying", "Practice"]
 
 
 class TimingStatsLine(TypedDict, total=False):
@@ -403,15 +425,66 @@ class TimingStatsLine(TypedDict, total=False):
     BestSpeeds: BestSpeeds
 
 
-class TimingStats(TypedDict, total=False):
+class TimingStint(TypedDict, total=False):
+    LapTime: str
+    LapNumber: int
+    LapFlags: int
+    Compound: Compound
+    New: Literal["true", "false"]
+    TyresNotChanged: str
+    TotalLaps: int
+    StartLaps: int
+
+
+class TopThree(TypedDict, total=False):
     Withheld: bool
-    Lines: Dict[str, TimingStatsLine]
-    SessionType: Literal["Race", "Qualifying", "Practice"]
+    Lines: List[TopThreeLine]
+
+
+class TopThreeLine(TypedDict, total=False):
+    Position: int
+    ShowPosition: bool
+    RacingNumber: str
+    Tla: str
+    BroadcastName: str
+    FullName: str
+    Team: str
+    TeamColour: str
+    LapTime: str
+    LapState: int
+    DiffToAhead: str
+    DiffToLeader: str
+    OvertallFastest: bool
+    PersonalFastest: bool
 
 
 class TrackStatus(TypedDict):
     Status: TrackStatusStatus
     Message: TrackStatusMessage
+
+
+class TrackStatusStatus(StrEnum):
+    ALL_CLEAR = "1"
+    YELLOW = "2"
+    GREEN = "3"
+    SC_DEPLOYED = "4"
+    RED = "5"
+    VSC_DEPLOYED = "6"
+    VSC_ENDING = "7"
+
+
+class TrackStatusMessage(StrEnum):
+    ALL_CLEAR = "AllClear"
+    YELLOW = "Yellow"
+    GREEN = "Green"
+    SC_DEPLOYED = "SCDeployed"
+    RED = "Red"
+    VSC_DEPLOYED = "VSCDeployed"
+    VSC_ENDING = "VSCEnding"
+
+
+class TyreStintSeries(TypedDict):
+    Stints: Dict[str, Dict[str, TimingStint] | List[TimingStint]]
 
 
 class WeatherData(TypedDict):
