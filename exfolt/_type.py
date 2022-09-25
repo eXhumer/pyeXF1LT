@@ -365,7 +365,7 @@ class TimingDriverData(TypedDict, total=False):
     Status: int
     NumberOfLaps: int
     NumberOfPitStops: int
-    Sectors: List[TimingSector]
+    Sectors: Dict[str, TimingSector] | List[TimingSector]
     Speeds: TimingSpeeds
     BestLapTime: TimingBestLapTime
     LastLapTime: TimingLastLapTime
@@ -386,7 +386,7 @@ class TimingLastLapTime(TypedDict, total=False):
 class TimingSector(TypedDict, total=False):
     Stopped: bool
     PreviousValue: str
-    Segments: List[TimingSegment]
+    Segments: Dict[str, TimingSegment] | List[TimingSegment]
     Value: str
     Status: int
     OverallFastest: bool
@@ -438,7 +438,7 @@ class TimingStint(TypedDict, total=False):
 
 class TopThree(TypedDict, total=False):
     Withheld: bool
-    Lines: List[TopThreeLine]
+    Lines: Dict[str, TopThreeLine] | List[TopThreeLine]
 
 
 class TopThreeLine(TypedDict, total=False):
