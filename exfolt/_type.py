@@ -214,6 +214,17 @@ class SessionData(TypedDict, total=False):
     StatusSeries: Dict[str, SessionStatusSeries] | List[SessionStatusSeries]
 
 
+class SessionIndex(TypedDict):
+    Key: int
+    Type: str
+    Number: NotRequired[int]
+    Name: str
+    StartDate: str
+    EndDate: str
+    GmtOffset: str
+    Path: NotRequired[str]
+
+
 class SessionInfo(TypedDict, total=False):
     Meeting: SessionInfoMeeting
     ArchiveStatus: ArchiveStatus
@@ -269,6 +280,24 @@ class SessionStatusSeries(TypedDict, total=False):
     Utc: Required[str]
     TrackStatus: str
     SessionStatus: str
+
+
+class SessionTopicFeed(TypedDict):
+    KeyFramePath: str
+    StreamPath: str
+
+
+class SessionTopicsIndex(TypedDict):
+    Feeds: Dict[str, SessionTopicFeed]
+
+
+class StaticIndex(TypedDict):
+    Years: List[StaticIndexYear]
+
+
+class StaticIndexYear(TypedDict):
+    Year: int
+    Path: str
 
 
 class StreamingStatus(TypedDict):
@@ -503,7 +532,7 @@ class YearIndex(TypedDict):
 
 
 class YearMeetingIndex(TypedDict):
-    Sessions: List[YearSessionIndex]
+    Sessions: List[SessionIndex]
     Key: int
     Code: str
     Number: int
@@ -512,14 +541,3 @@ class YearMeetingIndex(TypedDict):
     Name: str
     Country: SessionInfoMeetingCountry
     Circuit: SessionInfoMeetingCircuit
-
-
-class YearSessionIndex(TypedDict):
-    Key: int
-    Type: str
-    Number: NotRequired[int]
-    Name: str
-    StartDate: str
-    EndDate: str
-    GmtOffset: str
-    Path: NotRequired[str]

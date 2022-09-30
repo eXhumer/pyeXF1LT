@@ -16,19 +16,201 @@
 
 from __future__ import annotations
 from argparse import ArgumentParser
+from collections.abc import Mapping
+from datetime import datetime
 from enum import StrEnum
 from json import loads
 from logging import DEBUG, FileHandler, Formatter, getLogger, INFO, StreamHandler
+from os import environ
 from pathlib import Path
+from queue import Queue
 from pkg_resources import require
-from typing import List
+from typing import Callable, List, NotRequired, Tuple, TypedDict
+
+from dotenv import dotenv_values
+from requests import Response
 
 from ._client import F1ArchiveClient, F1LiveClient, F1LiveTimingClient
-from ._type import StreamingTopic
-from ._utils import decompress_zlib_data
+from ._type import ArchiveStatus, AudioStream, ContentStream, StreamingTopic
+from ._utils import decompress_zlib_data, datetime_parser
 
 try:
+    from exdc import DiscordBotAuthorization, DiscordClient
+    from exdc.type import Embed, EmbedField
+
     exdc_available = True
+
+    def __archive_status_embed(status: ArchiveStatus, timestamp: datetime):
+        return Embed(
+            title="Archive Status",
+            fields=[EmbedField("Status", status["Status"])],
+            timestamp=timestamp,
+        )
+
+    def __audio_stream_embed(stream: AudioStream, session_path: str, timestamp: datetime):
+        archive_url = f"{F1ArchiveClient.static_url}/{session_path}{stream['Path']}"
+
+        return Embed(
+            title="Audio Stream",
+            fields=[
+                EmbedField("Name", stream["Name"]),
+                EmbedField("Language", stream["Language"]),
+                EmbedField("Archive Link", archive_url),
+                EmbedField("Live Link", stream["Uri"]),
+            ],
+            timestamp=timestamp,
+        )
+
+    def __content_stream_embed(stream: ContentStream, session_path: str, timestamp: datetime):
+        if "Path" in stream:
+            assert session_path is not None
+            archive_url = f"{F1ArchiveClient.static_url}/{session_path}{stream['Path']}"
+
+        else:
+            archive_url = None
+
+        fields = [
+            EmbedField("Type", stream["Type"]),
+            EmbedField("Name", stream["Name"]),
+            EmbedField("Language", stream["Language"]),
+            EmbedField("Live Link", stream["Uri"]),
+        ]
+
+        if archive_url is not None:
+            fields.append(EmbedField("Archive Link", archive_url))
+
+        return Embed(
+            title="Content Stream",
+            fields=fields,
+            timestamp=timestamp,
+        )
+
+    def __discord_env(env_path: Path):
+        if env_path.is_file():
+            env = dotenv_values(dotenv_path=env_path)
+            assert "BLACK_FLAG_EMOJI" in env
+            assert "BLACK_ORANGE_FLAG_EMOJI" in env
+            assert "BLACK_WHITE_FLAG_EMOJI" in env
+            assert "BLUE_FLAG_EMOJI" in env
+            assert "CHEQUERED_FLAG_EMOJI" in env
+            assert "GREEN_FLAG_EMOJI" in env
+            assert "HARD_TYRE_EMOJI" in env
+            assert "INTER_TYRE_EMOJI" in env
+            assert "MEDIUM_TYRE_EMOJI" in env
+            assert "RED_FLAG_EMOJI" in env
+            assert "SAFETY_CAR_EMOJI" in env
+            assert "SOFT_TYRE_EMOJI" in env
+            assert "UNKNOWN_TYRE_EMOJI" in env
+            assert "VIRTUAL_SAFETY_CAR_EMOJI" in env
+            assert "WET_TYRE_EMOJI" in env
+            assert "YELLOW_FLAG_EMOJI" in env
+
+            assert ("BOT_TOKEN" in environ and "CHANNEL_ID" in environ) or \
+                ("WEBHOOK_ID" in environ and "WEBHOOK_TOKEN" in environ), \
+                "Missing required messaging ID/token!"
+
+            discord_env: __DiscordEnv = {
+                "BLACK_FLAG_EMOJI": env["BLACK_FLAG_EMOJI"],
+                "BLACK_ORANGE_FLAG_EMOJI": env["BLACK_ORANGE_FLAG_EMOJI"],
+                "BLACK_WHITE_FLAG_EMOJI": env["BLACK_WHITE_FLAG_EMOJI"],
+                "BLUE_FLAG_EMOJI": env["BLUE_FLAG_EMOJI"],
+                "CHEQUERED_FLAG_EMOJI": env["CHEQUERED_FLAG_EMOJI"],
+                "GREEN_FLAG_EMOJI": env["GREEN_FLAG_EMOJI"],
+                "HARD_TYRE_EMOJI": env["HARD_TYRE_EMOJI"],
+                "INTER_TYRE_EMOJI": env["INTER_TYRE_EMOJI"],
+                "MEDIUM_TYRE_EMOJI": env["MEDIUM_TYRE_EMOJI"],
+                "RED_FLAG_EMOJI": env["RED_FLAG_EMOJI"],
+                "SAFETY_CAR_EMOJI": env["SAFETY_CAR_EMOJI"],
+                "SOFT_TYRE_EMOJI": env["SOFT_TYRE_EMOJI"],
+                "UNKNOWN_TYRE_EMOJI": env["UNKNOWN_TYRE_EMOJI"],
+                "VIRTUAL_SAFETY_CAR_EMOJI": env["VIRTUAL_SAFETY_CAR_EMOJI"],
+                "WET_TYRE_EMOJI": env["WET_TYRE_EMOJI"],
+                "YELLOW_FLAG_EMOJI": env["YELLOW_FLAG_EMOJI"],
+            }
+
+            if "BOT_TOKEN" in env and "CHANNEL_ID" in env:
+                discord_env |= {
+                    "BOT_TOKEN": env["BOT_TOKEN"],
+                    "CHANNEL_ID": env["CHANNEL_ID"],
+                }
+
+            if "WEBHOOK_TOKEN" in env and "WEBHOOK_ID" in env:
+                discord_env |= {
+                    "WEBHOOK_ID": env["WEBHOOK_ID"],
+                    "WEBHOOK_TOKEN": env["WEBHOOK_TOKEN"],
+                }
+
+        else:
+            assert "EXFOLT_BLACK_FLAG_EMOJI" in environ
+            assert "EXFOLT_BLACK_ORANGE_FLAG_EMOJI" in environ
+            assert "EXFOLT_BLACK_WHITE_FLAG_EMOJI" in environ
+            assert "EXFOLT_BLUE_FLAG_EMOJI" in environ
+            assert "EXFOLT_CHEQUERED_FLAG_EMOJI" in environ
+            assert "EXFOLT_GREEN_FLAG_EMOJI" in environ
+            assert "EXFOLT_HARD_TYRE_EMOJI" in environ
+            assert "EXFOLT_INTER_TYRE_EMOJI" in environ
+            assert "EXFOLT_MEDIUM_TYRE_EMOJI" in environ
+            assert "EXFOLT_RED_FLAG_EMOJI" in environ
+            assert "EXFOLT_SAFETY_CAR_EMOJI" in environ
+            assert "EXFOLT_SOFT_TYRE_EMOJI" in environ
+            assert "EXFOLT_UNKNOWN_TYRE_EMOJI" in environ
+            assert "EXFOLT_VIRTUAL_SAFETY_CAR_EMOJI" in environ
+            assert "EXFOLT_WET_TYRE_EMOJI" in environ
+            assert "EXFOLT_YELLOW_FLAG_EMOJI" in environ
+
+            assert ("EXFOLT_BOT_TOKEN" in environ and "EXFOLT_CHANNEL_ID" in environ) or \
+                ("EXFOLT_WEBHOOK_ID" in environ and "EXFOLT_WEBHOOK_TOKEN" in environ), \
+                "Missing required messaging ID/token!"
+
+            discord_env: __DiscordEnv = {
+                "BLACK_FLAG_EMOJI": environ["EXFOLT_BLACK_FLAG_EMOJI"],
+                "BLACK_ORANGE_FLAG_EMOJI": environ["EXFOLT_BLACK_ORANGE_FLAG_EMOJI"],
+                "BLACK_WHITE_FLAG_EMOJI": environ["EXFOLT_BLACK_WHITE_FLAG_EMOJI"],
+                "BLUE_FLAG_EMOJI": environ["EXFOLT_BLUE_FLAG_EMOJI"],
+                "CHEQUERED_FLAG_EMOJI": environ["EXFOLT_CHEQUERED_FLAG_EMOJI"],
+                "GREEN_FLAG_EMOJI": environ["EXFOLT_GREEN_FLAG_EMOJI"],
+                "HARD_TYRE_EMOJI": environ["EXFOLT_HARD_TYRE_EMOJI"],
+                "INTER_TYRE_EMOJI": environ["EXFOLT_INTER_TYRE_EMOJI"],
+                "MEDIUM_TYRE_EMOJI": environ["EXFOLT_MEDIUM_TYRE_EMOJI"],
+                "RED_FLAG_EMOJI": environ["EXFOLT_RED_FLAG_EMOJI"],
+                "SAFETY_CAR_EMOJI": environ["EXFOLT_SAFETY_CAR_EMOJI"],
+                "SOFT_TYRE_EMOJI": environ["EXFOLT_SOFT_TYRE_EMOJI"],
+                "UNKNOWN_TYRE_EMOJI": environ["EXFOLT_UNKNOWN_TYRE_EMOJI"],
+                "VIRTUAL_SAFETY_CAR_EMOJI": environ["EXFOLT_VIRTUAL_SAFETY_CAR_EMOJI"],
+                "WET_TYRE_EMOJI": environ["EXFOLT_WET_TYRE_EMOJI"],
+                "YELLOW_FLAG_EMOJI": environ["EXFOLT_YELLOW_FLAG_EMOJI"],
+            }
+
+            if "EXFOLT_BOT_TOKEN" in environ and "EXFOLT_CHANNEL_ID" in environ:
+                discord_env |= {
+                    "BOT_TOKEN": environ["EXFOLT_BOT_TOKEN"],
+                    "CHANNEL_ID": environ["EXFOLT_CHANNEL_ID"],
+                }
+
+            if "EXFOLT_WEBHOOK_TOKEN" in environ and "EXFOLT_WEBHOOK_ID" in environ:
+                discord_env |= {
+                    "WEBHOOK_ID": environ["EXFOLT_WEBHOOK_ID"],
+                    "WEBHOOK_TOKEN": environ["EXFOLT_WEBHOOK_TOKEN"],
+                }
+
+        return discord_env
+
+    def __message_embeds(env: __DiscordEnv, embeds: List[Embed]):
+        if "WEBHOOK_ID" in env and "WEBHOOK_TOKEN" in env:
+            webhook = DiscordClient.post_webhook_message(env["WEBHOOK_ID"], env["WEBHOOK_TOKEN"],
+                                                         embeds=embeds)
+
+        else:
+            webhook = None
+
+        if "BOT_TOKEN" in env and "CHANNEL_ID" in env:
+            channel = DiscordClient(DiscordBotAuthorization(env["BOT_TOKEN"])).\
+                post_message(env["CHANNEL_ID"], embeds=embeds)
+
+        else:
+            channel = None
+
+        return webhook, channel
 
 except ImportError:
     exdc_available = False
@@ -63,10 +245,34 @@ __project_url__ = "https://github.com/eXhumer/pyeXF1LT"
 __version__ = require(__package__)[0].version
 
 
+class __DiscordEnv(TypedDict):
+    BLACK_FLAG_EMOJI: str
+    BLACK_ORANGE_FLAG_EMOJI: str
+    BLACK_WHITE_FLAG_EMOJI: str
+    BLUE_FLAG_EMOJI: str
+    BOT_TOKEN: NotRequired[str]
+    CHANNEL_ID: NotRequired[str]
+    CHEQUERED_FLAG_EMOJI: str
+    GREEN_FLAG_EMOJI: str
+    HARD_TYRE_EMOJI: str
+    INTER_TYRE_EMOJI: str
+    MEDIUM_TYRE_EMOJI: str
+    RED_FLAG_EMOJI: str
+    SAFETY_CAR_EMOJI: str
+    SOFT_TYRE_EMOJI: str
+    UNKNOWN_TYRE_EMOJI: str
+    VIRTUAL_SAFETY_CAR_EMOJI: str
+    WEBHOOK_ID: NotRequired[str]
+    WEBHOOK_TOKEN: NotRequired[str]
+    WET_TYRE_EMOJI: str
+    YELLOW_FLAG_EMOJI: str
+
+
 class _ProgramAction(StrEnum):
     ARCHIVED_MESSAGE_LOGGER = "archived-message-logger"
     LIST_ARCHIVED_MEETINGS = "list-archived-meetings"
     LIST_ARCHIVED_SESSIONS = "list-archived-sessions"
+    LIST_ARCHIVED_TOPICS = "list-archived-topics"
     LIVE_DISCORD_BOT = "live-discord-bot"
     LIVE_MESSAGE_LOGGER = "live-message-logger"
 
@@ -83,6 +289,7 @@ class __ProgramNamespace:
     championship_prediction: bool
     content_streams: bool
     current_tyres: bool
+    discord_env_path: Path
     driver_list: bool
     driver_race_info: bool
     driver_score: bool
@@ -94,6 +301,9 @@ class __ProgramNamespace:
     list_archived_meetings_year: int
     list_archived_sessions_meeting: int
     list_archived_sessions_year: int
+    list_archived_topics_meeting: int
+    list_archived_topics_session: int
+    list_archived_topics_year: int
     live_b64_zlib_decode: bool
     live_message_log_path: Path
     log_console: bool
@@ -306,6 +516,13 @@ def __program_args() -> __ProgramNamespace:
     list_archived_sessions_parser.add_argument("list_archived_sessions_year", type=int)
     list_archived_sessions_parser.add_argument("list_archived_sessions_meeting", type=int)
 
+    list_archived_topics_parser = action_subparser.add_parser(
+        "list-archived-topics", help="display all the topics from session index",
+        description="display all the topics from session index")
+    list_archived_topics_parser.add_argument("list_archived_topics_year", type=int)
+    list_archived_topics_parser.add_argument("list_archived_topics_meeting", type=int)
+    list_archived_topics_parser.add_argument("list_archived_topics_session", type=int)
+
     live_message_log_parser = action_subparser.add_parser(
         "live-message-logger", help="log live session messages to file",
         description="log live session messages to file")
@@ -321,7 +538,7 @@ def __program_args() -> __ProgramNamespace:
             description="output incoming messages as Discord messages")
         live_discord_bot_parser.add_argument(
             "--env-path", "-e", type=Path, default=Path.home().joinpath(".exfolt_discord_env"),
-            help="file to load Discord environment variables from")
+            dest="discord_env_path", help="file to load Discord environment variables from")
 
     return parser.parse_args()
 
@@ -386,14 +603,15 @@ def __program_main():
 
         logger.info("Logging all archived session messages!")
 
-        for message in archive_client:
-            if message[0] in [StreamingTopic.CAR_DATA_Z, StreamingTopic.POSITION_Z] and \
-                    args.archived_b64_zlib_decode:
-                message_logger.info([message[0],
-                                     loads(decompress_zlib_data(message[1])), message[2]])
+        with archive_client:
+            for message in archive_client:
+                if message[0] in [StreamingTopic.CAR_DATA_Z, StreamingTopic.POSITION_Z] and \
+                        args.archived_b64_zlib_decode:
+                    message_logger.info([message[0],
+                                        loads(decompress_zlib_data(message[1])), message[2]])
 
-            else:
-                message_logger.info([*message])
+                else:
+                    message_logger.info([*message])
 
         logger.info("F1 Live Timing archived feed logger stopped!")
 
@@ -401,27 +619,66 @@ def __program_main():
         year = args.list_archived_meetings_year
         meetings = F1ArchiveClient.year_index(year)["Meetings"]
 
-        logger.info(f"Meetings list for {args.list_archived_meetings_year}")
-        logger.info("----------------------")
+        logger.info(f"Season {year}")
 
-        for i, index in enumerate(meetings):
-            logger.info(f"{i + 1} - {index['Name']}")
+        for i, meeting_index in enumerate(meetings):
+            if i == len(meetings) - 1:
+                logger.info(f"└ {i + 1} - {meeting_index['Name']}")
+
+            else:
+                logger.info(f"├ {i + 1} - {meeting_index['Name']}")
 
     if args.action == _ProgramAction.LIST_ARCHIVED_SESSIONS:
         year = args.list_archived_sessions_year
-        meetings = F1ArchiveClient.year_index(year)["Meetings"]
         meeting = args.list_archived_sessions_meeting
-        assert meeting <= len(meetings), \
-            f"Meeting number ({meeting}) more than total number of meetings ({len(meetings)}) " + \
-            f"from year {year}!"
+        meeting_index = F1ArchiveClient.meeting_index(year, meeting)[1]
 
-        meeting_data = meetings[meeting - 1]
+        logger.info(f"{meeting_index['Name']} ({year})")
 
-        logger.info(f"Session list for meeting {meeting_data['Name']} in {year}")
-        logger.info("--------------------------------")
+        for i, session_index in enumerate(meeting_index["Sessions"]):
+            if i == len(meeting_index["Sessions"]) - 1:
+                logger.info(f"└ {i + 1} - {session_index['Name']}")
 
-        for i, index in enumerate(meeting_data["Sessions"]):
-            logger.info(f"{i + 1} - {index['Name']}")
+            else:
+                logger.info(f"├ {i + 1} - {session_index['Name']}")
+
+    if args.action == _ProgramAction.LIST_ARCHIVED_TOPICS:
+        year = args.list_archived_topics_year
+        meeting = args.list_archived_topics_meeting
+        session = args.list_archived_topics_session
+
+        year_index, meeting_index, session_index = \
+            F1ArchiveClient.session_index(year, meeting, session)
+
+        if "Path" in meeting_index:
+            path = meeting_index["Path"]
+
+        else:
+            meeting_sessions = meeting_index["Sessions"]
+            meeting_date = meeting_sessions[-1]["StartDate"].split("T")[0]
+            meeting_name = meeting_index["Name"]
+            session_date = session_index["StartDate"].split("T")[0]
+            session_name = session_index["Name"]
+
+            path = "/".join([
+                str(year),
+                f"{meeting_date} {meeting_name}",
+                f"{session_date} {session_name}",
+                "",
+            ]).replace(" ", "_")
+
+        archive_client = F1ArchiveClient(path)
+        topics_index = archive_client.topics_index
+
+        logger.info(f"{meeting_index['Name']} ({year}) - {session_index['Name']}")
+        total_feeds = len(topics_index["Feeds"])
+
+        for i, topic in enumerate(sorted(topics_index["Feeds"])):
+            if i == total_feeds - 1:
+                logger.info(f"└ {topic}")
+
+            else:
+                logger.info(f"├ {topic}")
 
     if args.action == _ProgramAction.LIVE_MESSAGE_LOGGER:
         if live_streaming_status == "Offline":
@@ -465,13 +722,70 @@ def __program_main():
         if live_streaming_status == "Offline":
             logger.warning("F1 Live Timing API Streaming Status: Offline!")
 
+        discord_env = __discord_env(args.discord_env_path)
+        embed_queue: Queue[Embed] = Queue()
+        message_embeds: Callable[[List[Embed]], Tuple[Response | None, Response | None]] = \
+            lambda embeds: __message_embeds(discord_env, embeds)
+
         try:
             with F1LiveTimingClient(*topics) as lt_client:
                 logger.info("F1 Live Timing streaming feed Discord bot started!")
 
-                for invokations in lt_client:
-                    for invokation in invokations:
-                        pass
+                for feeds in lt_client:
+                    for topic, change, timestamp in feeds:
+                        if topic == StreamingTopic.ARCHIVE_STATUS:
+                            embed_queue.put(
+                                __archive_status_embed(change, datetime_parser(timestamp)))
+
+                        elif topic == StreamingTopic.AUDIO_STREAMS:
+                            if isinstance(change["Streams"], Mapping):
+                                for key in change["Streams"].keys():
+                                    embed_queue.put(
+                                        __audio_stream_embed(
+                                            lt_client.timing_client.audio_streams[int(key)],
+                                            lt_client.timing_client.session_info["Path"],
+                                            datetime_parser(timestamp),
+                                        ),
+                                    )
+
+                            else:
+                                for stream in change["Streams"]:
+                                    embed_queue.put(
+                                        __audio_stream_embed(
+                                            stream,
+                                            lt_client.timing_client.session_info["Path"],
+                                            datetime_parser(timestamp),
+                                        ),
+                                    )
+
+                        elif topic == StreamingTopic.CONTENT_STREAMS:
+                            if isinstance(change["Streams"], Mapping):
+                                for key in change["Streams"].keys():
+                                    embed_queue.put(
+                                        __content_stream_embed(
+                                            lt_client.timing_client.content_streams[int(key)],
+                                            lt_client.timing_client.session_info["Path"],
+                                            datetime_parser(timestamp),
+                                        ),
+                                    )
+
+                            else:
+                                for stream in change["Streams"]:
+                                    embed_queue.put(
+                                        __content_stream_embed(
+                                            stream,
+                                            lt_client.timing_client.session_info["Path"],
+                                            datetime_parser(timestamp),
+                                        ),
+                                    )
+
+                    if embed_queue.qsize() > 0:
+                        embeds: List[Embed] = []
+
+                        while len(embeds) < 10 and embed_queue.qsize() > 0:
+                            embeds.append(embed_queue.get())
+
+                        message_embeds(embeds)
 
         except KeyboardInterrupt:
             logger.info("F1 Live Timing streaming feed Discord bot stopped!")
