@@ -1,21 +1,31 @@
+from __future__ import annotations
 from datetime import datetime, timedelta
 from http.cookies import SimpleCookie
 from json import dumps, loads
 from logging import getLogger
 from random import randint
-from typing import Any, List, TypedDict
+from typing import List, TypedDict
 from urllib.parse import quote, urlencode
 
 from requests import ConnectionError, HTTPError, Session
 from websocket import WebSocket, WebSocketBadStatusException, WebSocketConnectionClosedException, \
     WebSocketTimeoutException
 
+from ._type import JSONValueDataType
+
 
 class SignalRNegotiationData(TypedDict):
     """SignalR negotiation data"""
 
-    ConnectionId: str
+    Url: str
     ConnectionToken: str
+    ConnectionId: str
+    KeepAliveTimeout: float
+    DisconnectTimeout: float
+    TryWebSockets: bool
+    ProtocolVersion: str
+    TransportConnectTimeout: float
+    LongPollDelay: float
 
 
 class SignalRInvokation(TypedDict):
@@ -23,7 +33,7 @@ class SignalRInvokation(TypedDict):
 
     H: str
     M: str
-    A: List[Any]
+    A: List[JSONValueDataType]
 
 
 class SignalRData(TypedDict, total=False):
@@ -31,7 +41,7 @@ class SignalRData(TypedDict, total=False):
     G: str
     I: int
     M: List[SignalRInvokation]
-    R: Any
+    R: JSONValueDataType
     S: int
 
 
@@ -39,29 +49,26 @@ class SignalRClient:
     """
     SignalR client to communicate with SignalR server.
 
-    Currently only supports webSocket transport. Mainly created for use as F1 live timing client
-    (F1LiveClient).
+    Supports webSocket transport. Mainly created for use as F1 live timing client (F1LiveClient).
     """
 
-    __client_protocol = "1.5"
+    __protocol = "1.5"
     __logger = getLogger("eXF1LT.SignalRClient")
     __ping_interval = timedelta(minutes=5)
 
     def __init__(self, url: str, *hubs: str, reconnect: bool = True):
         self.__command_id = 0
         self.__cookies: List[str] = []
-        self.__groups_token: str | None = None
-        self.__hubs = hubs
-        self.__id: str | None = None
-        self.__last_ping_at: datetime | None = None
-        self.__message_id: str | None = None
-        self.__negotiated_at: int | None = None
+        self.__groups_token = None
+        self.__hubs = [hub for hub in hubs]
+        self.__last_ping_at = None
+        self.__message_id = None
+        self.__negotiated_at = None
+        self.__negotiation_data = None
         self.__reconnect = reconnect
         self.__rest_transport = Session()
-        self.__token: str | None = None
-        self.__transport = WebSocket(skip_utf8_validation=True)
-        self.__transport_type = "webSockets"
         self.__url = url
+        self.__ws_transport = WebSocket(skip_utf8_validation=True)
 
     def __enter__(self):
         SignalRClient.__logger.info("Entering SignalR client context!")
@@ -97,12 +104,15 @@ class SignalRClient:
 
     def __repr__(self):
         __data = ", ".join((
-            f"url={self.__url}",
-            f"hubs={self.__hubs}",
-            f"id={self.__id}",
-            f"token={self.__token}",
-            f"message_id={self.__message_id}",
+            f"command_id={self.__command_id}",
             f"groups_token={self.__groups_token}",
+            f"hubs={self.__hubs}",
+            f"last_ping_at={self.__last_ping_at}",
+            f"message_id={self.__message_id}",
+            f"negotiated_at={self.__negotiated_at}",
+            f"negotiation_data={self.__negotiation_data}",
+            f"reconnect={self.__reconnect}",
+            f"url={self.__url}",
         ))
 
         return f"{type(self).__name__}({__data})"
@@ -111,64 +121,63 @@ class SignalRClient:
         return self.__repr__()
 
     def __abort(self):
-        if not self.__token:
+        if not self.__negotiation_data:
             return False
 
         try:
-            SignalRClient.__logger.info(f"Aborting SignalR connection with ID {self.__id}!")
-            r = self.__rest_transport.post(
-                f"{self.__url}/abort",
-                params={
-                    "transport": self.__transport_type,
-                    "connectionToken": self.__token,
-                    "clientProtocol": SignalRClient.__client_protocol,
-                    "connectionData": dumps([{"name": hub} for hub in self.__hubs],
-                                            separators=(",", ":")),
-                },
-                json={},
-            )
+            connection_id = self.__negotiation_data["ConnectionId"]
+            connection_token = self.__negotiation_data["ConnectionToken"]
+            SignalRClient.__logger.info(f"Aborting SignalR connection with ID {connection_id}!")
+            r = self.__rest_transport.post(f"{self.__url}/abort",
+                                           params={"transport": "webSockets",
+                                                   "connectionToken": connection_token,
+                                                   "clientProtocol": SignalRClient.__protocol,
+                                                   "connectionData": dumps([{"name": hub} for hub
+                                                                            in self.__hubs],
+                                                                           separators=(",", ":"))},
+                                           json={})
             r.raise_for_status()
             return True
 
         except (ConnectionError, HTTPError):
             SignalRClient.__logger.error("Error while trying to abort SignalR connection with " +
-                                         f"ID {self.__id}!")
+                                         f"ID {self.__negotiation_data['ConnectionId']}!")
             return False
 
     def __close(self):
-        if not self.__transport.connected:
+        if not self.__ws_transport.connected:
             return
 
-        SignalRClient.__logger.info(f"Closing SignalR connection with ID {self.__id}!")
-        self.__transport.close()
-        self.__id = None
-        self.__token = None
+        SignalRClient.__logger.info("Closing SignalR connection with ID " +
+                                    f"{self.__negotiation_data['ConnectionId']}!")
+        self.__ws_transport.close()
+        self.__negotiation_data = None
 
     def __connect(self):
         try:
-            assert not self.connected and self.__token
+            assert not self.connected and self.__negotiation_data
             SignalRClient.__logger.info(f"Connecting to SignalR transport with URL {self.__url}!")
 
         except AssertionError as ex:
             if self.connected:
                 SignalRClient.__logger.warning("Connection already established!")
 
-            if not self.__token:
-                SignalRClient.__logger.warning("No connection token available!")
+            if not self.__negotiation_data:
+                SignalRClient.__logger.warning("No negotiation data available!")
 
             raise ex
 
         while True:
             try:
                 if self.__groups_token and self.__message_id:
-                    self.__transport.connect(
+                    self.__ws_transport.connect(
                         f"{self.__url.replace('https://', 'wss://')}/reconnect" + "?" + urlencode(
                             {
-                                "transport": self.__transport_type,
+                                "transport": "webSockets",
                                 "groupsToken": self.__groups_token,
                                 "messageId": self.__message_id,
-                                "clientProtocol": SignalRClient.__client_protocol,
-                                "connectionToken": self.__token,
+                                "clientProtocol": SignalRClient.__protocol,
+                                "connectionToken": self.__negotiation_data["ConnectionToken"],
                                 "connectionData": dumps([{"name": hub} for hub in self.__hubs],
                                                         separators=(",", ":")),
                                 "tid": randint(0, 11),
@@ -179,12 +188,12 @@ class SignalRClient:
                     )
 
                 else:
-                    self.__transport.connect(
+                    self.__ws_transport.connect(
                         f"{self.__url.replace('https://', 'wss://')}/connect" + "?" + urlencode(
                             {
-                                "transport": self.__transport_type,
-                                "clientProtocol": SignalRClient.__client_protocol,
-                                "connectionToken": self.__token,
+                                "transport": "webSockets",
+                                "clientProtocol": SignalRClient.__protocol,
+                                "connectionToken": self.__negotiation_data["ConnectionToken"],
                                 "connectionData": dumps([{"name": hub} for hub in self.__hubs],
                                                         separators=(",", ":")),
                                 "tid": randint(0, 11),
@@ -209,14 +218,14 @@ class SignalRClient:
                 )
 
                 if "set-cookie" in e.resp_headers:
-                    self.__cookies = []
+                    self.__cookies: List[str] = []
 
                     for cookie_name, morsel in SimpleCookie(e.resp_headers["set-cookie"]).items():
                         self.__cookies.append(f"{cookie_name}={morsel.value}")
 
                 else:
-                    self.__cookies = []
-                    self.__token = None
+                    self.__cookies: List[str] = []
+                    self.__negotiation_data = None
                     self.__groups_token = None
                     self.__message_id = None
                     self.__negotiate()
@@ -224,7 +233,7 @@ class SignalRClient:
                 continue
 
     def __negotiate(self):
-        if self.__token:
+        if self.__negotiation_data:
             return
 
         SignalRClient.__logger.info("Negotiating for new SignalR connection!")
@@ -234,7 +243,7 @@ class SignalRClient:
             f"{self.__url}/negotiate",
             params={
                 "_": str(self.__negotiated_at),
-                "clientProtocol": SignalRClient.__client_protocol,
+                "clientProtocol": SignalRClient.__protocol,
                 "connectionData": dumps([{"name": hub} for hub in self.__hubs],
                                         separators=(",", ":")),
             },
@@ -242,22 +251,21 @@ class SignalRClient:
         r.raise_for_status()
 
         r_json: SignalRNegotiationData = r.json()
-        self.__token = r_json["ConnectionToken"]
-        self.__id = r_json["ConnectionId"]
+        self.__negotiation_data = r_json
+        self.__keep_alive_timeout = r_json["KeepAliveTimeout"]
         self.__cookies = [f"{cookie.name}={cookie.value}" for cookie in r.cookies]
 
     def __ping(self):
-        if not self.__token:
+        if not self.__negotiation_data:
             return False
 
         self.__negotiated_at += 1
 
         try:
-            SignalRClient.__logger.info(f"Pinging SignalR connection with ID {self.__id}!")
-            r = self.__rest_transport.get(
-                f"{self.__url}/ping",
-                params={"_": str(self.__negotiated_at)},
-            )
+            SignalRClient.__logger.info("Pinging SignalR connection with ID " +
+                                        f"{self.__negotiation_data['ConnectionId']}!")
+            r = self.__rest_transport.get(f"{self.__url}/ping",
+                                          params={"_": str(self.__negotiated_at)})
             r.raise_for_status()
             response: str = r.json()["Response"]
             return response == "pong"
@@ -274,19 +282,20 @@ class SignalRClient:
                     self.__last_ping_at = datetime.utcnow()
                     self.__ping()
 
-                opcode, raw_data = self.__transport.recv_data()
+                opcode, raw_data = self.__ws_transport.recv_data()
                 opcode: int
                 raw_data: bytes
                 json_data: SignalRData = loads(raw_data)
+                id = self.__negotiation_data["ConnectionId"]
 
                 if len(json_data) == 0:
                     SignalRClient.__logger.info("KeepAlive packet received at " +
                                                 str(datetime.utcnow()) +
-                                                f" from SignalR connection with ID {self.__id}!")
+                                                f" from SignalR connection with ID {id}!")
 
                 else:
                     SignalRClient.__logger.info("Received message from SignalR connection with " +
-                                                f"ID {self.__id}!")
+                                                f"ID {id}!")
 
                 if "C" in json_data:
                     self.__message_id = json_data["C"]
@@ -300,22 +309,21 @@ class SignalRClient:
                 continue
 
     def __start(self):
-        if not self.__token:
+        if not self.__negotiation_data:
             return False
 
         self.__negotiated_at += 1
-        SignalRClient.__logger.info(f"Started SignalR connection with ID {self.__id}!")
-        r = self.__rest_transport.get(
-            f"{self.__url}/start",
-            params={
-                "transport": self.__transport_type,
-                "clientProtocol": SignalRClient.__client_protocol,
-                "connectionToken": self.__token,
-                "connectionData": dumps([{"name": hub} for hub in self.__hubs],
-                                        separators=(",", ":")),
-                "_": str(self.__negotiated_at),
-            },
-        )
+        connection_token = self.__negotiation_data["ConnectionToken"]
+        connection_id = self.__negotiation_data["ConnectionId"]
+        SignalRClient.__logger.info(f"Started SignalR connection with ID {connection_id}!")
+        r = self.__rest_transport.get(f"{self.__url}/start",
+                                      params={"transport": "webSockets",
+                                              "clientProtocol": SignalRClient.__protocol,
+                                              "connectionToken": connection_token,
+                                              "connectionData": dumps([{"name": hub} for hub
+                                                                       in self.__hubs],
+                                                                      separators=(",", ":")),
+                                              "_": str(self.__negotiated_at)})
         r.raise_for_status()
         response: str = r.json()["Response"]
         return response == "started"
@@ -328,21 +336,21 @@ class SignalRClient:
 
     @property
     def connected(self):
-        return self.__transport.connected
+        return self.__ws_transport.connected
 
     @property
     def hubs(self):
         return self.__hubs
 
-    def invoke(self, hub: str, method: str, *args):
+    def invoke(self, hub: str, method: str, *args: JSONValueDataType):
         assert hub in self.__hubs
-        data: SignalRInvokation = {"H": hub, "M": method, "A": args}
+        data: SignalRInvokation = {"H": hub, "M": method, "A": [arg for arg in args]}
         data |= {"I": self.__command_id}
-        self.__transport.send(dumps(data, separators=(",", ":")))
+        self.__send(dumps(data, separators=(",", ":")))
         self.__command_id += 1
 
     def open(self):
-        if not self.__token:
+        if not self.__negotiation_data:
             self.__negotiate()
 
         if not self.connected:

@@ -18,6 +18,9 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Dict, List, Literal, NotRequired, Required, TypedDict
 
+JSONValueDataType = str | int | float | Dict[str, "JSONValueDataType"] | \
+    List["JSONValueDataType"] | bool | None
+
 
 class ArchiveStatus(TypedDict, total=False):
     Status: Literal["Complete", "Generating"]

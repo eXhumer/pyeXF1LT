@@ -17,7 +17,7 @@
 from __future__ import annotations
 from argparse import ArgumentParser
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import StrEnum
 from json import loads
 from logging import DEBUG, FileHandler, Formatter, getLogger, INFO, StreamHandler
@@ -32,58 +32,54 @@ from requests import Response
 
 from ._client import F1ArchiveClient, F1LiveClient, F1LiveTimingClient
 from ._type import ArchiveStatus, AudioStream, ContentStream, StreamingTopic
-from ._utils import decompress_zlib_data, datetime_parser
+from ._utils import decompress_zlib_data
 
 try:
-    from exdc import DiscordBotAuthorization, DiscordClient
-    from exdc.type import Embed, EmbedField
-
+    from exdc import DiscordClient, Embed, EmbedField
     exdc_available = True
 
-    def __archive_status_embed(status: ArchiveStatus, timestamp: datetime):
+    def __archive_status_embed(status: ArchiveStatus, timestamp: datetime | None = None):
         return Embed(
             title="Archive Status",
-            fields=[EmbedField("Status", status["Status"])],
-            timestamp=timestamp,
+            fields=[EmbedField(name="Status", value=status["Status"])],
+            timestamp=__timestamp(timestamp=timestamp),
         )
 
-    def __audio_stream_embed(stream: AudioStream, session_path: str, timestamp: datetime):
+    def __audio_stream_embed(stream: AudioStream, session_path: str,
+                             timestamp: datetime | None = None):
         archive_url = f"{F1ArchiveClient.static_url}/{session_path}{stream['Path']}"
 
         return Embed(
             title="Audio Stream",
             fields=[
-                EmbedField("Name", stream["Name"]),
-                EmbedField("Language", stream["Language"]),
-                EmbedField("Archive Link", archive_url),
-                EmbedField("Live Link", stream["Uri"]),
+                EmbedField(name="Name", value=stream["Name"]),
+                EmbedField(name="Language", value=stream["Language"]),
+                EmbedField(name="Archive Link", value=archive_url),
+                EmbedField(name="Live Link", value=stream["Uri"]),
             ],
-            timestamp=timestamp,
+            timestamp=__timestamp(timestamp=timestamp),
         )
 
-    def __content_stream_embed(stream: ContentStream, session_path: str, timestamp: datetime):
+    def __content_stream_embed(stream: ContentStream, session_path: str,
+                               timestamp: datetime | None = None):
         if "Path" in stream:
-            assert session_path is not None
             archive_url = f"{F1ArchiveClient.static_url}/{session_path}{stream['Path']}"
 
         else:
             archive_url = None
 
         fields = [
-            EmbedField("Type", stream["Type"]),
-            EmbedField("Name", stream["Name"]),
-            EmbedField("Language", stream["Language"]),
-            EmbedField("Live Link", stream["Uri"]),
+            EmbedField(name="Type", value=stream["Type"]),
+            EmbedField(name="Name", value=stream["Name"]),
+            EmbedField(name="Language", value=stream["Language"]),
+            EmbedField(name="Live Link", value=stream["Uri"]),
         ]
 
         if archive_url is not None:
-            fields.append(EmbedField("Archive Link", archive_url))
+            fields.append(EmbedField(name="Archive Link", value=archive_url))
 
-        return Embed(
-            title="Content Stream",
-            fields=fields,
-            timestamp=timestamp,
-        )
+        return Embed(title="Content Stream", fields=fields,
+                     timestamp=__timestamp(timestamp=timestamp))
 
     def __discord_env(env_path: Path):
         if env_path.is_file():
@@ -105,8 +101,8 @@ try:
             assert "WET_TYRE_EMOJI" in env
             assert "YELLOW_FLAG_EMOJI" in env
 
-            assert ("BOT_TOKEN" in environ and "CHANNEL_ID" in environ) or \
-                ("WEBHOOK_ID" in environ and "WEBHOOK_TOKEN" in environ), \
+            assert ("BOT_TOKEN" in env and "CHANNEL_ID" in env) or \
+                ("WEBHOOK_ID" in env and "WEBHOOK_TOKEN" in env), \
                 "Missing required messaging ID/token!"
 
             discord_env: __DiscordEnv = {
@@ -204,13 +200,20 @@ try:
             webhook = None
 
         if "BOT_TOKEN" in env and "CHANNEL_ID" in env:
-            channel = DiscordClient(DiscordBotAuthorization(env["BOT_TOKEN"])).\
+            channel = DiscordClient.with_bot_token(env["BOT_TOKEN"]).\
                 post_message(env["CHANNEL_ID"], embeds=embeds)
 
         else:
             channel = None
 
         return webhook, channel
+
+    def __timestamp(timestamp: datetime | None = None):
+        return (
+            timestamp.astimezone(timezone.utc).isoformat()
+            if timestamp is not None
+            else None
+        )
 
 except ImportError:
     exdc_available = False
@@ -281,7 +284,7 @@ class __ProgramNamespace:
     action: _ProgramAction
     archive_last_session: bool
     archive_path: str
-    archive_session_info: List[str]
+    archive_session_info: List[int]
     archive_status: bool
     archived_message_log_path: Path
     audio_streams: bool
@@ -568,6 +571,7 @@ def __program_logger(args: __ProgramNamespace):
 
 def __program_main():
     print(__logo__)
+
     args = __program_args()
     logger = __program_logger(args)
     topics = __parse_topics(args)
@@ -586,9 +590,7 @@ def __program_main():
             archive_client = F1ArchiveClient(args.archive_path, *topics)
 
         elif args.archive_session_info:
-            year = int(args.archive_session_info[0])
-            meeting = args.archive_session_info[1]
-            session = args.archive_session_info[2]
+            year, meeting, session = args.archive_session_info
 
             logger.info(f"Retrieving archived feed by session information (Year: {year}, " +
                         f"Meeting: {meeting}, Session: {session})!")
@@ -603,15 +605,14 @@ def __program_main():
 
         logger.info("Logging all archived session messages!")
 
-        with archive_client:
-            for message in archive_client:
-                if message[0] in [StreamingTopic.CAR_DATA_Z, StreamingTopic.POSITION_Z] and \
+        with archive_client:  # Fetches and loads topic data
+            for topic, data, timedelta in archive_client:
+                if topic in [StreamingTopic.CAR_DATA_Z, StreamingTopic.POSITION_Z] and \
                         args.archived_b64_zlib_decode:
-                    message_logger.info([message[0],
-                                        loads(decompress_zlib_data(message[1])), message[2]])
+                    message_logger.info([topic, loads(decompress_zlib_data(data)), timedelta])
 
                 else:
-                    message_logger.info([*message])
+                    message_logger.info([topic, data, timedelta])
 
         logger.info("F1 Live Timing archived feed logger stopped!")
 
@@ -733,9 +734,10 @@ def __program_main():
 
                 for feeds in lt_client:
                     for topic, change, timestamp in feeds:
+                        print(topic, change, timestamp)
+
                         if topic == StreamingTopic.ARCHIVE_STATUS:
-                            embed_queue.put(
-                                __archive_status_embed(change, datetime_parser(timestamp)))
+                            embed_queue.put(__archive_status_embed(change, timestamp=timestamp))
 
                         elif topic == StreamingTopic.AUDIO_STREAMS:
                             if isinstance(change["Streams"], Mapping):
@@ -744,7 +746,7 @@ def __program_main():
                                         __audio_stream_embed(
                                             lt_client.timing_client.audio_streams[int(key)],
                                             lt_client.timing_client.session_info["Path"],
-                                            datetime_parser(timestamp),
+                                            timestamp=timestamp,
                                         ),
                                     )
 
@@ -754,7 +756,7 @@ def __program_main():
                                         __audio_stream_embed(
                                             stream,
                                             lt_client.timing_client.session_info["Path"],
-                                            datetime_parser(timestamp),
+                                            timestamp=timestamp,
                                         ),
                                     )
 
@@ -765,7 +767,7 @@ def __program_main():
                                         __content_stream_embed(
                                             lt_client.timing_client.content_streams[int(key)],
                                             lt_client.timing_client.session_info["Path"],
-                                            datetime_parser(timestamp),
+                                            timestamp=timestamp,
                                         ),
                                     )
 
@@ -775,7 +777,7 @@ def __program_main():
                                         __content_stream_embed(
                                             stream,
                                             lt_client.timing_client.session_info["Path"],
-                                            datetime_parser(timestamp),
+                                            timestamp=timestamp,
                                         ),
                                     )
 

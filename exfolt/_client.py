@@ -1,5 +1,5 @@
 from collections.abc import Mapping, Sequence
-from datetime import datetime, timedelta
+from datetime import datetime
 from json import loads
 from logging import getLogger
 from queue import Queue
@@ -44,6 +44,7 @@ from ._type import (
     WeatherData,
     YearIndex,
 )
+from ._utils import datetime_parser
 
 
 class F1LTStreamingFeedInvokation(SignalRInvokation):
@@ -301,9 +302,27 @@ class F1LiveClient(SignalRClient):
 
         super().__exit__()
 
+    def __next__(self):
+        while self.connected:
+            opcode, data = next(super())
+
+            if "R" in data:
+                return None, data["R"]
+
+            if "M" not in data or len(data["M"]) == 0:
+                continue
+
+            invokations: List[F1LTStreamingFeedInvokation] = data["M"]
+            return invokations, None
+
+        raise StopIteration
+
     @staticmethod
-    def streaming_status():
-        res = Session().get(f"{F1ArchiveClient.static_url}/StreamingStatus.json")
+    def streaming_status(session: Session | None = None):
+        if session is None:
+            session = Session()
+
+        res = session.get(f"{F1ArchiveClient.static_url}/StreamingStatus.json")
         res.raise_for_status()
         data: StreamingStatus = loads(res.content.decode("utf-8-sig"))
         return data["Status"]
@@ -408,8 +427,7 @@ class F1TimingClient:
             weather_data: WeatherData = old_data[StreamingTopic.WEATHER_DATA]
             self.__weather_data = weather_data
 
-    def process_update(self, topic: StreamingTopic, update_data: dict,
-                       timestamp: datetime | timedelta | str):
+    def process_invokation(self, topic: StreamingTopic, update_data: dict, timestamp: datetime):
         if topic == StreamingTopic.ARCHIVE_STATUS:
             archive_status: ArchiveStatus = update_data
 
@@ -887,18 +905,17 @@ class F1LiveTimingClient:
 
     def __next__(self):
         while self.__lc.connected:
-            _, message = next(self.__lc)
+            invokations, reply = next(self.__lc)
 
-            if "M" in message and len(message["M"]) > 0:
-                invokations: List[F1LTStreamingFeedInvokation] = message["M"]
+            if reply:
+                self.__tc.process_reply(reply)
 
+            else:
                 for invokation in invokations:
-                    self.__tc.process_update(*invokation["A"])
+                    self.__tc.process_invokation(*invokation["A"])
 
-                return [invokation["A"] for invokation in invokations]
-
-            if "R" in message:
-                self.__tc.process_reply(message["R"])
+                return [(StreamingTopic(invokation["A"][0]), invokation["A"][1],
+                         datetime_parser(invokation["A"][2])) for invokation in invokations]
 
         raise StopIteration
 
