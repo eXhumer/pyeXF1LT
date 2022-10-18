@@ -42,4 +42,4 @@ eXF1LT is an unofficial software and is not associated in anyway with Formula 1 
 * [recursiveGecko](https://github.com/recursiveGecko) helping me figure out the decompression of CarData.z and Position.z datas & client connection issue related to GCLB cookie.
 
 ## Licensing
-This project is licensed under OSI Approved [GNU AGPLv3 **ONLY**](./COPYING).
+This project is licensed under OSI Approved [GNU AGPLv3 **ONLY**](./COPYING.md).
