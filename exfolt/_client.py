@@ -13,6 +13,7 @@ from ._type import (
     AudioStreams,
     BestSector,
     BestSpeeds,
+    CarData,
     ContentStreams,
     CurrentTyres,
     Driver,
@@ -20,10 +21,12 @@ from ._type import (
     Hub,
     LapCount,
     PersonalBestLapTime,
+    Position,
     RaceControlMessages,
     SessionData,
     SessionInfo,
     SessionStatus,
+    SessionStatusEnum,
     SessionTopicsIndex,
     StaticIndex,
     StreamingStatus,
@@ -44,7 +47,7 @@ from ._type import (
     WeatherData,
     YearIndex,
 )
-from ._utils import datetime_parser
+from ._utils import datetime_parser, decompress_zlib_data
 
 
 class F1LTStreamingFeedInvokation(SignalRInvokation):
@@ -330,25 +333,25 @@ class F1LiveClient(SignalRClient):
 
 class F1TimingClient:
     def __init__(self):
-        self.__archive_status: ArchiveStatus | None = None
-        self.__audio_streams: AudioStreams | None = None
+        self.__archive_status = None
+        self.__audio_streams = None
         self.__car_data = None
-        self.__content_streams: ContentStreams | None = None
-        self.__current_tyres: CurrentTyres | None = None
-        self.__driver_list: Dict[str, Driver] | None = None
-        self.__extrapolated_clock: ExtrapolatedClock | None = None
-        self.__lap_count: LapCount | None = None
+        self.__content_streams = None
+        self.__current_tyres = None
+        self.__driver_list = None
+        self.__extrapolated_clock = None
+        self.__lap_count = None
         self.__position = None
-        self.__race_control_messages: RaceControlMessages | None = None
-        self.__session_data: SessionData | None = None
-        self.__session_info: SessionInfo | None = None
-        self.__session_status: SessionStatus | None = None
-        self.__team_radio: TeamRadio | None = None
-        self.__timing_app_data: TimingAppData | None = None
-        self.__timing_data: TimingData | None = None
-        self.__timing_stats: TimingStats | None = None
-        self.__track_status: TrackStatus | None = None
-        self.__weather_data: WeatherData | None = None
+        self.__race_control_messages = None
+        self.__session_data = None
+        self.__session_info = None
+        self.__session_status = None
+        self.__team_radio = None
+        self.__timing_app_data = None
+        self.__timing_data = None
+        self.__timing_stats = None
+        self.__track_status = None
+        self.__weather_data = None
 
     def process_reply(self, old_data: Dict[StreamingTopic, Any]):
         if StreamingTopic.ARCHIVE_STATUS in old_data:
@@ -360,7 +363,8 @@ class F1TimingClient:
             self.__audio_streams = audio_streams
 
         if StreamingTopic.CAR_DATA_Z in old_data:
-            pass
+            car_data: CarData = loads(decompress_zlib_data(old_data[StreamingTopic.CAR_DATA_Z]))
+            self.__car_data = car_data
 
         if StreamingTopic.CONTENT_STREAMS in old_data:
             content_streams: ContentStreams = old_data[StreamingTopic.CONTENT_STREAMS]
@@ -384,7 +388,8 @@ class F1TimingClient:
             self.__lap_count = lap_count
 
         if StreamingTopic.POSITION_Z in old_data:
-            pass
+            position: Position = loads(decompress_zlib_data(old_data[StreamingTopic.POSITION_Z]))
+            self.__position = position
 
         if StreamingTopic.RACE_CONTROL_MESSAGES in old_data:
             race_control_messages: RaceControlMessages = \
@@ -705,10 +710,8 @@ class F1TimingClient:
                                     self_sectors[int(sn)]["Segments"] = segments
 
                 if speeds is not None:
-                    if (
-                        "Speeds" not in self.__timing_data["Lines"][rn] or
-                        isinstance(speeds, Sequence)
-                    ):
+                    if "Speeds" not in self.__timing_data["Lines"][rn] or \
+                            isinstance(speeds, Sequence):
                         self.__timing_data["Lines"][rn]["Speeds"] = speeds
 
                     else:
@@ -916,6 +919,10 @@ class F1LiveTimingClient:
 
                 return [(StreamingTopic(invokation["A"][0]), invokation["A"][1],
                          datetime_parser(invokation["A"][2])) for invokation in invokations]
+
+            if self.__tc.session_status and self.__tc.session_status["Status"] == \
+                    SessionStatusEnum.ENDS:
+                raise StopIteration
 
         raise StopIteration
 
