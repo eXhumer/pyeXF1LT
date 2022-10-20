@@ -16,15 +16,8 @@
 
 import json
 from argparse import ArgumentParser, Namespace
-from datetime import datetime
-from logging import (
-    DEBUG,
-    FileHandler,
-    Formatter,
-    getLogger,
-    INFO,
-    StreamHandler,
-)
+from datetime import datetime, timezone
+from logging import DEBUG, FileHandler, Formatter, getLogger, INFO, StreamHandler
 from os import environ
 from pathlib import Path
 from pkg_resources import require
@@ -43,7 +36,9 @@ __project_url__ = "https://github.com/eXhumer/pyeXF1LT"
 __version__ = require(__package__)[0].version
 
 try:
-    from exdc import DiscordClient, DiscordModel, DiscordType
+    from exdc import DiscordBotAuthorization, DiscordClient
+    from exdc.type import ComponentActionRow, ComponentButton, ComponentButtonStyle, Embed, \
+        EmbedAuthor, EmbedField
     exdc_available = True
 
     def __discord_methods(discord_env: Dict[str, str]):
@@ -68,6 +63,9 @@ try:
         WET_TYRE_EMOJI = discord_env["WET_TYRE_EMOJI"]
         YELLOW_FLAG_EMOJI = discord_env["YELLOW_FLAG_EMOJI"]
 
+        def __discord_timestamp(timestamp: datetime):
+            return timestamp.astimezone(timezone.utc).isoformat()
+
         def __audio_stream_embed(audio_stream: F1LTModel.AudioStream,
                                  timing_client: F1TimingClient, timestamp: datetime):
             archive_url = (
@@ -75,87 +73,66 @@ try:
                 timing_client.session_info.path + audio_stream.path
             )
 
-            return DiscordModel.Embed(
+            return Embed(
                 title="Audio Stream",
                 color=0x00FFFF,
                 fields=[
-                    DiscordModel.Embed.Field("Name", audio_stream.name),
-                    DiscordModel.Embed.Field("Language", audio_stream.language),
-                    DiscordModel.Embed.Field("Archive Link", f"[Link]({archive_url})"),
-                    DiscordModel.Embed.Field("Live Link", f"[Link]({audio_stream.uri})"),
+                    EmbedField(name="Name", value=audio_stream.name),
+                    EmbedField(name="Language", value=audio_stream.language),
+                    EmbedField(name="Archive Link", value=f"[Link]({archive_url})"),
+                    EmbedField(name="Live Link", value=f"[Link]({audio_stream.uri})"),
                 ],
-                timestamp=timestamp,
+                timestamp=__discord_timestamp(timestamp),
             )
 
         def __bot_start_message():
-            return {
-                "embeds": [
-                    DiscordModel.Embed(title="Live Timing Bot Started",
-                                       timestamp=datetime.utcnow()),
-                ],
-                "components": [
-                    DiscordModel.ActionRowComponent([
-                        DiscordModel.ButtonComponent(
-                            DiscordType.ButtonStyle.LINK,
-                            label="Source Code",
-                            url=__project_url__,
-                        )
-                    ])
-                ],
-            }
+            return {"embeds": [Embed(title="Live Timing Bot Started",
+                                     timestamp=__discord_timestamp(datetime.utcnow()))],
+                    "components": [ComponentActionRow(
+                        components=[ComponentButton(ComponentButtonStyle.LINK,
+                                    label="Source Code", url=__project_url__)])]}
 
         def __bot_stop_message():
-            return {
-                "embeds": [
-                    DiscordModel.Embed(title="Live Timing Bot Stopped",
-                                       timestamp=datetime.utcnow()),
-                ],
-                "components": [
-                    DiscordModel.ActionRowComponent([
-                        DiscordModel.ButtonComponent(
-                            DiscordType.ButtonStyle.LINK,
-                            label="Source Code",
-                            url=__project_url__,
-                        )
-                    ])
-                ],
-            }
+            return {"embeds": [Embed(title="Live Timing Bot Stopped",
+                                     timestamp=__discord_timestamp(datetime.utcnow()))],
+                    "components": [ComponentActionRow(
+                        components=[ComponentButton(ComponentButtonStyle.LINK,
+                                    label="Source Code", url=__project_url__)])]}
 
         def __discord_message(**args):
             if BOT_TOKEN and CHANNEL_ID:
-                Authorization = DiscordClient.BotAuthorization
-                DiscordClient(Authorization(BOT_TOKEN)).post_message(CHANNEL_ID, **args)
+                DiscordClient(DiscordBotAuthorization(BOT_TOKEN)).post_message(CHANNEL_ID, **args)
 
             if WEBHOOK_TOKEN and WEBHOOK_ID:
                 DiscordClient.post_webhook_message(WEBHOOK_ID, WEBHOOK_TOKEN, **args)
 
         def __extrapolated_clock_embed(clock_data: F1LTModel.ExtrapolatedClock,
                                        timestamp: datetime):
-            return DiscordModel.Embed(
+            return Embed(
                 title="Extrapolated Clock",
                 fields=[
-                    DiscordModel.Embed.Field("Remaining", clock_data.remaining),
-                    DiscordModel.Embed.Field("Extrapolating", str(clock_data.extrapolating)),
+                    EmbedField(name="Remaining", value=clock_data.remaining),
+                    EmbedField(name="Extrapolating", value=str(clock_data.extrapolating)),
                 ],
-                timestamp=timestamp,
+                timestamp=__discord_timestamp(timestamp),
             )
 
         def __race_control_message_embed(rcm_msg: F1LTModel.RaceControlMessage,
                                          timestamp: datetime,
                                          driver: Optional[F1LTModel.Driver] = None):
             fields = [
-                DiscordModel.Embed.Field("Message", rcm_msg.message),
-                DiscordModel.Embed.Field("Category", rcm_msg.category),
+                EmbedField(name="Message", value=rcm_msg.message),
+                EmbedField(name="Category", value=rcm_msg.category),
             ]
 
             if rcm_msg.racing_number is not None:
                 if driver is not None:
                     assert rcm_msg.racing_number == driver.racing_number
-                    author = DiscordModel.Embed.Author(str(driver), icon_url=driver.headshot_url)
+                    author = EmbedAuthor(name=str(driver), icon_url=driver.headshot_url)
 
                 else:
                     author = None
-                    fields.append(DiscordModel.Embed.Field("Racing Number", rcm_msg.racing_number))
+                    fields.append(EmbedField(name="Racing Number", value=rcm_msg.racing_number))
 
             else:
                 author = None
@@ -207,63 +184,62 @@ try:
 
             if rcm_msg.status is not None:
                 if rcm_msg.category == "Drs":
-                    fields.append(DiscordModel.Embed.Field("DRS Status", rcm_msg.status))
+                    fields.append(EmbedField(name="DRS Status", value=rcm_msg.status))
 
                 elif rcm_msg.category == "SafetyCar":
-                    fields.append(DiscordModel.Embed.Field("Safety Car Status", rcm_msg.status))
+                    fields.append(EmbedField(name="Safety Car Status", value=rcm_msg.status))
 
                 else:
-                    fields.append(DiscordModel.Embed.Field("Status", rcm_msg.status))
+                    fields.append(EmbedField(name="Status", value=rcm_msg.status))
 
             if rcm_msg.flag is not None:
-                fields.append(DiscordModel.Embed.Field("Flag", rcm_msg.flag))
+                fields.append(EmbedField(name="Flag", value=rcm_msg.flag))
 
             if rcm_msg.lap is not None:
-                fields.append(DiscordModel.Embed.Field("Lap", rcm_msg.lap))
+                fields.append(EmbedField(name="Lap", value=rcm_msg.lap))
 
             if rcm_msg.scope is not None:
-                fields.append(DiscordModel.Embed.Field("Scope", rcm_msg.scope))
+                fields.append(EmbedField(name="Scope", value=rcm_msg.scope))
 
             if rcm_msg.sector is not None:
-                fields.append(DiscordModel.Embed.Field("Sector", rcm_msg.sector))
+                fields.append(EmbedField(name="Sector", value=rcm_msg.sector))
 
-            return DiscordModel.Embed(title="Race Control Message", author=author, color=color,
-                                      description=description, fields=fields, timestamp=timestamp)
+            return Embed(title="Race Control Message", author=author, color=color,
+                         description=description, fields=fields,
+                         timestamp=__discord_timestamp(timestamp))
 
         def __session_info_embed(session_info: F1LTModel.SessionInfo, timestamp: datetime):
-            return DiscordModel.Embed(
+            return Embed(
                 title="Session Information",
                 fields=[
-                    DiscordModel.Embed.Field("Official Name",
-                                             session_info.meeting.official_name),
-                    DiscordModel.Embed.Field("Meeting Name", session_info.meeting.name),
-                    DiscordModel.Embed.Field("Location", session_info.meeting.location),
-                    DiscordModel.Embed.Field("Country", session_info.meeting.country.name),
-                    DiscordModel.Embed.Field("Circuit",
-                                             session_info.meeting.circuit.short_name),
-                    DiscordModel.Embed.Field("Session Name", session_info.name),
-                    DiscordModel.Embed.Field("Start Date", session_info.start_date),
-                    DiscordModel.Embed.Field("End Date", session_info.end_date),
-                    DiscordModel.Embed.Field("GMT Offset", session_info.gmt_offset),
+                    EmbedField(name="Official Name", value=session_info.meeting.official_name),
+                    EmbedField(name="Meeting Name", value=session_info.meeting.name),
+                    EmbedField(name="Location", value=session_info.meeting.location),
+                    EmbedField(name="Country", value=session_info.meeting.country.name),
+                    EmbedField(name="Circuit", value=session_info.meeting.circuit.short_name),
+                    EmbedField(name="Session Name", value=session_info.name),
+                    EmbedField(name="Start Date", value=session_info.start_date),
+                    EmbedField(name="End Date", value=session_info.end_date),
+                    EmbedField(name="GMT Offset", value=session_info.gmt_offset),
                 ],
-                timestamp=timestamp,
+                timestamp=__discord_timestamp(timestamp),
                 color=0xFFFFFF,
             )
 
         def __session_status_embed(status: F1LTType.SessionStatus, timestamp: datetime):
-            return DiscordModel.Embed(title="Session Status", description=status,
-                                      timestamp=timestamp)
+            return Embed(title="Session Status", description=status,
+                         timestamp=__discord_timestamp(timestamp))
 
         def __team_radio_embed(team_radio: F1LTModel.TeamRadio, timestamp: datetime,
                                driver: Optional[F1LTModel.Driver] = None,
                                session_info: Optional[F1LTModel.SessionInfo] = None):
             if driver:
-                author = DiscordModel.Embed.Author(str(driver), icon_url=driver.headshot_url)
+                author = EmbedAuthor(name=str(driver), icon_url=driver.headshot_url)
                 fields = None
 
             else:
                 author = None
-                fields = [DiscordModel.Embed.Field("Racing Number", team_radio.racing_number)]
+                fields = [EmbedField(name="Racing Number", value=team_radio.racing_number)]
 
             if session_info:
                 url = (
@@ -272,15 +248,15 @@ try:
                 )
 
             else:
-                fields.append(DiscordModel.Embed.Field("Path", team_radio.path))
+                fields.append(EmbedField(name="Path", value=team_radio.path))
                 url = None
 
-            return DiscordModel.Embed(
+            return Embed(
                 title="Team Radio",
                 author=author,
                 fields=fields,
                 url=url,
-                timestamp=timestamp,
+                timestamp=__discord_timestamp(timestamp),
             )
 
         def __timing_app_data_stint_embed(stint: F1LTModel.TimingAppData.Stint,
@@ -296,21 +272,21 @@ try:
             )
 
             fields = [
-                DiscordModel.Embed.Field("Compound", compound, inline=True),
-                DiscordModel.Embed.Field("New", str(stint.new), inline=True),
-                DiscordModel.Embed.Field("Tyre Changed", str(not stint.tyre_not_changed),
-                                         inline=True),
-                DiscordModel.Embed.Field("Start Laps", str(stint.start_laps), inline=True),
-                DiscordModel.Embed.Field("Total Laps", str(stint.total_laps), inline=True),
+                EmbedField(name="Compound", value=compound, inline=True),
+                EmbedField(name="New", value=str(stint.new), inline=True),
+                EmbedField(name="Tyre Changed", value=str(not stint.tyre_not_changed),
+                           inline=True),
+                EmbedField(name="Start Laps", value=str(stint.start_laps), inline=True),
+                EmbedField(name="Total Laps", value=str(stint.total_laps), inline=True),
             ]
 
             if racing_number:
                 if driver:
                     assert racing_number == driver.racing_number
-                    author = DiscordModel.Embed.Author(str(driver), icon_url=driver.headshot_url)
+                    author = EmbedAuthor(name=str(driver), icon_url=driver.headshot_url)
 
                 else:
-                    fields.append(DiscordModel.Embed.Field("Racing Number", racing_number))
+                    fields.append(EmbedField(name="Racing Number", value=racing_number))
                     author = None
 
             else:
@@ -321,24 +297,24 @@ try:
             if stint.corrected:
                 embed_title = f"{embed_title} (Corrected)"
 
-            return DiscordModel.Embed(
+            return Embed(
                 title=embed_title,
                 author=author,
                 fields=fields,
-                timestamp=timestamp,
+                timestamp=__discord_timestamp(timestamp),
             )
 
         def __track_status_embed(track_status: F1LTModel.TrackStatus, timestamp: datetime):
-            return DiscordModel.Embed(
+            return Embed(
                 title="Track Status",
                 fields=[
-                    DiscordModel.Embed.Field(
-                        "Status",
-                        track_status.status_string,
+                    EmbedField(
+                        name="Status",
+                        value=track_status.status_string,
                     ),
-                    DiscordModel.Embed.Field(
-                        "Message",
-                        track_status.message,
+                    EmbedField(
+                        name="Message",
+                        value=track_status.message,
                     ),
                 ],
                 description=(
@@ -369,7 +345,7 @@ try:
                     else 0xFF0000 if track_status.status == F1LTType.TrackStatus.RED
                     else None
                 ),
-                timestamp=timestamp,
+                timestamp=__discord_timestamp(timestamp),
             )
 
         return (
@@ -377,6 +353,7 @@ try:
             __bot_start_message,
             __bot_stop_message,
             __discord_message,
+            __discord_timestamp,
             __extrapolated_clock_embed,
             __race_control_message_embed,
             __session_info_embed,
@@ -841,6 +818,7 @@ def __program_main():
             bot_start_message,
             bot_stop_message,
             discord_message,
+            discord_timestamp,
             extrapolated_clock_embed,
             race_control_message_embed,
             session_info_embed,
@@ -854,7 +832,7 @@ def __program_main():
             discord_message(**bot_start_message())
 
         timing_client = F1TimingClient()
-        embed_queue: Queue[DiscordModel.Embed] = Queue()
+        embed_queue: Queue[Embed] = Queue()
 
         try:
             with __setup_live_client(args) as live_client:
@@ -1016,8 +994,8 @@ def __program_main():
                                 timing_stats: F1LTModel.TimingStats = timing_item[racing_number]
 
                                 if driver_data:
-                                    author = DiscordModel.Embed.Author(
-                                        str(driver_data),
+                                    author = EmbedAuthor(
+                                        name=str(driver_data),
                                         icon_url=driver_data.headshot_url,
                                     )
 
@@ -1035,17 +1013,18 @@ def __program_main():
                                     seconds = new_fl_time.total_seconds() - (minutes * 60)
 
                                     embed_queue.put(
-                                        DiscordModel.Embed(
+                                        Embed(
                                             title="Fastest Lap Time",
                                             author=author,
                                             color=0xA020F0,
                                             fields=[
-                                                DiscordModel.Embed.Field(
-                                                    "Lap Time",
-                                                    f"{minutes}:{seconds:.3f}",
+                                                EmbedField(
+                                                    name="Lap Time",
+                                                    value=f"{minutes}:{seconds:.3f}",
                                                 ),
                                             ],
-                                            timestamp=datetime_parser(timestamp),
+                                            timestamp=discord_timestamp(
+                                                datetime_parser(timestamp)),
                                         )
                                     )
 
@@ -1059,14 +1038,14 @@ def __program_main():
                                     assert new_i2_speed
 
                                     embed_queue.put(
-                                        DiscordModel.Embed(
+                                        Embed(
                                             title="Fastest Intermediate 1 Speed",
                                             author=author,
                                             color=0xA020F0,
                                             fields=[
-                                                DiscordModel.Embed.Field(
-                                                    "Speed",
-                                                    f"{new_i2_speed}",
+                                                EmbedField(
+                                                    name="Speed",
+                                                    value=f"{new_i2_speed}",
                                                 ),
                                             ],
                                             timestamp=datetime_parser(timestamp),
@@ -1083,14 +1062,14 @@ def __program_main():
                                     assert new_i2_speed
 
                                     embed_queue.put(
-                                        DiscordModel.Embed(
+                                        Embed(
                                             title="Fastest Intermediate 2 Speed",
                                             author=author,
                                             color=0xA020F0,
                                             fields=[
-                                                DiscordModel.Embed.Field(
-                                                    "Speed",
-                                                    f"{new_i2_speed}",
+                                                EmbedField(
+                                                    name="Speed",
+                                                    value=f"{new_i2_speed}",
                                                 ),
                                             ],
                                             timestamp=datetime_parser(timestamp),
@@ -1107,14 +1086,14 @@ def __program_main():
                                     assert new_fl_speed
 
                                     embed_queue.put(
-                                        DiscordModel.Embed(
+                                        Embed(
                                             title="Fastest Finish Line Speed",
                                             author=author,
                                             color=0xA020F0,
                                             fields=[
-                                                DiscordModel.Embed.Field(
-                                                    "Speed",
-                                                    f"{new_fl_speed}",
+                                                EmbedField(
+                                                    name="Speed",
+                                                    value=f"{new_fl_speed}",
                                                 ),
                                             ],
                                             timestamp=datetime_parser(timestamp),
@@ -1131,14 +1110,14 @@ def __program_main():
                                     assert new_st_speed
 
                                     embed_queue.put(
-                                        DiscordModel.Embed(
+                                        Embed(
                                             title="Fastest Speed Trap Speed",
                                             author=author,
                                             color=0xA020F0,
                                             fields=[
-                                                DiscordModel.Embed.Field(
-                                                    "Speed",
-                                                    f"{new_st_speed}",
+                                                EmbedField(
+                                                    name="Speed",
+                                                    value=f"{new_st_speed}",
                                                 ),
                                             ],
                                             timestamp=datetime_parser(timestamp),
@@ -1156,14 +1135,14 @@ def __program_main():
                                     assert new_s1_time
 
                                     embed_queue.put(
-                                        DiscordModel.Embed(
+                                        Embed(
                                             title="Fastest Sector 1",
                                             author=author,
                                             color=0xA020F0,
                                             fields=[
-                                                DiscordModel.Embed.Field(
-                                                    "Time",
-                                                    f"{new_s1_time:.3f}",
+                                                EmbedField(
+                                                    name="Time",
+                                                    value=f"{new_s1_time:.3f}",
                                                 ),
                                             ],
                                             timestamp=datetime_parser(timestamp),
@@ -1181,14 +1160,14 @@ def __program_main():
                                     assert new_s2_time
 
                                     embed_queue.put(
-                                        DiscordModel.Embed(
+                                        Embed(
                                             title="Fastest Sector 2",
                                             author=author,
                                             color=0xA020F0,
                                             fields=[
-                                                DiscordModel.Embed.Field(
-                                                    "Time",
-                                                    f"{new_s2_time:.3f}",
+                                                EmbedField(
+                                                    name="Time",
+                                                    value=f"{new_s2_time:.3f}",
                                                 ),
                                             ],
                                             timestamp=datetime_parser(timestamp),
@@ -1206,14 +1185,14 @@ def __program_main():
                                     assert new_s3_time
 
                                     embed_queue.put(
-                                        DiscordModel.Embed(
+                                        Embed(
                                             title="Fastest Sector 3",
                                             author=author,
                                             color=0xA020F0,
                                             fields=[
-                                                DiscordModel.Embed.Field(
-                                                    "Time",
-                                                    f"{new_s3_time:.3f}",
+                                                EmbedField(
+                                                    name="Time",
+                                                    value=f"{new_s3_time:.3f}",
                                                 ),
                                             ],
                                             timestamp=datetime_parser(timestamp),
@@ -1235,7 +1214,7 @@ def __program_main():
                             logger.info(timing_item)
 
                     while embed_queue.qsize() > 0:
-                        embeds: List[DiscordModel.Embed] = []
+                        embeds: List[Embed] = []
 
                         while embed_queue.qsize() > 0 and len(embeds) < 10:
                             embeds.append(embed_queue.get())
