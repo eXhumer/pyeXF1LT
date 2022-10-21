@@ -308,6 +308,9 @@ class SignalRClient:
             except WebSocketTimeoutException:
                 continue
 
+    def __send(self, data: str):
+        return self.__ws_transport.send(data)
+
     def __start(self):
         if not self.__negotiation_data:
             return False
