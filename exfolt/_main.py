@@ -23,60 +23,88 @@ from json import loads
 from logging import DEBUG, FileHandler, Formatter, getLogger, INFO, StreamHandler
 from os import environ
 from pathlib import Path
-from queue import Queue
+from queue import Empty, Queue
 from pkg_resources import require
-from typing import Callable, List, NotRequired, Tuple, TypedDict
+from typing import List, NotRequired, TypedDict
 
 from dotenv import dotenv_values
-from requests import Response
 
 from ._client import F1ArchiveClient, F1LiveClient, F1LiveTimingClient
-from ._type import ArchiveStatus, AudioStream, ContentStream, StreamingTopic
+from ._type import ArchiveStatus, AudioStream, ContentStream, Driver, ExtrapolatedClock, \
+    FlagStatus, RaceControlMessage, SessionInfo, SessionStatus, StreamingTopic, TeamRadioCapture, \
+    TrackStatus, TrackStatusStatus
 from ._utils import decompress_zlib_data
 
+
+class __DiscordEnv(TypedDict):
+    BLACK_FLAG_EMOJI: str
+    BLACK_ORANGE_FLAG_EMOJI: str
+    BLACK_WHITE_FLAG_EMOJI: str
+    BLUE_FLAG_EMOJI: str
+    BOT_TOKEN: NotRequired[str]
+    CHANNEL_ID: NotRequired[str]
+    CHEQUERED_FLAG_EMOJI: str
+    GREEN_FLAG_EMOJI: str
+    HARD_TYRE_EMOJI: str
+    INTER_TYRE_EMOJI: str
+    MEDIUM_TYRE_EMOJI: str
+    RED_FLAG_EMOJI: str
+    SAFETY_CAR_EMOJI: str
+    SOFT_TYRE_EMOJI: str
+    UNKNOWN_TYRE_EMOJI: str
+    VIRTUAL_SAFETY_CAR_EMOJI: str
+    WEBHOOK_ID: NotRequired[str]
+    WEBHOOK_TOKEN: NotRequired[str]
+    WET_TYRE_EMOJI: str
+    YELLOW_FLAG_EMOJI: str
+
+
 try:
-    from exdc import DiscordClient, Embed, EmbedField
+    from exdc import DiscordClient
+    from exdc.type import Embed, EmbedAuthor, EmbedField
     exdc_available = True
 
     def __archive_status_embed(status: ArchiveStatus, timestamp: datetime | None = None):
-        return Embed(
-            title="Archive Status",
-            fields=[EmbedField(name="Status", value=status["Status"])],
-            timestamp=__timestamp(timestamp=timestamp),
-        )
+        return Embed(title="Archive Status",
+                     fields=[EmbedField(name="Status", value=status["Status"])],
+                     timestamp=__timestamp(timestamp=timestamp))
 
-    def __audio_stream_embed(stream: AudioStream, session_path: str,
+    def __audio_stream_embed(stream: AudioStream, session_path: str | None = None,
                              timestamp: datetime | None = None):
-        archive_url = f"{F1ArchiveClient.static_url}/{session_path}{stream['Path']}"
 
-        return Embed(
-            title="Audio Stream",
-            fields=[
-                EmbedField(name="Name", value=stream["Name"]),
-                EmbedField(name="Language", value=stream["Language"]),
-                EmbedField(name="Archive Link", value=archive_url),
-                EmbedField(name="Live Link", value=stream["Uri"]),
-            ],
-            timestamp=__timestamp(timestamp=timestamp),
-        )
-
-    def __content_stream_embed(stream: ContentStream, session_path: str,
-                               timestamp: datetime | None = None):
-        if "Path" in stream:
+        if session_path:
             archive_url = f"{F1ArchiveClient.static_url}/{session_path}{stream['Path']}"
+            archive_embed = EmbedField(name="Archive Link", value=archive_url)
 
         else:
-            archive_url = None
+            archive_embed = EmbedField(name="Archive Path", value=stream["Path"])
 
-        fields = [
-            EmbedField(name="Type", value=stream["Type"]),
-            EmbedField(name="Name", value=stream["Name"]),
-            EmbedField(name="Language", value=stream["Language"]),
-            EmbedField(name="Live Link", value=stream["Uri"]),
-        ]
+        return Embed(title="Audio Stream",
+                     fields=[EmbedField(name="Name", value=stream["Name"]),
+                             EmbedField(name="Language", value=stream["Language"]),
+                             archive_embed, EmbedField(name="Live Link", value=stream["Uri"])],
+                     timestamp=__timestamp(timestamp=timestamp))
+
+    def __content_stream_embed(stream: ContentStream, session_path: str | None = None,
+                               timestamp: datetime | None = None):
+        if "Path" in stream:
+            if session_path:
+                archive_url = f"{F1ArchiveClient.static_url}/{session_path}{stream['Path']}"
+                archive_embed = EmbedField(name="Archive Link", value=archive_url)
+
+            else:
+                archive_embed = EmbedField(name="Archive Path", value=stream["Path"])
+
+        else:
+            archive_embed = None
+
+        fields = [EmbedField(name="Type", value=stream["Type"]),
+                  EmbedField(name="Name", value=stream["Name"]),
+                  EmbedField(name="Language", value=stream["Language"]),
+                  EmbedField(name="Live Link", value=stream["Uri"])]
 
         if archive_url is not None:
-            fields.append(EmbedField(name="Archive Link", value=archive_url))
+            fields.append(archive_embed)
 
         return Embed(title="Content Stream", fields=fields,
                      timestamp=__timestamp(timestamp=timestamp))
@@ -191,6 +219,14 @@ try:
 
         return discord_env
 
+    def __extrapolated_clock_embed(extrapolated_clock: ExtrapolatedClock,
+                                   timestamp: datetime | None = None):
+        return Embed(title="Extrapolated Clock",
+                     fields=[EmbedField(name="Remaining", value=extrapolated_clock.remaining),
+                             EmbedField(name="Extrapolating",
+                                        value=str(extrapolated_clock.extrapolating))],
+                     timestamp=__timestamp(timestamp=timestamp))
+
     def __message_embeds(env: __DiscordEnv, embeds: List[Embed]):
         if "WEBHOOK_ID" in env and "WEBHOOK_TOKEN" in env:
             webhook = DiscordClient.post_webhook_message(env["WEBHOOK_ID"], env["WEBHOOK_TOKEN"],
@@ -208,12 +244,192 @@ try:
 
         return webhook, channel
 
+    def __race_control_message_embed(rcm_msg: RaceControlMessage,
+                                     discord_env: __DiscordEnv,
+                                     timestamp: datetime | None = None,
+                                     driver: Driver | None = None):
+        fields = [
+            EmbedField(name="Message", value=rcm_msg["Message"]),
+            EmbedField(name="Category", value=rcm_msg["Category"]),
+        ]
+
+        if "RacingNumber" in rcm_msg:
+            if driver:
+                assert rcm_msg["RacingNumber"] == driver["RacingNumber"]
+                headshot_url = None
+
+                if "HeadshotUrl" in driver:
+                    headshot_url = driver["HeadshotUrl"]
+
+                author = EmbedAuthor(name=str(driver), icon_url=headshot_url)
+
+            else:
+                author = None
+                fields.append(EmbedField(name="Racing Number", value=rcm_msg["RacingNumber"]))
+
+        else:
+            author = None
+
+        if "Flag" in rcm_msg:
+            if rcm_msg["Flag"] == FlagStatus.BLACK:
+                color = 0x000000
+                description = discord_env["BLACK_FLAG_EMOJI"]
+
+            elif rcm_msg["Flag"] == FlagStatus.BLACK_AND_ORANGE:
+                color = 0xFFA500
+                description = discord_env["BLACK_ORANGE_FLAG_EMOJI"]
+
+            elif rcm_msg["Flag"] == FlagStatus.BLACK_AND_WHITE:
+                color = 0xFFA500
+                description = discord_env["BLACK_WHITE_FLAG_EMOJI"]
+
+            elif rcm_msg["Flag"] == FlagStatus.BLUE:
+                color = 0x0000FF
+                description = discord_env["BLUE_FLAG_EMOJI"]
+
+            elif rcm_msg["Flag"] in (FlagStatus.CHEQUERED, FlagStatus.CLEAR):
+                color = 0xFFFFFF
+
+                if rcm_msg["Flag"] == FlagStatus.CLEAR:
+                    description = discord_env["GREEN_FLAG_EMOJI"]
+
+                else:
+                    description = discord_env["CHEQUERED_FLAG_EMOJI"]
+
+            elif rcm_msg["Flag"] == FlagStatus.GREEN:
+                color = 0x00FF00
+                description = discord_env["GREEN_FLAG_EMOJI"]
+
+            elif rcm_msg["Flag"] == FlagStatus.YELLOW:
+                color = 0xFFFF00
+                description = discord_env["YELLOW_FLAG_EMOJI"]
+
+            elif rcm_msg["Flag"] == FlagStatus.DOUBLE_YELLOW:
+                color = 0xFFA500
+                description = "".join((discord_env["YELLOW_FLAG_EMOJI"],
+                                       discord_env["YELLOW_FLAG_EMOJI"]))
+
+            elif rcm_msg["Flag"] == FlagStatus.RED:
+                color = 0xFF0000
+                description = discord_env["RED_FLAG_EMOJI"]
+
+            else:
+                color = 0XA6EF1F
+                description = None
+
+            fields.append(EmbedField(name="Flag", value=str(rcm_msg["Flag"])))
+
+        if "Status" in rcm_msg:
+            if rcm_msg["Category"] == "Drs":
+                fields.append(EmbedField(name="DRS Status", value=rcm_msg["Status"]))
+
+            elif rcm_msg["Category"] == "SafetyCar":
+                fields.append(EmbedField(name="Safety Car Status", value=rcm_msg["Status"]))
+
+            else:
+                fields.append(EmbedField(name="Status", value=rcm_msg["Status"]))
+
+        if "Lap" in rcm_msg:
+            fields.append(EmbedField(name="Lap", value=str(rcm_msg["Lap"])))
+
+        if "Mode" in rcm_msg:
+            fields.append(EmbedField(name="Mode", value=rcm_msg["Mode"]))
+
+        if "Scope" in rcm_msg:
+            fields.append(EmbedField(name="Scope", value=rcm_msg["Scope"]))
+
+        if "Sector" in rcm_msg:
+            fields.append(EmbedField(name="Sector", value=str(rcm_msg["Sector"])))
+
+        return Embed(title="Race Control Message", author=author, color=color,
+                     description=description, fields=fields,
+                     timestamp=__timestamp(timestamp=timestamp))
+
+    def __session_info_embed(session_info: SessionInfo, timestamp: datetime | None = None):
+        return Embed(title="Session Information",
+                     fields=[EmbedField(name="Official Name",
+                                        value=session_info["Meeting"]["OfficialName"]),
+                             EmbedField(name="Meeting Name",
+                                        value=session_info["Meeting"]["Name"]),
+                             EmbedField(name="Location",
+                                        value=session_info["Meeting"]["Location"]),
+                             EmbedField(name="Country",
+                                        value=session_info["Meeting"]["Country"]["Name"]),
+                             EmbedField(name="Circuit",
+                                        value=session_info["Meeting"]["Circuit"]["ShortName"]),
+                             EmbedField(name="Session Name", value=session_info["Name"]),
+                             EmbedField(name="Start Date", value=session_info["StartDate"]),
+                             EmbedField(name="End Date", value=session_info["EndDate"]),
+                             EmbedField(name="GMT Offset", value=session_info["GmtOffset"])],
+                     timestamp=__timestamp(timestamp=timestamp),
+                     color=0xFFFFFF)
+
+    def __session_status_embed(status: SessionStatus, timestamp: datetime | None = None):
+        return Embed(title="Session Status", description=str(status["Status"]),
+                     timestamp=__timestamp(timestamp=timestamp))
+
+    def __team_radio_embed(team_radio: TeamRadioCapture, timestamp: datetime | None = None,
+                           driver: Driver | None = None, session_path: str | None = None):
+        if driver:
+            if "HeadshotUrl" in driver:
+                headshot_url = driver["HeadshotUrl"]
+
+            else:
+                headshot_url = None
+
+            author = EmbedAuthor(name=str(driver), icon_url=headshot_url)
+            fields = None
+
+        else:
+            author = None
+            fields = [EmbedField(name="Racing Number", value=team_radio["RacingNumber"])]
+
+        if session_path:
+            url = (
+                "https://livetiming.formula1.com/static/" + session_path +
+                team_radio["Path"]
+            )
+
+        else:
+            fields.append(EmbedField(name="Path", value=team_radio["Path"]))
+            url = None
+
+        return Embed(title="Team Radio", author=author, fields=fields, url=url,
+                     timestamp=__timestamp(timestamp=timestamp))
+
     def __timestamp(timestamp: datetime | None = None):
-        return (
-            timestamp.astimezone(timezone.utc).isoformat()
-            if timestamp is not None
-            else None
-        )
+        return timestamp.astimezone(timezone.utc).isoformat() if timestamp else None
+
+    def __track_status_embed(track_status: TrackStatus, discord_env: __DiscordEnv,
+                             timestamp: datetime | None = None):
+        return Embed(title="Track Status",
+                     fields=[EmbedField(name="Status", value=track_status["Status"]),
+                             EmbedField(name="Message", value=track_status["Message"])],
+                     description=(discord_env["GREEN_FLAG_EMOJI"] if track_status["Status"] in [
+                         TrackStatusStatus.ALL_CLEAR,
+                         TrackStatusStatus.GREEN,
+                         TrackStatusStatus.VSC_ENDING] else discord_env["YELLOW_FLAG_EMOJI"]
+                         if track_status.status == TrackStatusStatus.YELLOW else
+                         discord_env["SAFETY_CAR_EMOJI"] if track_status.status ==
+                         TrackStatusStatus.SC_DEPLOYED else discord_env["VIRTUAL_SAFETY_CAR_EMOJI"]
+                         if track_status.status == TrackStatusStatus.VSC_DEPLOYED else
+                         discord_env["RED_FLAG_EMOJI"] if track_status.status ==
+                         TrackStatusStatus.RED else None),
+                     color=(
+                         0x00FF00 if track_status.status in [
+                             TrackStatusStatus.ALL_CLEAR,
+                             TrackStatusStatus.GREEN,
+                             TrackStatusStatus.VSC_ENDING,
+                         ]
+                         else 0xFFFF00 if track_status.status in [
+                             TrackStatusStatus.YELLOW,
+                             TrackStatusStatus.SC_DEPLOYED,
+                             TrackStatusStatus.VSC_DEPLOYED,
+                         ]
+                         else 0xFF0000 if track_status.status == TrackStatusStatus.RED
+                         else None
+                     ),
+                     timestamp=timestamp)
 
 except ImportError:
     exdc_available = False
@@ -246,29 +462,6 @@ __license__ = """
 """
 __project_url__ = "https://github.com/eXhumer/pyeXF1LT"
 __version__ = require(__package__)[0].version
-
-
-class __DiscordEnv(TypedDict):
-    BLACK_FLAG_EMOJI: str
-    BLACK_ORANGE_FLAG_EMOJI: str
-    BLACK_WHITE_FLAG_EMOJI: str
-    BLUE_FLAG_EMOJI: str
-    BOT_TOKEN: NotRequired[str]
-    CHANNEL_ID: NotRequired[str]
-    CHEQUERED_FLAG_EMOJI: str
-    GREEN_FLAG_EMOJI: str
-    HARD_TYRE_EMOJI: str
-    INTER_TYRE_EMOJI: str
-    MEDIUM_TYRE_EMOJI: str
-    RED_FLAG_EMOJI: str
-    SAFETY_CAR_EMOJI: str
-    SOFT_TYRE_EMOJI: str
-    UNKNOWN_TYRE_EMOJI: str
-    VIRTUAL_SAFETY_CAR_EMOJI: str
-    WEBHOOK_ID: NotRequired[str]
-    WEBHOOK_TOKEN: NotRequired[str]
-    WET_TYRE_EMOJI: str
-    YELLOW_FLAG_EMOJI: str
 
 
 class _ProgramAction(StrEnum):
@@ -725,8 +918,6 @@ def __program_main():
 
         discord_env = __discord_env(args.discord_env_path)
         embed_queue: Queue[Embed] = Queue()
-        message_embeds: Callable[[List[Embed]], Tuple[Response | None, Response | None]] = \
-            lambda embeds: __message_embeds(discord_env, embeds)
 
         try:
             with F1LiveTimingClient(*topics) as lt_client:
@@ -734,60 +925,167 @@ def __program_main():
 
                 for feeds in lt_client:
                     for topic, change, timestamp in feeds:
-                        print(topic, change, timestamp)
-
                         if topic == StreamingTopic.ARCHIVE_STATUS:
-                            embed_queue.put(__archive_status_embed(change, timestamp=timestamp))
+                            assert lt_client.timing_client.archive_status
+                            archive_status = lt_client.timing_client.archive_status
+
+                            embed_queue.put(__archive_status_embed(archive_status,
+                                                                   timestamp=timestamp))
 
                         elif topic == StreamingTopic.AUDIO_STREAMS:
+                            assert lt_client.timing_client.audio_streams
+                            audio_streams = lt_client.timing_client.audio_streams
+                            session_info = lt_client.timing_client.session_info
+                            session_path = session_info["Path"] if session_info else None
+
                             if isinstance(change["Streams"], Mapping):
                                 for key in change["Streams"].keys():
-                                    embed_queue.put(
-                                        __audio_stream_embed(
-                                            lt_client.timing_client.audio_streams[int(key)],
-                                            lt_client.timing_client.session_info["Path"],
-                                            timestamp=timestamp,
-                                        ),
-                                    )
+                                    audio_stream = audio_streams[int(key)]
+
+                                    embed_queue.put(__audio_stream_embed(audio_stream,
+                                                                         session_path=session_path,
+                                                                         timestamp=timestamp))
 
                             else:
-                                for stream in change["Streams"]:
-                                    embed_queue.put(
-                                        __audio_stream_embed(
-                                            stream,
-                                            lt_client.timing_client.session_info["Path"],
-                                            timestamp=timestamp,
-                                        ),
-                                    )
+                                assert isinstance(audio_streams["Streams"], list)
+
+                                for stream in audio_streams["Streams"]:
+                                    embed_queue.put(__audio_stream_embed(stream,
+                                                                         session_path=session_path,
+                                                                         timestamp=timestamp))
 
                         elif topic == StreamingTopic.CONTENT_STREAMS:
+                            assert lt_client.timing_client.content_streams
+                            content_streams = lt_client.timing_client.content_streams
+                            session_info = lt_client.timing_client.session_info
+                            session_path = session_info["Path"] if session_info else None
+
                             if isinstance(change["Streams"], Mapping):
                                 for key in change["Streams"].keys():
-                                    embed_queue.put(
-                                        __content_stream_embed(
-                                            lt_client.timing_client.content_streams[int(key)],
-                                            lt_client.timing_client.session_info["Path"],
-                                            timestamp=timestamp,
-                                        ),
-                                    )
+                                    content_stream = content_streams[int(key)]
+
+                                    embed_queue.put(__content_stream_embed(
+                                        content_stream, session_path=session_path,
+                                        timestamp=timestamp))
 
                             else:
-                                for stream in change["Streams"]:
-                                    embed_queue.put(
-                                        __content_stream_embed(
-                                            stream,
-                                            lt_client.timing_client.session_info["Path"],
-                                            timestamp=timestamp,
-                                        ),
-                                    )
+                                assert isinstance(content_streams["Streams"], list)
 
-                    if embed_queue.qsize() > 0:
-                        embeds: List[Embed] = []
+                                for stream in content_streams["Streams"]:
+                                    embed_queue.put(__content_stream_embed(
+                                        stream, session_path=session_path, timestamp=timestamp))
 
-                        while len(embeds) < 10 and embed_queue.qsize() > 0:
-                            embeds.append(embed_queue.get())
+                        elif topic == StreamingTopic.EXTRAPOLATED_CLOCK:
+                            assert lt_client.timing_client.extrapolated_clock
+                            extrapolated_clock = lt_client.timing_client.extrapolated_clock
 
-                        message_embeds(embeds)
+                            embed_queue.put(__extrapolated_clock_embed(extrapolated_clock,
+                                                                       timestamp=timestamp))
+
+                        elif topic == StreamingTopic.RACE_CONTROL_MESSAGES:
+                            assert lt_client.timing_client.race_control_messages
+                            driver_list = lt_client.timing_client.driver_list
+                            race_control_messages = lt_client.timing_client.race_control_messages
+                            messages = change["Messages"]
+
+                            if isinstance(messages, Mapping):
+                                for key in messages.keys():
+                                    message = race_control_messages["Messages"][key]
+
+                                    if "RacingNumber" in message and driver_list and \
+                                            message["RacingNumber"] in driver_list:
+                                        driver = driver_list[message["RacingNumber"]]
+
+                                    else:
+                                        driver = None
+
+                                    embed_queue.put(__race_control_message_embed(
+                                        message, discord_env, timestamp=timestamp, driver=driver))
+
+                            else:
+                                assert isinstance(race_control_messages["Messages"], list)
+
+                                for message in race_control_messages["Messages"]:
+                                    if "RacingNumber" in message and driver_list and \
+                                            message["RacingNumber"] in driver_list:
+                                        driver = driver_list[message["RacingNumber"]]
+
+                                    else:
+                                        driver = None
+
+                                    embed_queue.put(__race_control_message_embed(
+                                        message, discord_env, timestamp=timestamp, driver=driver))
+
+                        elif topic == StreamingTopic.SESSION_INFO:
+                            assert lt_client.timing_client.session_info
+                            session_info = lt_client.timing_client.session_info
+
+                            embed_queue.put(__session_info_embed(session_info,
+                                                                 timestamp=timestamp))
+
+                        elif topic == StreamingTopic.SESSION_STATUS:
+                            assert lt_client.timing_client.session_status
+                            session_status = lt_client.timing_client.session_status
+
+                            embed_queue.put(__session_status_embed(session_status,
+                                                                   timestamp=timestamp))
+
+                        elif topic == StreamingTopic.TEAM_RADIO:
+                            assert lt_client.timing_client.team_radio
+                            team_radio = lt_client.timing_client.team_radio
+                            driver_list = lt_client.timing_client.driver_list
+                            session_info = lt_client.timing_client.session_info
+                            session_path = session_info["Path"] if session_info else None
+                            captures = change["Captures"]
+
+                            if isinstance(captures, Mapping):
+                                for key in captures.keys():
+                                    capture = team_radio["Captures"][key]
+
+                                    if driver_list and capture["RacingNumber"] in driver_list:
+                                        driver = driver_list[capture["RacingNumber"]]
+
+                                    else:
+                                        driver = None
+
+                                    embed_queue.put(__team_radio_embed(
+                                        capture, timestamp=timestamp, driver=driver,
+                                        session_path=session_path))
+
+                            else:
+                                assert isinstance(team_radio["Captures"], list)
+
+                                for capture in team_radio["Captures"]:
+                                    if driver_list and capture["RacingNumber"] in driver_list:
+                                        driver = driver_list[capture["RacingNumber"]]
+
+                                    else:
+                                        driver = None
+
+                                    embed_queue.put(__team_radio_embed(
+                                        capture, timestamp=timestamp, driver=driver,
+                                        session_path=session_path))
+
+                        elif topic == StreamingTopic.TRACK_STATUS:
+                            assert lt_client.timing_client.track_status
+                            track_status = lt_client.timing_client.track_status
+
+                            embed_queue.put(__track_status_embed(
+                                track_status, discord_env, timestamp=timestamp))
+                        else:
+                            print(topic, change, timestamp)
+
+                    embeds: List[Embed] = []
+
+                    while len(embeds) < 10:
+                        try:
+                            embeds.append(embed_queue.get(block=False))
+
+                        except Empty:
+                            break
+
+                    if len(embeds) > 0:
+                        __message_embeds(discord_env, embeds)
 
         except KeyboardInterrupt:
             logger.info("F1 Live Timing streaming feed Discord bot stopped!")

@@ -202,6 +202,7 @@ class RaceControlMessage(TypedDict, total=False):
     Category: Required[str]
     Lap: int
     Flag: FlagStatus
+    RacingNumber: str
     Scope: str
     Sector: int
     Status: str
