@@ -19,7 +19,7 @@ from argparse import ArgumentParser
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from enum import StrEnum
-from json import loads
+from json import dumps, loads
 from logging import DEBUG, FileHandler, Formatter, getLogger, INFO, StreamHandler
 from os import environ
 from pathlib import Path
@@ -802,10 +802,11 @@ def __program_main():
             for topic, data, timedelta in archive_client:
                 if topic in [StreamingTopic.CAR_DATA_Z, StreamingTopic.POSITION_Z] and \
                         args.archived_b64_zlib_decode:
-                    message_logger.info([topic, loads(decompress_zlib_data(data)), timedelta])
+                    message_logger.info(dumps([topic, loads(decompress_zlib_data(data)),
+                                               timedelta], separators=(",", ":")))
 
                 else:
-                    message_logger.info([topic, data, timedelta])
+                    message_logger.info(dumps([topic, data, timedelta], separators=(",", ":")))
 
         logger.info("F1 Live Timing archived feed logger stopped!")
 
@@ -890,7 +891,7 @@ def __program_main():
 
                     if "R" in message:
                         logger.info("Logged return value from 'streaming' hub!")
-                        message_logger.info(message["R"])
+                        message_logger.info(dumps(message["R"], separators=(",", ":")))
 
                     if "M" in message and len(message["M"]) != 0:
                         for invokation in message["M"]:
@@ -901,13 +902,13 @@ def __program_main():
                                 StreamingTopic.CAR_DATA_Z,
                                 StreamingTopic.POSITION_Z,
                             ] and args.live_b64_zlib_decode:
-                                message_logger.info([
+                                message_logger.info(dumps([
                                     invokation["A"][0],
                                     loads(decompress_zlib_data(invokation["A"][1])),
-                                    invokation["A"][2]])
+                                    invokation["A"][2]], separators=(",", ":")))
 
                             else:
-                                message_logger.info(invokation["A"])
+                                message_logger.info(dumps(invokation["A"], separators=(",", ":")))
 
         except KeyboardInterrupt:
             logger.info("F1 Live Timing streaming feed logger stopped!")
@@ -1072,6 +1073,7 @@ def __program_main():
 
                             embed_queue.put(__track_status_embed(
                                 track_status, discord_env, timestamp=timestamp))
+
                         else:
                             print(topic, change, timestamp)
 
