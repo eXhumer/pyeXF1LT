@@ -26,7 +26,6 @@ from ._type import (
     SessionData,
     SessionInfo,
     SessionStatus,
-    SessionStatusEnum,
     SessionTopicsIndex,
     StaticIndex,
     StreamingStatus,
@@ -81,6 +80,9 @@ class F1ArchiveClient:
     def __enter__(self):
         self.__load_data()
         return self
+
+    def __exit__(self, *args):
+        return
 
     def __init__(self, path: str, *topics: StreamingTopic, session: Session | None = None):
         if not session:
@@ -307,7 +309,7 @@ class F1LiveClient(SignalRClient):
 
     def __next__(self):
         while self.connected:
-            opcode, data = next(super())
+            opcode, data = super().__next__()
 
             if "R" in data:
                 return None, data["R"]
@@ -919,10 +921,6 @@ class F1LiveTimingClient:
 
                 return [(StreamingTopic(invokation["A"][0]), invokation["A"][1],
                          datetime_parser(invokation["A"][2])) for invokation in invokations]
-
-            if self.__tc.session_status and self.__tc.session_status["Status"] == \
-                    SessionStatusEnum.ENDS:
-                raise StopIteration
 
         raise StopIteration
 
