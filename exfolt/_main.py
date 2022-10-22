@@ -319,6 +319,10 @@ try:
 
             fields.append(EmbedField(name="Flag", value=str(rcm_msg["Flag"])))
 
+        else:
+            color = None
+            description = None
+
         if "Status" in rcm_msg:
             if rcm_msg["Category"] == "Drs":
                 fields.append(EmbedField(name="DRS Status", value=rcm_msg["Status"]))
@@ -409,24 +413,24 @@ try:
                          TrackStatusStatus.ALL_CLEAR,
                          TrackStatusStatus.GREEN,
                          TrackStatusStatus.VSC_ENDING] else discord_env["YELLOW_FLAG_EMOJI"]
-                         if track_status.status == TrackStatusStatus.YELLOW else
-                         discord_env["SAFETY_CAR_EMOJI"] if track_status.status ==
+                         if track_status["Status"] == TrackStatusStatus.YELLOW else
+                         discord_env["SAFETY_CAR_EMOJI"] if track_status["Status"] ==
                          TrackStatusStatus.SC_DEPLOYED else discord_env["VIRTUAL_SAFETY_CAR_EMOJI"]
-                         if track_status.status == TrackStatusStatus.VSC_DEPLOYED else
-                         discord_env["RED_FLAG_EMOJI"] if track_status.status ==
+                         if track_status["Status"] == TrackStatusStatus.VSC_DEPLOYED else
+                         discord_env["RED_FLAG_EMOJI"] if track_status["Status"] ==
                          TrackStatusStatus.RED else None),
                      color=(
-                         0x00FF00 if track_status.status in [
+                         0x00FF00 if track_status["Status"] in [
                              TrackStatusStatus.ALL_CLEAR,
                              TrackStatusStatus.GREEN,
                              TrackStatusStatus.VSC_ENDING,
                          ]
-                         else 0xFFFF00 if track_status.status in [
+                         else 0xFFFF00 if track_status["Status"] in [
                              TrackStatusStatus.YELLOW,
                              TrackStatusStatus.SC_DEPLOYED,
                              TrackStatusStatus.VSC_DEPLOYED,
                          ]
-                         else 0xFF0000 if track_status.status == TrackStatusStatus.RED
+                         else 0xFF0000 if track_status["Status"] == TrackStatusStatus.RED
                          else None
                      ),
                      timestamp=timestamp)
@@ -976,6 +980,9 @@ def __program_main():
                                     embed_queue.put(__content_stream_embed(
                                         stream, session_path=session_path, timestamp=timestamp))
 
+                        elif topic == StreamingTopic.DRIVER_LIST:
+                            continue
+
                         elif topic == StreamingTopic.EXTRAPOLATED_CLOCK:
                             assert lt_client.timing_client.extrapolated_clock
                             extrapolated_clock = lt_client.timing_client.extrapolated_clock
@@ -991,7 +998,7 @@ def __program_main():
 
                             if isinstance(messages, Mapping):
                                 for key in messages.keys():
-                                    message = race_control_messages["Messages"][key]
+                                    message = race_control_messages["Messages"][int(key)]
 
                                     if "RacingNumber" in message and driver_list and \
                                             message["RacingNumber"] in driver_list:
