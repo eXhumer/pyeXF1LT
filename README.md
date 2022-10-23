@@ -8,7 +8,7 @@ Python unofficial F1 live timing client.
 
 ### Install from source
 ```console
-pip install .
+pip install -e git+https://github.com/eXhumer/pyeXF1LT.git@dev#egg=exfolt
 ```
 
 ### Install from PyPI
