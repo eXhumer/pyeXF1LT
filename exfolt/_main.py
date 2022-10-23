@@ -261,7 +261,9 @@ try:
                 if "HeadshotUrl" in driver:
                     headshot_url = driver["HeadshotUrl"]
 
-                author = EmbedAuthor(name=str(driver), icon_url=headshot_url)
+                driver_name = f"{driver['FirstName']} {driver['LastName']} " + \
+                    f"({driver['RacingNumber']})"
+                author = EmbedAuthor(name=driver_name, icon_url=headshot_url)
 
             else:
                 author = None
@@ -381,7 +383,9 @@ try:
             else:
                 headshot_url = None
 
-            author = EmbedAuthor(name=str(driver), icon_url=headshot_url)
+            driver_name = f"{driver['FirstName']} {driver['LastName']} " + \
+                f"({driver['RacingNumber']})"
+            author = EmbedAuthor(name=driver_name, icon_url=headshot_url)
             fields = None
 
         else:
@@ -433,7 +437,7 @@ try:
                          else 0xFF0000 if track_status["Status"] == TrackStatusStatus.RED
                          else None
                      ),
-                     timestamp=timestamp)
+                     timestamp=__timestamp(timestamp=timestamp))
 
 except ImportError:
     exdc_available = False
