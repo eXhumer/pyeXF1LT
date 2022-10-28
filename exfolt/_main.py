@@ -222,9 +222,9 @@ try:
     def __extrapolated_clock_embed(extrapolated_clock: ExtrapolatedClock,
                                    timestamp: datetime | None = None):
         return Embed(title="Extrapolated Clock",
-                     fields=[EmbedField(name="Remaining", value=extrapolated_clock.remaining),
+                     fields=[EmbedField(name="Remaining", value=extrapolated_clock["Remaining"]),
                              EmbedField(name="Extrapolating",
-                                        value=str(extrapolated_clock.extrapolating))],
+                                        value=str(extrapolated_clock["Extrapolating"]))],
                      timestamp=__timestamp(timestamp=timestamp))
 
     def __message_embeds(env: __DiscordEnv, embeds: List[Embed]):
