@@ -249,7 +249,7 @@ class F1ArchiveClient:
 
     @property
     def topics_index(self):
-        r = self.__session.get(f"{F1ArchiveClient}/{self.__path}Index.json")
+        r = self.__session.get(f"{F1ArchiveClient.static_url}/{self.__path}Index.json")
         r.raise_for_status()
 
         index: SessionTopicsIndex = loads(r.content.decode("utf-8-sig"))
