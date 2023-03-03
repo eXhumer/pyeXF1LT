@@ -60,8 +60,9 @@ class __DiscordEnv(TypedDict):
 
 
 try:
-    from exdc import DiscordClient
-    from exdc.type import Embed, EmbedAuthor, EmbedField
+    from exdc.client import REST as DiscordRESTClient
+    from exdc.exception import RESTException
+    from exdc.type.channel import Embed, EmbedAuthor, EmbedField
     exdc_available = True
 
     def __archive_status_embed(status: ArchiveStatus, timestamp: datetime | None = None):
@@ -229,14 +230,21 @@ try:
 
     def __message_embeds(env: __DiscordEnv, embeds: List[Embed]):
         if "WEBHOOK_ID" in env and "WEBHOOK_TOKEN" in env:
-            webhook = DiscordClient.post_webhook_message(env["WEBHOOK_ID"], env["WEBHOOK_TOKEN"],
-                                                         embeds=embeds)
+            try:
+                webhook = DiscordRESTClient.post_webhook_message(env["WEBHOOK_ID"],
+                                                                env["WEBHOOK_TOKEN"],
+                                                                embeds=embeds)
+
+            except RESTException as res_ex:
+                print("req_data", res_ex.response.request.read())
+                print("res_data", res_ex.response.content)
+                raise res_ex
 
         else:
             webhook = None
 
         if "BOT_TOKEN" in env and "CHANNEL_ID" in env:
-            channel = DiscordClient.with_bot_token(env["BOT_TOKEN"]).\
+            channel = DiscordRESTClient.with_bot_token(env["BOT_TOKEN"]).\
                 post_message(env["CHANNEL_ID"], embeds=embeds)
 
         else:

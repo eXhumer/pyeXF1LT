@@ -5,7 +5,14 @@ from logging import getLogger
 from queue import Queue
 from typing import Any, Dict, List, Literal, Tuple
 
-from requests import Session
+from httpx import Client
+
+try:
+    import h2
+    h2_available = True
+
+except ImportError:
+    h2_available = False
 
 from ._signalr import SignalRClient, SignalRInvokation
 from ._type import (
@@ -84,12 +91,11 @@ class F1ArchiveClient:
     def __exit__(self, *args):
         return
 
-    def __init__(self, path: str, *topics: StreamingTopic, session: Session | None = None):
-        if not session:
-            session = Session()
+    def __init__(self, path: str, *topics: StreamingTopic, client: Client | None = None):
+        client = client or Client(http2=h2_available)
 
         self.__logger.info(f"Requesting F1 Live Timing archived session status with path {path}!")
-        r = session.get(f"{F1ArchiveClient.static_url}/{path}ArchiveStatus.json")
+        r = client.get(f"{F1ArchiveClient.static_url}/{path}ArchiveStatus.json")
         r.raise_for_status()
 
         archive_status: ArchiveStatus = loads(r.content.decode("utf-8-sig"))
@@ -100,7 +106,7 @@ class F1ArchiveClient:
 
         self.__path = path
         self.__topics = topics
-        self.__session = session
+        self.__client = client
 
     def __iter__(self):
         return self
@@ -117,7 +123,7 @@ class F1ArchiveClient:
         for topic in self.__topics:
             self.__logger.info(f"Requesting F1 Live Timing archived topic {topic} data for " +
                                f"session with path {self.__path}!")
-            res = self.__session.get(
+            res = self.__client.get(
                 f"{F1ArchiveClient.static_url}/{self.__path}{topic}.jsonStream")
 
             if res.status_code == 404:
@@ -150,15 +156,14 @@ class F1ArchiveClient:
 
     @classmethod
     def get_by_session_info(cls, year: int, meeting: int, session: int, *topics: StreamingTopic,
-                            rest_session: Session | None = None):
-        if rest_session is None:
-            rest_session = Session()
+                            client: Client | None = None):
+        client = client or Client(http2=h2_available)
 
         year_index, meeting_index, session_index = cls.session_index(year, meeting, session,
-                                                                     rest_session=rest_session)
+                                                                     client=client)
 
         if "Path" in meeting_index:
-            return cls(meeting_index["Path"], *topics, session=rest_session)
+            return cls(meeting_index["Path"], *topics, client=client)
 
         else:
             meeting_sessions = meeting_index["Sessions"]
@@ -169,15 +174,14 @@ class F1ArchiveClient:
 
             return cls("/".join([str(year), f"{meeting_date} {meeting_name}",
                                  f"{session_date} {session_name}", ""])
-                       .replace(" ", "_"), *topics, session=rest_session)
+                       .replace(" ", "_"), *topics, client=client)
 
     @classmethod
-    def get_last_session(cls, *topics: StreamingTopic, session: Session | None = None):
-        if not session:
-            session = Session()
+    def get_last_session(cls, *topics: StreamingTopic, client: Client | None = None):
+        client = client or Client(http2=h2_available)
 
         F1ArchiveClient.__logger.info("Checking current F1 Live Timing streaming status!")
-        res = session.get(f"{F1ArchiveClient.static_url}/StreamingStatus.json")
+        res = client.get(f"{F1ArchiveClient.static_url}/StreamingStatus.json")
         res.raise_for_status()
 
         streaming_status: StreamingStatus = loads(res.content.decode("utf-8-sig"))
@@ -185,18 +189,17 @@ class F1ArchiveClient:
             "F1 Live Timing currently streaming!"
 
         F1ArchiveClient.__logger.info("Requesting last F1 Live Timing session information!")
-        res = session.get(f"{F1ArchiveClient.static_url}/SessionInfo.json")
+        res = client.get(f"{F1ArchiveClient.static_url}/SessionInfo.json")
         res.raise_for_status()
 
         session_info: SessionInfo = loads(res.content.decode("utf-8-sig"))
-        return cls(session_info["Path"], *topics, session=session)
+        return cls(session_info["Path"], *topics, client=client)
 
     @staticmethod
-    def meeting_index(year: int, meeting: int, session: Session | None = None):
-        if session is None:
-            session = Session()
+    def meeting_index(year: int, meeting: int, client: Client | None = None):
+        client = client or Client(http2=h2_available)
 
-        year_index = F1ArchiveClient.year_index(year, session=session)
+        year_index = F1ArchiveClient.year_index(year, client=client)
 
         assert meeting >= 1, "Meeting number can't be below 1!"
 
@@ -213,14 +216,12 @@ class F1ArchiveClient:
         return year_index, meeting_index
 
     @staticmethod
-    def session_index(year: int, meeting: int, session: int, rest_session: Session | None = None):
-        if rest_session is None:
-            rest_session = Session()
+    def session_index(year: int, meeting: int, session: int, client: Client | None = None):
+        client = client or Client(http2=h2_available)
 
         assert session >= 1, "Session number can't be below 1!"
 
-        year_index, meeting_index = F1ArchiveClient.meeting_index(year, meeting,
-                                                                  session=rest_session)
+        year_index, meeting_index = F1ArchiveClient.meeting_index(year, meeting, client=client)
         meeting_sessions = meeting_index["Sessions"]
         assert session <= len(meeting_sessions), \
             f"Session number ({session}) more than total number of sessions " + \
@@ -235,13 +236,12 @@ class F1ArchiveClient:
         return year_index, meeting_index, session_index
 
     @staticmethod
-    def static_index(session: Session | None = None):
-        if session is None:
-            session = Session()
+    def static_index(client: Client | None = None):
+        client = client or Client(http2=h2_available)
 
         F1ArchiveClient.__logger.info("Requesting F1 Live Timing API's static index!")
 
-        r = session.get(f"{F1ArchiveClient.static_url}/Index.json")
+        r = client.get(f"{F1ArchiveClient.static_url}/Index.json")
         r.raise_for_status()
 
         index: StaticIndex = loads(r.content.decode("utf-8-sig"))
@@ -249,21 +249,20 @@ class F1ArchiveClient:
 
     @property
     def topics_index(self):
-        r = self.__session.get(f"{F1ArchiveClient.static_url}/{self.__path}Index.json")
+        r = self.__client.get(f"{F1ArchiveClient.static_url}/{self.__path}Index.json")
         r.raise_for_status()
 
         index: SessionTopicsIndex = loads(r.content.decode("utf-8-sig"))
         return index
 
     @staticmethod
-    def year_index(year: int, session: Session | None = None):
+    def year_index(year: int, client: Client | None = None):
         assert year >= 2018, \
             "Requested season index earlier than 2018! Season index before 2018 not available!"
 
-        if session is None:
-            session = Session()
+        client = client or Client(http2=h2_available)
 
-        static_index = F1ArchiveClient.static_index(session=session)
+        static_index = F1ArchiveClient.static_index(client=client)
         max_year = static_index["Years"][0]["Year"]
 
         assert year <= max_year, \
@@ -273,7 +272,7 @@ class F1ArchiveClient:
         F1ArchiveClient.__logger.info(
             f"Requesting F1 Live Timing API's year {year} archive index!")
 
-        r = session.get(f"{F1ArchiveClient.static_url}/{year}/Index.json")
+        r = client.get(f"{F1ArchiveClient.static_url}/{year}/Index.json")
         r.raise_for_status()
 
         year_index: YearIndex = loads(r.content.decode("utf-8-sig"))
@@ -323,11 +322,10 @@ class F1LiveClient(SignalRClient):
         raise StopIteration
 
     @staticmethod
-    def streaming_status(session: Session | None = None):
-        if session is None:
-            session = Session()
+    def streaming_status(client: Client | None = None):
+        client = client or Client(http2=h2_available)
 
-        res = session.get(f"{F1ArchiveClient.static_url}/StreamingStatus.json")
+        res = client.get(f"{F1ArchiveClient.static_url}/StreamingStatus.json")
         res.raise_for_status()
         data: StreamingStatus = loads(res.content.decode("utf-8-sig"))
         return data["Status"]
@@ -601,7 +599,11 @@ class F1TimingClient:
 
             else:
                 for rn, timing_driver_app_data in timing_app_data["Lines"].items():
-                    self.__timing_app_data["Lines"][rn] |= timing_driver_app_data
+                    if rn not in self.__timing_app_data["Lines"]:
+                        self.__timing_app_data["Lines"][rn] = timing_driver_app_data
+
+                    else:
+                        self.__timing_app_data["Lines"][rn] |= timing_driver_app_data
 
             for rn, driver_stints in stints.items():
                 if "Stints" not in self.__timing_app_data["Lines"][rn]:
@@ -916,11 +918,17 @@ class F1LiveTimingClient:
                 self.__tc.process_reply(reply)
 
             else:
-                for invokation in invokations:
-                    self.__tc.process_invokation(*invokation["A"])
+                if invokations is not None:
+                    for invokation in invokations:
+                        if invokation is not None:
+                            self.__tc.process_invokation(*invokation["A"])
 
-                return [(StreamingTopic(invokation["A"][0]), invokation["A"][1],
-                         datetime_parser(invokation["A"][2])) for invokation in invokations]
+                    return [(StreamingTopic(invokation["A"][0]), invokation["A"][1],
+                            datetime_parser(invokation["A"][2])) for invokation in invokations
+                            if invokation is not None]
+
+                else:
+                    continue
 
         raise StopIteration
 
